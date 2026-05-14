@@ -1,3 +1,7 @@
+---
+description: 复核 review 报告 — 读取 logs/review_reports/ 下最近一份报告（可选按模型过滤：claude / codex / gpt / 具体 slug；不传参则取全局最新），逐条复核 finding / risk / open question 是否仍真实存在，给出证据（文件+行号）与落地方案草稿，输出不落盘不改代码，等用户确认后再用 /go 执行。用户说"复核 review"、"核一下 codex/gpt/claude 的 review"、"check-review" 时触发。
+---
+
 # /check-review — 复核 review 报告
 
 对 `logs/review_reports/` 下指定模型**最近一次** review 报告做"真实性复核 + 方案设计"。**不改代码**，只确认每条 finding / risk / open question 是否真实存在，并给出落地方案草稿；用户确认细节后再用 `/go` 执行。
@@ -71,7 +75,3 @@
 - 这是复核，不是二次 review；不要在报告之外新增 finding（除非报告明显漏掉了与其同一根因的连带问题，需标注"报告外补充"）
 - 不要因为报告写得模糊就盲信，也不要无证据就驳回；每条结论都要落到文件 + 行号
 - 不同模型的判断差异本身是信号：若你的复核结论与报告显著不同，明说分歧点，让用户裁决
-
----
-
-**镜像约束**：`commands/check-review.md` ↔ `skills/check-review/SKILL.md` 必须**逐字镜像** —— 从一级标题 `# /check-review` 起到本约束段之前的正文两侧完全一致；任一侧修改必须在同 commit 内镜像到另一侧。`skills/check-review/SKILL.md` 额外带 YAML frontmatter（`name` / `description`），其余无差异。

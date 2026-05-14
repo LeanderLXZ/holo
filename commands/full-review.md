@@ -1,3 +1,7 @@
+---
+description: 全仓库对齐审计 — 扫 ai_context/docs/schema/prompt/代码/样例产物，找跨文件不一致、legacy 残留、文档与实现漂移、状态机/门控缺口、bug 与隐患，输出按严重度排序的 findings 并归档到 logs/review_reports/。用户说"全库 review"、"对齐审计"、"full-review"、"跑一轮 review" 时触发。只审计，不改代码。
+---
+
 # /full-review — 全仓库对齐审计
 
 对整个仓库做一次"规范对齐 + 实现风险"的全量 review。`$ARGUMENTS` 存在则作为本轮重点或额外关注点。
@@ -122,7 +126,3 @@ logs/review_reports/{YYYY-MM-DD_HHMMSS}_{model}_{slug}.md
 - 仅 `git add` 这一份 review report 文件——不要顺手把其他无关 dirty 文件带进 commit
 - commit message 风格：`log(review_reports): /full-review {slug} ({model})`
 - 不 push，不切分支；commit 后即结束本轮 review
-
----
-
-**镜像约束**：`commands/full-review.md` ↔ `skills/full-review/SKILL.md` 必须**逐字镜像** —— 从一级标题 `# /full-review` 起到本约束段之前的正文两侧完全一致；任一侧修改必须在同 commit 内镜像到另一侧。`skills/full-review/SKILL.md` 额外带 YAML frontmatter（`name` / `description`），其余无差异。

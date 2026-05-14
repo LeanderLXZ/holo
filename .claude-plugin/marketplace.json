@@ -1,0 +1,21 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "holo-dev",
+  "description": "Local-dev single-plugin marketplace for the holo plugin (this repo is both the marketplace and the plugin).",
+  "owner": {
+    "name": "Leander",
+    "email": "leander.lxz@gmail.com"
+  },
+  "plugins": [
+    {
+      "name": "holo",
+      "description": "Workflow plugin: 10 slash commands + 5 query skills + SessionStart branch banner hook + project-skeleton scaffold for /holo-init.",
+      "author": {
+        "name": "Leander",
+        "email": "leander.lxz@gmail.com"
+      },
+      "category": "development",
+      "source": "./"
+    }
+  ]
+}

@@ -1,3 +1,7 @@
+---
+description: 把指定本地分支 push 到对应 remote。$ARGUMENTS = 分支名（不传 → 默认 `main`）。流程：解析分支 → 校验存在 → 确认追踪状态与领先/落后情况 → 干净 push（fast-forward only，不允许 --force / --no-verify）。用户说"push 一下"、"推一下 main"、"/push"、"/push library" 时触发。
+---
+
 # /push — 把分支 push 到 remote
 
 把指定本地分支推到它的 remote。**不做 commit、不做 merge、不做 rebase**——这只是个干净的 push。
@@ -47,7 +51,3 @@
 
 - 不 `--force` / `--force-with-lease` / `--no-verify` / `--no-gpg-sign`（除非用户在本轮明确授权）；不动 working tree（不 checkout / commit / merge / rebase）
 - 非"本地 ahead，远端 ancestor"之外的任何状态（behind>0 / 无追踪 / push 失败）→ 停手问，不绕过
-
----
-
-**镜像约束**：`commands/push.md` ↔ `skills/push/SKILL.md` 必须**逐字镜像** —— 从一级标题 `# /push` 起到本约束段之前的正文两侧完全一致；任一侧修改必须在同 commit 内镜像到另一侧。`skills/push/SKILL.md` 额外带 YAML frontmatter（`name` / `description`），其余无差异。

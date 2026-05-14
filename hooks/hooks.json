@@ -1,13 +1,15 @@
 {
-  "SessionStart": [
-    {
-      "matcher": "*",
-      "hooks": [
-        {
-          "type": "command",
-          "command": "${CLAUDE_PLUGIN_ROOT}/scripts/session_branch_check.sh"
-        }
-      ]
-    }
-  ]
+  "description": "holo plugin SessionStart hook — prints a branch banner at session start to surface the current git branch.",
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/session_branch_check.sh\""
+          }
+        ]
+      }
+    ]
+  }
 }

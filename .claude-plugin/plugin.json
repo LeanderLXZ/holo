@@ -1,7 +1,7 @@
 {
   "name": "holo",
   "version": "0.2.0",
-  "description": "Workflow plugin: 9 slash commands (plan/go/post-check/full-review/check-review/commit/push/todo-add/holo-init) + 5 query skills (monitor/todo/branch-inventory/recent-activity/run-prompt) + SessionStart branch banner hook. Includes `templates/project-skeleton/` scaffolding consumed by /holo-init.",
+  "description": "Workflow plugin: 10 slash commands (plan/go/post-check/full-review/check-review/commit/push/todo-add/holo-init/holo-update) + 5 query skills (monitor/todo/branch-inventory/recent-activity/run-prompt) + SessionStart branch banner hook. Includes `templates/project-skeleton/` scaffolding consumed by /holo-init.",
   "author": {
     "name": "Leander",
     "email": "leander.lxz@gmail.com"

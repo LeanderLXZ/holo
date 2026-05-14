@@ -152,7 +152,3 @@ filename 倒序排列，**先只构建索引**：每个 filename 解析时间戳
 
 - **只读**：不 `git checkout` / `merge` / `push` / `fetch` / `commit`，不改 todo_list / change_logs，不调外部 API
 - 不接受时间窗参数（`24h` / `since=...` 不支持）；要按时间过滤先 `/branch-inventory` 看 commit 时间，或者直接 `git log --since`
-
----
-
-**镜像约束**：本文件和 `.agents/skills/recent-activity/SKILL.md` 的 YAML frontmatter + 正文（从一级标题 `# /recent-activity` 起到本段之前）**逐字一致** — 任一侧修改必须在同 commit 内镜像到另一侧。本镜像约束段是两侧唯一允许差异的部分（路径互引）。

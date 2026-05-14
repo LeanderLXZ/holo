@@ -48,7 +48,3 @@ description: 直接读 docs/todo_list.md 顶部 ## Index (auto-generated; do not
 
 - **只读**：不改任何文件、不 commit、不 push
 - **信任索引段**：不解析正文、不重新分档、不补建议；索引规则单源指向 `docs/todo_list.md` "Index maintenance" 段
-
----
-
-**镜像约束**：本文件和 `.agents/skills/todo/SKILL.md` 的 YAML frontmatter + 正文（从一级标题 `# /todo` 起到本段之前）**逐字一致** — 任一侧修改必须在同 commit 内镜像到另一侧。本镜像约束段是两侧唯一允许差异的部分（路径互引）。

@@ -74,7 +74,3 @@ description: 全分支盘点 — 列所有本地 + remote 分支，按 Main / Re
 
 - 只读：不 `git checkout` / `merge` / `push` / `fetch` / `pull` / `branch -d` / `worktree prune` / `remote update` / `commit`
 - 分支数 > 50 时按分组各只展示前 20 行 + "（… 还有 N 条已折叠）"提示，避免对话刷屏
-
----
-
-**镜像约束**：本文件和 `.agents/skills/branch-inventory/SKILL.md` 的 YAML frontmatter + 正文（从一级标题 `# /branch-inventory` 起到本段之前）**逐字一致** — 任一侧修改必须在同 commit 内镜像到另一侧。本镜像约束段是两侧唯一允许差异的部分（路径互引）。

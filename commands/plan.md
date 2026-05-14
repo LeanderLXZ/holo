@@ -1,3 +1,7 @@
+---
+description: **仅在用户当前发送的这条消息字面里包含 `/plan` 时**进入只讨论模式，作用域 = 本轮一条消息，不跨消息延续——下一条消息没有 /plan → 默认行为恢复，所有写工具解锁。激活时禁用 Write / Edit / NotebookEdit；Bash 仅允许只读查询命令（cat / grep / ls / find / git log / git diff / git status / wc / head / tail 等），任何 mutating 命令（git add / commit / push / pull / merge / checkout / reset / rm / mv / mkdir / touch / 写文件 / 网络写）禁止；不主动触发 /go / /commit / /todo-add / /post-check / /full-review 等写 skill；不开 plan.md / draft.md / notes.md 临时文件。会话历史里出现过 /plan 不算激活。讨论收敛后由用户自行调用写 skill 落盘。$ARGUMENTS = 本次讨论主题（可省）。用户说 '/plan'、'纯讨论'、'只讨论不动文件'、'分析一下方案'、'plan 一下'、'先讨论再说' 等触发。
+---
+
 # /plan — 锁定为只讨论模式（仅本轮消息）
 
 **仅在用户当前发送的这条消息中包含 `/plan` 时**生效，强制进入"只讨论
@@ -28,7 +32,3 @@
 - **简单优先 + 主动 push back**：发现"按用户提议做最简，X / Y 加进来反而复杂"时，主动说"建议不做 X" + 一句理由；不要默认接受用户的所有 framing
 - **显式标注不确定性**：哪些是已读到的事实（行号 / 引用）、哪些是猜的、哪些得 grep / Read 才能下判断——分开说，让用户能逐条挑战
 - **不清楚就停**：发现关键前提歧义 / 缺信息 → 直接问一句而不是硬猜；猜测推回多轮成本远高于一句澄清
-
----
-
-**镜像约束**：`commands/plan.md` ↔ `skills/plan/SKILL.md` 必须**逐字镜像** —— 从一级标题 `# /plan` 起到本约束段之前的正文两侧完全一致；任一侧修改必须在同 commit 内镜像到另一侧。`skills/plan/SKILL.md` 额外带 YAML frontmatter（`name` / `description`），其余无差异。

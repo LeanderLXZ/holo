@@ -10,7 +10,7 @@ that lets every skill adapt to the repo it's running in.
 ```
 holo/
 ├── .claude-plugin/plugin.json          # plugin manifest
-├── commands/                           # 9 slash commands
+├── commands/                           # 10 slash commands
 │   ├── plan.md                         # discussion-only mode (one turn)
 │   ├── go.md                           # 11-step plan → land flow
 │   ├── post-check.md                   # two-track audit after /go
@@ -19,20 +19,20 @@ holo/
 │   ├── commit.md                       # commit + optional auto-sync
 │   ├── push.md                         # fast-forward-only push
 │   ├── todo-add.md                     # add/update docs/todo_list.md
-│   └── holo-init.md                    # materialize the project skeleton
-├── skills/                             # 14 SKILL.md (5 query + 9 mirrors)
+│   ├── holo-init.md                    # materialize the project skeleton
+│   └── holo-update.md                  # post-plugin-update sync check
+├── skills/                             # 5 SKILL.md (query skills only)
 │   ├── monitor/                        # background process inventory
 │   ├── todo/                           # todo_list index view
 │   ├── branch-inventory/               # branch grouping & health
 │   ├── recent-activity/                # unified reverse-chrono timeline
-│   ├── run-prompt/                     # load & run a prompt file
-│   └── <command>/                      # one mirror per command in commands/
+│   └── run-prompt/                     # load & run a prompt file
 ├── templates/
 │   └── project-skeleton/               # 22 files copied by /holo-init
 ├── hooks/
 │   └── hooks.json                      # SessionStart registration
 └── scripts/
-    └── session_branch_check.sh         # branch banner + abandoned-work warning
+    └── session_branch_check.sh         # one-line branch banner
 ```
 
 ## Install
@@ -73,7 +73,8 @@ No arguments — repository state is auto-detected.
 ### Optional `.agents/skills/` mirror
 
 Step 0 asks whether to generate `.agents/skills/<name>/SKILL.md` in the
-user's project (14 files copied verbatim from `skills/`). Choose **Yes**
+user's project (every SKILL.md under `skills/` copied verbatim — count
+follows whatever the plugin currently ships). Choose **Yes**
 when you cross-validate via Codex / Copilot / other non-Claude runtimes
 that don't load Claude Code plugins, or want the project to carry its
 own command/skill definitions without depending on the plugin being
@@ -109,15 +110,38 @@ no process detection performed).
 `/holo-init` materialises a starter `ai_context/skills_config.md` with
 all 11 headers present and `(none)` bodies, ready to fill in.
 
-## Mirror enforcement (plugin-internal)
+## commands/ vs skills/
 
-Each `commands/<name>.md` ↔ `skills/<name>/SKILL.md` pair has
-**identical body** — from the `# /<name>` heading to the trailing
-`**镜像约束**` footer. SKILL.md additionally carries YAML frontmatter
-(`name`, `description` — including trigger phrases for harness
-matching). Any change to one side must mirror to the other in the
-same commit; the footer is identical text on both sides so the rule
-is self-evident from either file.
+`commands/` and `skills/` are **separate, non-overlapping** sources:
+
+- `commands/<name>.md` — user-typed slash commands. YAML frontmatter
+  carries `description` (shown in slash-command UI; also doubles as
+  the trigger hint when mirrored into `.agents/skills/`). No `name:`
+  field — Claude Code derives it from filename.
+- `skills/<name>/SKILL.md` — agent-autonomous skills (5 query skills:
+  `monitor` / `todo` / `branch-inventory` / `recent-activity` /
+  `run-prompt`). YAML frontmatter must carry both `name:` and
+  `description:`.
+
+There is **no per-file mirror constraint** between `commands/` and
+`skills/`. Each lives in exactly one place. `/holo-update` is the
+sole mechanism that detects drift between the plugin source and any
+user-project `.agents/skills/` copy.
+
+### `.agents/skills/` for non-Claude runtimes
+
+`/holo-init` (when user opts in) generates `.agents/skills/<name>/SKILL.md`
+in the consuming project from **both** sources, so runtimes that don't
+understand slash commands (Codex / Cursor / etc.) see everything as
+skills:
+
+| Source | Path | Conversion |
+|---|---|---|
+| commands | `${CLAUDE_PLUGIN_ROOT}/commands/<name>.md` | inject `name: <name>` into frontmatter; body unchanged |
+| skills | `${CLAUDE_PLUGIN_ROOT}/skills/<name>/SKILL.md` | byte-for-byte copy |
+
+After a plugin update, run `/holo-update` to detect and fix
+`.agents/skills/` drift, plus new template files / sections.
 
 ## Design notes
 
