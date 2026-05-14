@@ -1,0 +1,15 @@
+# Editor / IDE
+.history/
+.idea/
+.vscode/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Local config
+*.local.toml
+*.local.json
+.env
+.env.local
