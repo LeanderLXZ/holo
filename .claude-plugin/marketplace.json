@@ -1,7 +1,6 @@
 {
-  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
-  "name": "holo-dev",
-  "description": "Local-dev single-plugin marketplace for the holo plugin (this repo is both the marketplace and the plugin).",
+  "name": "holo",
+  "description": "Self-hosted marketplace for the holo plugin.",
   "owner": {
     "name": "Leander",
     "email": "leander.lxz@gmail.com"
@@ -9,13 +8,20 @@
   "plugins": [
     {
       "name": "holo",
-      "description": "Workflow plugin: 10 slash commands + 5 query skills + SessionStart branch banner hook + project-skeleton scaffold for /holo-init.",
+      "description": "Disciplined AI-pair-programming workflow for Claude Code: plan-execute-verify cycle, cross-file alignment audits, branch-aware git operations, and a structured task/log ledger.",
       "author": {
         "name": "Leander",
         "email": "leander.lxz@gmail.com"
       },
       "category": "development",
-      "source": "./"
+      "source": "./",
+      "homepage": "https://github.com/LeanderLXZ/holo",
+      "license": "MIT",
+      "keywords": [
+        "claude-code",
+        "workflow",
+        "ai-pair-programming"
+      ]
     }
   ]
 }

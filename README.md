@@ -10,25 +10,26 @@ that lets every skill adapt to the repo it's running in.
 ```
 holo/
 ├── .claude-plugin/plugin.json          # plugin manifest
-├── commands/                           # 10 slash commands
+├── commands/                           # slash commands
 │   ├── plan.md                         # discussion-only mode (one turn)
-│   ├── go.md                           # 11-step plan → land flow
+│   ├── go.md                           # plan → land flow with branch-strategy prompts
 │   ├── post-check.md                   # two-track audit after /go
 │   ├── full-review.md                  # whole-repo alignment audit
 │   ├── check-review.md                 # re-validate a stored review report
-│   ├── commit.md                       # commit + optional auto-sync
-│   ├── push.md                         # fast-forward-only push
+│   ├── commit.md                       # commit current working-tree changes
+│   ├── forward.md                      # merge current branch into target branches
+│   ├── push.md                         # fast-forward-only push (current branch by default)
 │   ├── todo-add.md                     # add/update docs/todo_list.md
 │   ├── holo-init.md                    # materialize the project skeleton
 │   └── holo-update.md                  # post-plugin-update sync check
-├── skills/                             # 5 SKILL.md (query skills only)
+├── skills/                             # query skills (agent-autonomous)
 │   ├── monitor/                        # background process inventory
 │   ├── todo/                           # todo_list index view
 │   ├── branch-inventory/               # branch grouping & health
 │   ├── recent-activity/                # unified reverse-chrono timeline
 │   └── run-prompt/                     # load & run a prompt file
 ├── templates/
-│   └── project-skeleton/               # 22 files copied by /holo-init
+│   └── project-skeleton/               # files copied by /holo-init
 ├── hooks/
 │   └── hooks.json                      # SessionStart registration
 └── scripts/
@@ -37,17 +38,10 @@ holo/
 
 ## Install
 
-Plugins live under a marketplace or local plugin path configured in
-`~/.claude/settings.json`. Quickest local install:
-
-```bash
-# from a marketplace dir registered in settings.json
-ln -s /home/leander/Leander/holo <marketplace>/holo
-```
-
-Then in Claude Code:
+In Claude Code:
 
 ```
+/plugin marketplace add https://github.com/LeanderLXZ/holo.git
 /plugin install holo
 ```
 
@@ -86,7 +80,7 @@ Most skills read `ai_context/skills_config.md` in the consuming project
 for project-specific anchors. Missing required section → loud fail;
 `(none)` body → graceful skip of that anchor's logic.
 
-The 11 required `## <name>` headers (each at top level of
+The required `## <name>` headers (each at top level of
 `ai_context/skills_config.md`):
 
 | Section | Used by |
@@ -108,7 +102,7 @@ gracefully when the config is absent (defaults: main branch = `main`,
 no process detection performed).
 
 `/holo-init` materialises a starter `ai_context/skills_config.md` with
-all 11 headers present and `(none)` bodies, ready to fill in.
+all required headers present and `(none)` bodies, ready to fill in.
 
 ## commands/ vs skills/
 
@@ -118,10 +112,8 @@ all 11 headers present and `(none)` bodies, ready to fill in.
   carries `description` (shown in slash-command UI; also doubles as
   the trigger hint when mirrored into `.agents/skills/`). No `name:`
   field — Claude Code derives it from filename.
-- `skills/<name>/SKILL.md` — agent-autonomous skills (5 query skills:
-  `monitor` / `todo` / `branch-inventory` / `recent-activity` /
-  `run-prompt`). YAML frontmatter must carry both `name:` and
-  `description:`.
+- `skills/<name>/SKILL.md` — agent-autonomous query skills. YAML
+  frontmatter must carry both `name:` and `description:`.
 
 There is **no per-file mirror constraint** between `commands/` and
 `skills/`. Each lives in exactly one place. `/holo-update` is the

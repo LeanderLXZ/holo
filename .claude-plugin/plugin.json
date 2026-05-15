@@ -1,9 +1,19 @@
 {
   "name": "holo",
-  "version": "0.2.0",
-  "description": "Workflow plugin: 10 slash commands (plan/go/post-check/full-review/check-review/commit/push/todo-add/holo-init/holo-update) + 5 query skills (monitor/todo/branch-inventory/recent-activity/run-prompt) + SessionStart branch banner hook. Includes `templates/project-skeleton/` scaffolding consumed by /holo-init.",
+  "version": "0.4.0",
+  "description": "Disciplined AI-pair-programming workflow for Claude Code: plan-execute-verify cycle, cross-file alignment audits, branch-aware git operations, and a structured task/log ledger.",
   "author": {
     "name": "Leander",
     "email": "leander.lxz@gmail.com"
-  }
+  },
+  "homepage": "https://github.com/LeanderLXZ/holo",
+  "repository": "https://github.com/LeanderLXZ/holo.git",
+  "license": "MIT",
+  "keywords": [
+    "claude-code",
+    "claude-code-plugin",
+    "workflow",
+    "ai-pair-programming",
+    "agentic-coding"
+  ]
 }

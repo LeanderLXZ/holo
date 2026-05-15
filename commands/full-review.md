@@ -120,7 +120,7 @@ logs/review_reports/{YYYY-MM-DD_HHMMSS}_{model}_{slug}.md
 - `logs/review_reports/` 仅存 review 结果快照；与 `logs/change_logs/`（历史决策
   记录）、`docs/todo_list.md`（待办）职责互不重叠
 
-写完后**立即 commit 这一份 review report 文件**——不要留作脏工作区，否则下一轮 `/go` 的 Step 1 自动锁定逻辑会把这份残留误判为"dirty 工作区"而强制走 worktree 路径。
+写完后**立即 commit 这一份 review report 文件**——不要留作脏工作区，否则下一轮 `/go` 的 Step 1 询问会把这份残留计入 dirty 摘要，迫使用户多分一次心，留作脏工作区毫无收益。
 
 - commit 在**当前分支**即可（`/full-review` 通常在用户当前所在分支跑，无需切换）
 - 仅 `git add` 这一份 review report 文件——不要顺手把其他无关 dirty 文件带进 commit

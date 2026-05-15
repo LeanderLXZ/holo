@@ -50,3 +50,7 @@ logs/
 .agents/
 CLAUDE.md
 AGENTS.md
+
+# Defensive: /holo-release command file must never ship to main payload.
+# Pathspec :(exclude) handles it primarily; this line is fallback.
+commands/holo-release.md
