@@ -1,28 +1,32 @@
 ---
-description: plugin 升级后的项目同步检查 — 把当前项目里跟 plugin 关联的产物（.agents/skills/ 镜像、ai_context/ 结构、CLAUDE.md/AGENTS.md、docs/logs/ 骨架）跟当前装上的 plugin (${CLAUDE_PLUGIN_ROOT}) 比对，找出 plugin 升级了但项目没跟上的 drift（.agents 镜像 STALE/MISSING/ORPHAN、模板新增文件、模板新增 section header），按类别报告并询问是否自动修。只动结构性 drift；不动用户填的内容。无参数；不 git add / 不 commit。用户说"plugin 升级了"、"holo-update"、"同步 holo 更新"、"检查 holo 是否最新" 时触发。
+description: plugin 升级后的项目同步检查 — 把当前项目跟当前装上的 plugin 比对（`.agents/skills/` 镜像、模板新增文件 / 段 header、`CLAUDE.md` / `AGENTS.md` 头部），找 plugin 升级带来的结构性 drift。**所有检测逻辑由 `${CLAUDE_PLUGIN_ROOT}/scripts/holo_update_check.py` 单一脚本完成**，skill body 不重写规则。≥ 1 drift 时单题汇总询问 Auto-fix all / Skip all；0 drift 静默通过。CLAUDE / AGENTS 类 finding 永远只显示、不自动 merge。无参数；当前目录是否空 / 是否已初始化都能识别处理。不动用户已填的内容，不 git add / 不 commit。用户说"plugin 升级了"、"holo-update"、"同步 holo 更新"、"检查 holo 是否最新" 时触发。
 ---
 
 # /holo-update — plugin 升级后的项目同步检查
 
-把当前项目里跟 plugin 关联的产物（`.agents/skills/` 镜像、`ai_context/` 结构、`CLAUDE.md` / `AGENTS.md`、`docs/` / `logs/` 骨架）跟当前装上的 plugin (`${CLAUDE_PLUGIN_ROOT}`) 比对，找出"plugin 升级了但项目里没跟上"的地方，按类别报告并询问是否自动修。
+把当前项目里跟 plugin 关联的产物（`.agents/skills/` 镜像、`templates/project-skeleton/` 文件 + section header、`CLAUDE.md` / `AGENTS.md` 头部）跟当前装上的 plugin (`${CLAUDE_PLUGIN_ROOT}`) 比对，找出"plugin 升级了但项目里没跟上"的 drift，单题汇总询问后批量 fix。
 
-无参数。**只动 plugin 升级带来的结构性 drift**（缺文件、缺 section header、镜像 stale）；**不动用户填进去的内容**。
+**检测规则的 single source of truth = `${CLAUDE_PLUGIN_ROOT}/scripts/holo_update_check.py`**。skill body **不重写检测逻辑**；若需调整规则，改脚本并按 `ai_context/conventions.md` §Cross-File Alignment 同步本文件 + `commands/holo-init.md` Step 1.2。背景见 `ai_context/decisions.md` §Skill Implementation #5。
+
+无参数。**只动 plugin 升级带来的结构性 drift**；**不动用户填进去的内容**。CLAUDE/AGENTS 类 finding 永远只显示、不自动 merge。
 
 ## Progress reporting
 
-下方流程分为 `## Step 0:` ~ `## Step 4:`。
+下方流程分为 `## Step 0:` ~ `## Step 3:`。
 
-**进入 Step 0 之前**：调 **<进度工具>** 把 Step 0 ~ Step 4 全部预登记（`status` 全为 `pending`）。**不调 <进度工具> 不许往下走**。
+**进入 Step 0 之前**：调 **<进度工具>** 把 Step 0 ~ Step 3 全部预登记（`status` 全为 `pending`）。**不调 <进度工具> 不许往下走**。
 
 每进入一个 step：把当前 step 改 `in_progress`、上一个标 `completed`。
 
 **<进度工具> 解析**：Claude → `TodoWrite`；Codex → `update_plan`；其他 runtime → 在 response 文本里维护 markdown checkbox 列表。
 
+**<问询工具> 解析**：Claude → `AskUserQuestion`；其他 runtime → 在 response 文本里编号列出问题 + 选项让用户一次回答。
+
 ## Step 0: 前置检查
 
 **0.1 plugin 信息**
 
-- 解析 `${CLAUDE_PLUGIN_ROOT}`（若未设置，从本命令所在路径反推到 plugin 根）
+- 解析 `${CLAUDE_PLUGIN_ROOT}`（若未设置，脚本会从自身路径反推到 plugin 根；fail loudly 时停手）
 - 读 `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json` 的 `name` + `version`，打印 `Checking project against <name> v<version>...`
 
 **0.2 项目是否已被 /holo-init 过**
@@ -39,146 +43,126 @@ description: plugin 升级后的项目同步检查 — 把当前项目里跟 plu
 
 - `test -d .git && git status --short`；dirty → 打印警告但不停手（`/holo-update` 不 commit，跟 `/holo-init` 一致）
 
-## Step 1: `.agents/skills/` 镜像 drift 检查（双源）
-
-仅当 `<workdir>/.agents/skills/` 存在时执行；不存在 → 整段跳过并打印 `Skipped (.agents/skills/ not in this project)`。
-
-`.agents/skills/` 的源是 plugin 的 commands/ + skills/ 两个目录（参考 `/holo-init` Step 1.2 的双源生成逻辑）。drift 检查要把这两个源都覆盖：
-
-**1.1 commands 源（注入 `name:` 后期望的 SKILL.md）**
-
-对每个 `${CLAUDE_PLUGIN_ROOT}/commands/<name>.md`：
-
-- 按 `/holo-init` Step 1.2 同款逻辑算出"期望的 SKILL.md 内容"（frontmatter 注入 `name: <name>`）
-- 跟 `.agents/skills/<name>/SKILL.md` 比对：
-  - 文件不存在 → `MISSING`（plugin 新加了 command）
-  - 存在但内容不一致 → `STALE`（plugin 改了 command body 或 frontmatter）
-  - 一致 → 跳过
-
-**1.2 skills 源（byte-for-byte）**
-
-对每个 `${CLAUDE_PLUGIN_ROOT}/skills/<name>/SKILL.md`：
-
-- 跟 `.agents/skills/<name>/SKILL.md` byte-compare：
-  - 文件不存在 → `MISSING`
-  - 不一致 → `STALE`
-  - 一致 → 跳过
-
-**1.3 反向枚举（ORPHAN）**
-
-对每个 `.agents/skills/<name>/SKILL.md`：
-
-- plugin 既没有 `commands/<name>.md` 也没有 `skills/<name>/SKILL.md` → `ORPHAN`（plugin 移除了该 command/skill）
-
-汇总 `STALE / MISSING / ORPHAN` 三个列表的数量，进入 Step 4 一起报告。
-
-## Step 2: `templates/project-skeleton/` drift 检查
-
-枚举 `${CLAUDE_PLUGIN_ROOT}/templates/project-skeleton/` 下全部文件，对每个相对路径 `<rel>`：
-
-**2.1 文件级**：
-
-- 项目里 `<rel>` 不存在 → `MISSING_TEMPLATE`（plugin 新增了模板文件，需要 copy 进项目）
-
-**2.2 Section 级**（仅对 `*.md` 文件，且项目里 `<rel>` 已存在）：
-
-不做 byte-级 diff（用户已经填了内容，行级 diff 全是 noise）。改成**比对 `^## ` header 集合**：
-
-- 抽出模板的 `^## ` headers 集合 `T`
-- 抽出项目同名文件的 `^## ` headers 集合 `P`
-- 差集 `T - P` = 模板有、项目没有 → `MISSING_SECTION`，每条记录为 `<rel>:<header>`
-- 差集 `P - T` 不报（用户可能自己加了 section，不算 drift）
-
-参考实现：
+## Step 1: 跑检测脚本
 
 ```bash
-python3 <<'PYEOF'
-import os, re, glob
-SKEL = os.environ.get('CLAUDE_PLUGIN_ROOT', '.') + '/templates/project-skeleton'
-missing_file, missing_section = [], []
-for f in glob.glob(f'{SKEL}/**/*', recursive=True):
-    if not os.path.isfile(f): continue
-    rel = os.path.relpath(f, SKEL)
-    if not os.path.exists(rel):
-        missing_file.append(rel); continue
-    if not rel.endswith('.md'): continue
-    def headers(path):
-        return {l.rstrip() for l in open(path) if re.match(r'^## ', l)}
-    delta = headers(f) - headers(rel)
-    for h in sorted(delta):
-        missing_section.append(f'{rel}: {h}')
-print('MISSING_TEMPLATE:', missing_file)
-print('MISSING_SECTION:', missing_section)
-PYEOF
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/holo_update_check.py" --json
 ```
 
-## Step 3: `CLAUDE.md` / `AGENTS.md` 头部完整性
+脚本输出 JSON 结构（**接口契约**，skill body 按此键名解析；变更见 conventions.md §Cross-File Alignment）：
 
-**3.1** 项目顶层 `CLAUDE.md` 第一行是否还是模板占位 `# <project-name> — Claude Entry Point` —— 是 → 警告"`/holo-init` 时没填项目名"。`AGENTS.md` 同。
+```json
+{
+  "plugin_root": "...", "target_root": "...",
+  "agents_sync": {
+    "skipped": false,
+    "stale":   [{"name": "...", "source_path": "...", "source_type": "command|skill", "target_path": "..."}],
+    "missing": [/* 同 stale */],
+    "orphan":  [{"name": "...", "target_path": "..."}]
+  },
+  "missing_template": [{"rel": "...", "source_path": "...", "target_path": "..."}],
+  "missing_section":  [{"rel": "...", "header": "## ..."}],
+  "claude_agents": {
+    "present": true,
+    "first_line_placeholder": false,
+    "unexpected_diffs": [{"line": N, "CLAUDE": "...", "AGENTS": "..."}]
+  }
+}
+```
 
-**3.2** `diff CLAUDE.md AGENTS.md` —— 除以下三处模板预期 diff 外的差异都警告（说明用户只更新了一边，两边失同步）：
+**`agents_sync.skipped == true`** = 项目里没 `.agents/skills/` 目录，跳过镜像检查（消费项目可以不要镜像）。
 
-- 第一行 Entry Point 类型（`Claude` vs `Agent`）
-- "auto-loaded by ... at session start" 段
-- "Sync with X" 段互指
+**重要**：本步**不允许 skill body 重新写检测规则** —— 不写自己的 grep / Python 比对、不加 filter / 排除。若发现某 case 检测不准、漏报或误报，**改脚本而不是 skill body**。这是 `ai_context/decisions.md` §Skill Implementation #5 的 hard 约束。
 
-## Step 4: 报告 + 询问 + 自动修
+## Step 2: 报告 + 询问 + 自动修
 
-**4.1 汇总打印**
+**2.1 汇总打印**
 
-按类别打印 Step 1 / 2 / 3 的发现：
+按脚本 JSON 输出转成自然语言报告：
 
 ```
 Plugin: <name> v<version>
 
-.agents/skills/ 镜像 drift:
-  STALE   (N):  <name list>
-  MISSING (M):  <name list>
-  ORPHAN  (K):  <name list>
+.agents/skills/:    STALE=<P> | MISSING=<Q> | ORPHAN=<R>   <or "skipped (not present)">
+  STALE   (P): <name list>
+  MISSING (Q): <name list>
+  ORPHAN  (R): <name list>
 
-模板 drift:
-  MISSING_TEMPLATE (X):  <relative-path list>
-  MISSING_SECTION  (Y):  <file>:<header> list
+模板:
+  MISSING_TEMPLATE (S): <rel-path list>
+  MISSING_SECTION  (T): <"<rel>: <header>" list>
 
 CLAUDE.md / AGENTS.md:
-  <findings or "OK">
+  first_line_placeholder: <true/false>
+  unexpected_diffs (U):   <line summaries>
 ```
 
-若全部为 0 → 打印 `✅ Project is in sync with <name> v<version>; nothing to do.` 并退出。
+`total_drift = P + Q + R + S + T + U`。
 
-**4.2 询问**
+`total_drift == 0` → 打印 `✅ Project is in sync with <name> v<version>; nothing to do.` 并退出。
 
-用 **<问询工具>** 问最多 4 题，每题给一个类别的 `Auto-fix / Skip`：
+**2.2 询问（单题汇总）**
 
-1. `.agents/skills/` STALE + MISSING + ORPHAN —— `Auto-fix` = 对 STALE/MISSING 用 `/holo-init` Step 1.2 同款双源逻辑重新生成对应 `<name>`（commands 源注入 `name:` 转写；skills 源 byte copy），对 ORPHAN 跑 `rm -rf .agents/skills/<name>/`；`Skip` = 不动
-2. MISSING_TEMPLATE —— `Auto-fix` = 对每个 rel 跑 `cp ${CLAUDE_PLUGIN_ROOT}/templates/project-skeleton/<rel> <rel>`（含 `mkdir -p` 父目录）；`Skip` = 不动
-3. MISSING_SECTION —— `Auto-fix` = 在对应文件末尾 append 缺失的 header + 一行 `_(TODO — added by /holo-update; fill via /go or direct edit)_`；`Skip` = 不动
-4. CLAUDE/AGENTS unsync —— **永远不自动修**（自动 merge 太危险），只列差异让用户手工处理；本题略
+`total_drift ≥ 1` → 用 **<问询工具>** 问**一题**，展示全部 finding + 每类的执行动作：
 
-类别数量为 0 的题直接跳过不问。所有题都为 0 → 整个 4.2 跳过。
+```
+发现 <total_drift> 处 drift（plugin: <name> v<version>）：
 
-**4.3 应用 + 验证**
+.agents/skills/:
+  STALE   (P): <names>   → 脚本将用 expected_mirror_content() 重新生成
+  MISSING (Q): <names>   → 脚本将生成
+  ORPHAN  (R): <names>   → 脚本将 rm -rf .agents/skills/<name>/   ⚠️ 删除
 
-按用户答案执行。完成后**跑一次 `/holo-init` Step 3.1 的 placeholder grep**（Python 版） —— 确认 4.2 的 fix 没引入新的 `<...>` 残留。
+模板:
+  MISSING_TEMPLATE (S): <paths>   → 脚本将从 templates/project-skeleton/ cp
+  MISSING_SECTION  (T): <list>    → 脚本将 append `## <header>` + _(TODO)_ 标记
 
-## Step 5: 总结打印（编号是 5 但位置在 Step 4 之后；不需要预登记）
+CLAUDE.md / AGENTS.md:
+  <findings>   → 永不自动 merge（仅显示，需手工处理）
+
+[Auto-fix all] / [Skip all]
+```
+
+选项：
+
+- **`Auto-fix all`**（推荐）：
+  ```bash
+  python3 "${CLAUDE_PLUGIN_ROOT}/scripts/holo_update_check.py" --fix --json
+  ```
+  CLAUDE/AGENTS findings 不在 `--fix` 的处理范围（脚本设计上跳过），不会动这两个文件
+- **`Skip all`**：不做任何修改
+
+**2.3 应用 + 验证**
+
+选 `Auto-fix all` → 调脚本 `--fix --json` 模式（注意 `--fix` 隐含先 `--check`）；输出 `fix_counts` JSON。再调一次 `--json`（无 `--fix`）做 post-fix 自检：
+
+- `agents_sync.stale / missing / orphan` 应全为 0
+- `missing_template` 应为 0
+- `missing_section` 应为 0
+- `claude_agents.unexpected_diffs` 可能仍 > 0（不在 `--fix` 范围）
+
+post-fix 上述前 3 项任一 > 0 → 报告异常并停手（说明脚本实现有 bug 或权限问题，让用户决定）。
+
+## Step 3: 总结打印
 
 ```
 ✅ /holo-update 完成
 
 Plugin: <name> v<version>
-.agents/skills/:        STALE→A | MISSING→B | ORPHAN→C  (fixed: F1)
-模板：                  MISSING_TEMPLATE→D | MISSING_SECTION→E  (fixed: F2)
-CLAUDE/AGENTS sync:     <OK / N warnings (manual fix needed)>
+.agents/skills/:    regenerated=A | created=B | deleted=C
+模板:               template_copied=D | section_appended=E
+CLAUDE/AGENTS:      <OK / U warnings (manual fix needed)>
 
-下一步建议（若有 _(TODO)_ append 或 manual sync）：
-  1. 检查 _(TODO — added by /holo-update)_ 标记，按需填入实际内容
-  2. CLAUDE.md ↔ AGENTS.md 手工 sync 后跑 `diff` 验证
+下一步建议（仅当有 _(TODO)_ append 或 manual sync）：
+  1. 检查 `_(TODO — added by /holo-update)_` 标记，按需填入实际内容
+  2. CLAUDE.md ↔ AGENTS.md 如有 unexpected diffs 手工 sync 后跑 diff 验证
   3. `/commit` 把 sync 改动落盘
 ```
 
 ## 约束
 
-- **只动 plugin 升级带来的结构性 drift**（缺文件、缺 section header、镜像 stale）；不动用户已填的内容
+- **检测 / fix 规则唯一来源** = `scripts/holo_update_check.py`；skill body 不重写
+- **只动 plugin 升级带来的结构性 drift**（缺文件 / 缺 section header / 镜像 stale / 镜像 orphan）；不动用户已填的内容
 - **不 `git add` / 不 commit**：跟 `/holo-init` 一致，提交由用户用 `/commit` 处理
-- **CLAUDE/AGENTS 不自动 merge**：只报告差异，不动文件
+- **CLAUDE/AGENTS 不自动 merge**：脚本 `--fix` 设计上不动这两文件，只在 check 输出报告它们
+- 检测规则需调整 → 改 `scripts/holo_update_check.py`，按 `ai_context/conventions.md` §Cross-File Alignment 同步本文件的 Step 1 JSON 契约说明 + `commands/holo-init.md` Step 1.2（如 `expected_mirror_content` 签名变动）

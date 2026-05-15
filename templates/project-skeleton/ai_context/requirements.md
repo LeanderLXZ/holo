@@ -23,6 +23,4 @@ requirement changes; that pairing is one row of
 
 ## Sections
 
-<Add one section per requirement cluster as the project grows. Each
-section should be 2–5 lines and end with `→ docs/requirements.md §N`
-pointing to the authoritative paragraph.>
+_(no requirement clusters indexed yet)_

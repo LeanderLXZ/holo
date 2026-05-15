@@ -128,10 +128,9 @@ PRE 段必须包含：
 
 按本次讨论触及的范围筛取（不要无脑全跑）：
 
-- **`docs/requirements.md`**：相关节 / 流程图 / 示例。**新增流程图 / 示例仅当现有内容无法覆盖新逻辑时**，避免冗余
-- **`docs/architecture/`**：本次拍板含结构性决策（新模块 / 新接口 / 新状态机 / 调用关系变化）时更新
-- **`ai_context/requirements.md`**：与 `docs/requirements.md` 相关节同步
-- **`ai_context/decisions.md`**：本次产生的 durable 决策立刻落条目，不要拖到 Step 6 / Step 8
+- **`docs/requirements.md` + `ai_context/requirements.md`**（一对，lockstep）：本次涉及**用户可见的功能契约 / 验收标准 / 边界情况约束**变化时更新对应节
+- **`docs/architecture/` + `ai_context/architecture.md`**（一对，lockstep）：本次涉及以下任一时更新对应节 —— **新模块 / 新接口 / 新状态机 / 调用关系变化 / 新分支策略 / 新工作流契约 / 新入口点**
+- **`ai_context/decisions.md`**：本次产生的 durable 决策立刻落条目，不要拖到 Step 6 / Step 8；**若决策涉及上一行的触发词，必须同步在 architecture / requirements 加一节描述**（决策是 "why"，architecture / requirements 是 "what"）
 - **`prompts/`**：讨论结论包含 prompt 行为契约 / 模板变化时更新
 - **`README.md`**：仅当目录 / 入口 / 启动方式有变化
 

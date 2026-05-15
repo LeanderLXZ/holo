@@ -1,9 +1,9 @@
 {
   "name": "holo",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "Disciplined AI-pair-programming workflow for Claude Code: plan-execute-verify cycle, cross-file alignment audits, branch-aware git operations, and a structured task/log ledger.",
   "author": {
-    "name": "Leander",
+    "name": "LeanderLXZ",
     "email": "leander.lxz@gmail.com"
   },
   "homepage": "https://github.com/LeanderLXZ/holo",

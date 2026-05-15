@@ -126,52 +126,44 @@ description: 项目骨架初始化 — 把 plugin 内 templates/project-skeleton
 
 冲突处理（目标已存在但内容不同）：用 Step 1.1 同款 `keep` / `overwrite` 询问；不支持 `merge`（frontmatter 合并易出错）。
 
+**期望内容计算 = single source of truth**：用 `scripts/holo_update_check.py` 导出的 `expected_mirror_content(source_path, name, source_type)` 纯函数。本步**不重新实现 frontmatter 注入逻辑**；要改格式规则就改脚本。参见 `ai_context/decisions.md` §Skill Implementation #5。
+
 参考实现：
 
 ```bash
 python3 <<'PYEOF'
-import os, re, glob
+import os, sys, glob
 
 PR = os.environ.get('CLAUDE_PLUGIN_ROOT')  # fallback: derive from command path if unset
+sys.path.insert(0, f'{PR}/scripts')
+from holo_update_check import expected_mirror_content
+
 target = '.agents/skills'
 os.makedirs(target, exist_ok=True)
-copied = kept = same = 0
+copied = same = conflict = 0
 
-def write_skill(name, content):
-    global copied, kept, same
+def install(name, content):
+    global copied, same, conflict
     dst = f'{target}/{name}/SKILL.md'
     os.makedirs(os.path.dirname(dst), exist_ok=True)
     if os.path.exists(dst):
-        with open(dst) as f:
-            existing = f.read()
-        if existing == content:
+        if open(dst).read() == content:
             same += 1; return
         # conflict — Step 1.1 same flow asks user keep/overwrite
-        return
+        conflict += 1; return
     with open(dst, 'w') as f:
         f.write(content)
     copied += 1
 
-# Source 1: commands/ — inject name: into frontmatter
 for cmd in sorted(glob.glob(f'{PR}/commands/*.md')):
     name = os.path.splitext(os.path.basename(cmd))[0]
-    content = open(cmd).read()
-    m = re.match(r'^---\n(.*?)\n---\n', content, re.DOTALL)
-    if m:
-        front, body = m.group(1), content[m.end():]
-        if not re.search(r'^name:\s', front, re.MULTILINE):
-            front = f'name: {name}\n{front}'
-        new = f'---\n{front}\n---\n{body}'
-    else:
-        new = f'---\nname: {name}\n---\n{content}'
-    write_skill(name, new)
+    install(name, expected_mirror_content(cmd, name, 'command'))
 
-# Source 2: skills/ — byte copy
 for sk in sorted(glob.glob(f'{PR}/skills/*/SKILL.md')):
     name = os.path.basename(os.path.dirname(sk))
-    write_skill(name, open(sk).read())
+    install(name, expected_mirror_content(sk, name, 'skill'))
 
-print(f'.agents/skills/: Copied {copied} | Identical {same} | Conflicts -> Step 1.1 flow')
+print(f'.agents/skills/: Copied {copied} | Identical {same} | Conflicts {conflict}')
 PYEOF
 ```
 

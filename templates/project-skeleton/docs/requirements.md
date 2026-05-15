@@ -16,5 +16,4 @@ Alignment — change either one and the other must move in lockstep.
 
 ## Sections
 
-<Numbered sections, one per requirement cluster. Add as the project
-grows.>
+_(no requirements drafted yet)_

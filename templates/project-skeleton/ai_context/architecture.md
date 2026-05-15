@@ -28,19 +28,12 @@ line. New top-level directories get a row here.>
 
 ## System Layers
 
-<numbered list of the conceptual layers / stages of the system —
-e.g. "1. Ingest — raw input normalization", "2. Processing — …".
-Each layer should be one short line.>
+_(none yet)_
 
 ## Key Boundaries
 
-<bulleted list of hard boundaries the architecture enforces —
-e.g. "Layer X never reads from Layer Y", "Schema-validated artifacts
-do not leave directory Z without passing gate G". Each boundary should
-trace to a paragraph in `docs/architecture/` for the full rationale.>
+_(none yet)_
 
 ## Runtime / Entry Points
 
-<short list of the primary entry points — CLI commands, services,
-adapters — and one line on what each does. Detail lives in the linked
-docs / READMEs.>
+_(none yet)_
