@@ -1,6 +1,6 @@
 ---
 name: branch-inventory
-description: 全分支盘点 — 列所有本地 + remote 分支，按 Main / Resting / Protected (active) / Protected (abandoned) / Other local / Remote-only 分组。从 ai_context/skills_config.md 读 `## Main branch policy`、`## Protected branch prefixes`、`## Background processes`，每个分支标注：last commit 时间 + age、ahead/behind tracking、对应 worktree、（保护前缀分支额外）pgrep 关联的活跃 extraction 进程。末尾给"建议动作"摘要（如 abandoned 分支可能要 git branch -d、ahead 多 commit 提醒 /push 等）但**不执行**。只读：不 checkout、不 merge、不 push、不 fetch、不删分支、不改 git 状态。$ARGUMENTS 可选 = 分支名子串过滤（如 extraction）/ "all"。用户说 "还有哪些分支"、"分支盘点"、"哪些 extraction 分支废了"、"branch-inventory"、"看下分支状况"、"清一下分支" 时触发。
+description: 全分支盘点 — 列所有本地 + remote 分支按 Main / Resting / Protected (active) / Protected (abandoned) / Other local / Remote-only 6 组分组，每分支标 last commit + age + ahead/behind + 关联 worktree + 活跃后台进程。末尾给"建议动作"摘要（如 abandoned 分支可 git branch -d、ahead 多 commit 提醒 /push）但**不执行**。$ARGUMENTS = 分支名子串过滤 / "all"（可选）。只读：不 checkout / 不 merge / 不 push / 不 fetch / 不删分支。触发：分支盘点 / 还有哪些分支 / 看下分支状况 / branch-inventory / 清一下分支。
 ---
 
 # /branch-inventory — 全分支盘点

@@ -1,5 +1,6 @@
 ---
-description: 方案落盘 — 按上文讨论把 schema/代码/config/docs 改动按 11 步流程（加载配置 → 工作位置询问 → PRE log → 落实讨论到文档 → 实现 → smoke 测试 → 跨文档对齐+todo_list → 多线 review → POST log → commit → stash pop / worktree 收尾）推进到可交付状态。Step 1 询问当前分支原地 / 切分支 / worktree / WIP commit / stash 五选一；Step 10 只处理本轮残留（stash pop、worktree 询问），**不**再 fan-out 到其他分支——跨分支同步是 `/forward` 的事。Step 2 先把讨论/决策/计划/验证标准登记到 logs/change_logs/ 的 PRE 段，执行结束再回写 POST 段，作为 /post-check 的 intent 基线。用户说"落地"、"执行方案"、"go"、"把刚才讨论的改下来" 时触发。
+name: go
+description: 按上文讨论把方案落盘 — 11 步流程：加载配置 → 工作位置询问 → PRE log → 文档创作 → 实现 → smoke → 跨文档对齐+todo → 多线 review → POST log → commit → stash/worktree 收尾。Step 1 必问工作位置（clean 3 选 / dirty 4 选）；Steps 2-9 静默无询问；Step 10 只处理本轮残留，不 fan-out（跨分支同步 → /forward）。Step 2 PRE log 是 /post-check 的 intent 基线，无 PRE 不准动文件。$ARGUMENTS = 本次改动焦点（可选）。触发：落地 / 执行方案 / go / 把刚才讨论的改下来。
 ---
 
 # /go — 方案落盘

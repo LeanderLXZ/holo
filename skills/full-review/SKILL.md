@@ -1,5 +1,6 @@
 ---
-description: 全仓库对齐审计 — 扫 ai_context/docs/schema/prompt/代码/样例产物，找跨文件不一致、legacy 残留、文档与实现漂移、状态机/门控缺口、bug 与隐患，输出按严重度排序的 findings 并归档到 logs/review_reports/。用户说"全库 review"、"对齐审计"、"full-review"、"跑一轮 review" 时触发。只审计，不改代码。
+name: full-review
+description: 全仓库对齐审计 — 扫 ai_context / docs / schema / prompt / 代码 / 样例产物，找跨文件不一致、legacy 残留、文档与实现漂移、状态机门控缺口、bug 隐患。$ARGUMENTS = 本轮重点 / 额外关注点（可选）。findings 按严重度排序归档到 logs/review_reports/。只审计不改代码；改动落地 → /go；针对单次改动 → /post-check。触发：全库 review / 对齐审计 / full-review / 跑一轮 review。
 ---
 
 # /full-review — 全仓库对齐审计

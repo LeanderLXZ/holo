@@ -1,6 +1,6 @@
 ---
 name: run-prompt
-description: 加载并执行指定的 prompt 文件作为本轮任务。$ARGUMENTS 接受路径（以 `/`、`./`、`../` 开头或含 `/`）或纯文件名 stem（在 `prompts/` 全树模糊搜索匹配 `<stem>` 或 `<stem>.md`）。路径直读、stem 模糊搜（0 命中 fail loudly + 列 `prompts/` 目录结构 / ≥ 2 命中列所有匹配路径要求完整路径 / 1 命中即用）。文件含恰好 1 对外层 fenced 代码块（```text / ```markdown / ```）→ 仅提取块内内容；否则取整文件正文。打印一行 `运行 prompt: <相对路径>` 让用户确认解析正确 → 把 prompt 正文当作本轮用户指令直接接管执行。若 prompt 末尾要求用户补充输入字段（"原始资料路径："、"书名："等）而 `$ARGUMENTS` 未附带 → 先列出待补字段等用户回复再开干。只读 prompt 文件本身，不改、不 commit / push / 改 git 状态；prompt 内的具体动作由 prompt 自己决定。用户说"运行 prompt"、"run-prompt <name>"、"跑一下 <prompt>"、"按 <prompt> 处理"、"加载 <prompt>"、"用 <prompt> 跑一遍" 时触发。
+description: 加载并执行指定 prompt 文件作为本轮任务 — $ARGUMENTS 接路径或 stem（路径直读 / stem 在 `prompts/` 全树模糊搜匹配 `<stem>` 或 `<stem>.md`；0 命中 fail loudly + 列目录结构 / ≥ 2 命中列所有匹配 / 1 命中即用）。含 1 对外层 fenced code block（```text / ```markdown / ```）→ 仅取块内；否则取整文件。打印解析路径让用户确认 → 把 prompt 当作用户指令接管执行；prompt 要求补字段而 $ARGUMENTS 未附带 → 先列待补字段再开干。只读 prompt 自身，不改 / 不 commit / push。触发：运行 prompt / run-prompt <name> / 跑一下 <prompt> / 按 <prompt> 处理 / 加载 <prompt>。
 ---
 
 # /run-prompt — 运行指定 prompt 文件

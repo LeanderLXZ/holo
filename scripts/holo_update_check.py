@@ -3,8 +3,8 @@
 holo_update_check.py — single source of truth for project ↔ plugin drift.
 
 Invoked by:
-- /holo-update: full check + optional auto-fix flow (--check / --fix).
-- /holo-init Step 1.2: imports `expected_mirror_content` for mirror generation.
+- /holo:update: full check + optional auto-fix flow (--check / --fix).
+- /holo:init Step 1.2: imports `expected_mirror_content` for mirror generation.
 
 CLI:
     python3 scripts/holo_update_check.py --json
@@ -56,8 +56,8 @@ def expected_mirror_content(source_path: str, name: str, source_type: str) -> st
     """
     Compute the expected `.agents/skills/<name>/SKILL.md` content.
 
-    SINGLE SOURCE OF TRUTH — used both for /holo-update drift detection and
-    for /holo-init Step 1.2 initial mirror generation. Do not reimplement.
+    SINGLE SOURCE OF TRUTH — used both for /holo:update drift detection and
+    for /holo:init Step 1.2 initial mirror generation. Do not reimplement.
 
     source_type:
         'command' — frontmatter is injected with `name: <name>` (commands/*.md
@@ -259,7 +259,7 @@ def run_fix(findings: dict, target_root: str) -> dict:
         shutil.copy2(item["source_path"], item["target_path"])
         counts["template_copied"] += 1
 
-    todo_marker = "_(TODO — added by /holo-update; fill via /go or direct edit)_"
+    todo_marker = "_(TODO — added by /holo:update; fill via /go or direct edit)_"
     for item in findings.get("missing_section", []):
         target = os.path.join(target_root, item["rel"])
         with open(target, "a") as f:

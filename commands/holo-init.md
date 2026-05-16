@@ -1,8 +1,8 @@
 ---
-description: 项目骨架初始化 — 把 plugin 内 templates/project-skeleton/ 的标准骨架（CLAUDE.md / AGENTS.md / ai_context/ / docs/todo_list.md / logs/）落到当前工作目录，再基于仓库探测 + 用户问询把模板里的 <...> 占位符填成项目实际值。问询分三轮：Round 1（项目名 / 描述 / 主分支 / 时区），Round 2（顶层目录分类），Round 3（项目背景 / 当前状态 / next steps / handoff —— 每题可 Skip，跳过的部分标 _(TODO)_ 不留 <...> 残留）。可选生成 .agents/skills/ 镜像。无参数；当前目录是否空 / 是否已初始化都能识别处理。绝不静默覆盖（冲突一律问用户 keep / overwrite / merge），不动非模板文件，不 git add / 不 commit。用户说"初始化项目"、"holo-init"、"装一下骨架"、"建一个空项目" 时触发。
+description: 项目骨架初始化 — 把 plugin 内 templates/project-skeleton/ 的标准骨架（CLAUDE.md / AGENTS.md / ai_context/ / docs/todo_list.md / logs/）落到当前工作目录，再基于仓库探测 + 用户问询把 `<...>` 占位符填成项目实际值。三轮问询：Round 1（项目名 / 描述 / 主分支 / 时区）/ Round 2（顶层目录分类）/ Round 3（项目背景 / 当前状态 / next steps / handoff，每题可 Skip → 标 `_(TODO)_`，不留 `<...>` 残留）。可选生成 `.agents/skills/` 镜像。无参数；当前目录是否空 / 已初始化都能识别处理。绝不静默覆盖（冲突一律问 keep / overwrite / merge）；不动非模板文件，不 git add / 不 commit。触发：/holo:init / 初始化项目 / 装一下骨架 / 建一个空项目。
 ---
 
-# /holo-init — 项目骨架初始化
+# /holo:init — 项目骨架初始化
 
 把 `${CLAUDE_PLUGIN_ROOT}/templates/project-skeleton/` 下的模板落到当前工作目录，然后基于仓库探测 + 用户问询，把模板里的 `<...>` 占位符填成项目实际值。**不动已存在的非模板文件**；模板冲突一律停手问用户，不静默覆盖。
 
@@ -26,7 +26,7 @@ description: 项目骨架初始化 — 把 plugin 内 templates/project-skeleton
 
 - `pwd` 确认当前工作目录绝对路径
 - `ls -la` 看顶层文件 / 目录清单
-- `test -d .git && git status --short` 看是否 git repo + 工作树状态。dirty → 打印警告（不停手，因为 `/holo-init` 不 commit；但提示用户先 stash / commit 已有改动能让 git 历史更清晰）
+- `test -d .git && git status --short` 看是否 git repo + 工作树状态。dirty → 打印警告（不停手，因为 `/holo:init` 不 commit；但提示用户先 stash / commit 已有改动能让 git 历史更清晰）
 
 **0.2 模板清单 + 冲突预扫**
 
@@ -250,12 +250,12 @@ PYEOF
 每题选项：
 
 - **填内容**（用户直接打字，AskUserQuestion 的 `Other` / 其他 runtime 的自由文本）
-- **`Skip — fill later`**：跳过该文件，所有 `<...>` 占位符替换成 `_(TODO — /holo-init 时跳过；后续 /go 或直接编辑填写)_`
+- **`Skip — fill later`**：跳过该文件，所有 `<...>` 占位符替换成 `_(TODO — /holo:init 时跳过；后续 /go 或直接编辑填写)_`
 
 收到回答后**立即**用 `Edit` 落盘（中断也保留进度）：
 
 - **填了**：尽量按文件内 section 顺序拆分用户答案填入对应 section；无法精准拆分时整段塞入最重要的 section（第一个），其他 section 的 `<...>` 替换成 `_(TODO — 见 §<第一个 section 名>；或后续补)_`
-- **Skip**：该文件所有 `<...>` → `_(TODO — /holo-init 时跳过；后续 /go 或直接编辑填写)_`
+- **Skip**：该文件所有 `<...>` → `_(TODO — /holo:init 时跳过；后续 /go 或直接编辑填写)_`
 
 **2.6 decisions.md 自动收尾**
 
@@ -279,8 +279,8 @@ _(no decisions logged yet — append entries per §Format above as they land)_
 
 ```
 用户在 Step 2.5 选了 Skip（K 处，后续 /go 或直接编辑填写）：
-  ai_context/project_background.md:22  _(TODO — /holo-init 时跳过；…)_
-  ai_context/next_steps.md:31          _(TODO — /holo-init 时跳过；…)_
+  ai_context/project_background.md:22  _(TODO — /holo:init 时跳过；…)_
+  ai_context/next_steps.md:31          _(TODO — /holo:init 时跳过；…)_
   ...
 ```
 
@@ -320,7 +320,7 @@ _(no decisions logged yet — append entries per §Format above as they land)_
 **3.5 总结打印**
 
 ```
-✅ /holo-init 完成
+✅ /holo:init 完成
 
 模板：Created A | Skipped (identical) B | Kept existing C | Overwritten D | Merged E
 .agents/skills/ 镜像：<生成 N / 跳过>
@@ -335,6 +335,6 @@ _(no decisions logged yet — append entries per §Format above as they land)_
 
 - **绝不静默覆盖**：任何模板冲突必须问用户
 - **不动非模板文件**：模板路径之外的现有文件一律不碰
-- **不 `git add` / 不 commit**：`/holo-init` 只生成 / 修改文件，提交由用户自己用 `/commit` 处理
+- **不 `git add` / 不 commit**：`/holo:init` 只生成 / 修改文件，提交由用户自己用 `/commit` 处理
 - **占位符语法固定 `<...>`**：grep / Edit 都依赖这个约定；不要引入 `{{...}}` / `$VAR` 等其他形态
 - **中断保留进度**：Step 2 的每个填充值收到回答后立即写盘，不批量延后

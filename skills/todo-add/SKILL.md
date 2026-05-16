@@ -1,5 +1,6 @@
 ---
-description: 把当前会话刚拍板 / 讨论的事项加进 docs/todo_list.md。先做语义匹配判定 UPDATE vs CREATE：能对应已有条目就更新（必要时换段），否则新建。$ARGUMENTS 指定段位（不传：UPDATE 沿用已有 / CREATE 默认 "Next"；discuss/讨论中 → "Discussing (Undecided)"；executing/正在执行 → "In Progress" 单槽段）。从会话上下文提取动机 / 现状 / 触发链；信息不足或多条疑似命中时主动问，不靠猜。CREATE 时与 todo_list.md + todo_list_archived.md 全量去重；UPDATE 时已有 ID 不变。预览（CREATE 看全文 / UPDATE 看字段 diff + 段位变化）→ 等确认 → 写入 → 同步刷新顶部索引段（规则指向 todo_list.md "Index maintenance" 段）。不 commit / 不 push——持久化交给 /commit 或 /go。用户说"加到 todo"、"登记 todo"、"todo-add"、"加进待办"、"放到下一步"、"放到讨论中"、"更新 todo"等触发。
+name: todo-add
+description: 把会话刚拍板 / 讨论的事项加进 docs/todo_list.md — 先语义匹配判定 UPDATE vs CREATE（能匹配已有条目即更新，否则新建 T-XXX）。$ARGUMENTS = 段位（next / discuss / executing；缺省：UPDATE 沿用已有 / CREATE 进 Next）。CREATE 时与 todo_list.md + todo_list_archived.md 全量去重；UPDATE 时 ID 不变；预览（CREATE 看全文 / UPDATE 看字段 diff + 段位变化）→ 等确认 → 写入 → 刷新顶部 Index 段。不 commit / 不 push（→ /commit 或 /go）。触发：加到 todo / 登记 todo / todo-add / 加进待办 / 放到下一步 / 放到讨论中 / 更新 todo。
 ---
 
 # /todo-add — 把会话讨论结果加进 todo_list

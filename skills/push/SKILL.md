@@ -1,5 +1,6 @@
 ---
-description: 把指定本地分支 push 到对应 remote。$ARGUMENTS = 分支名（不传 → 默认 = 当前分支，即 `git rev-parse --abbrev-ref HEAD`）。流程：解析分支 → 校验存在 → 确认追踪状态与领先/落后情况 → 干净 push（fast-forward only，不允许 --force / --no-verify）。用户说"push 一下"、"推一下当前"、"/push"、"/push library" 时触发。
+name: push
+description: 把指定本地分支 fast-forward push 到 remote — 解析分支 → 校验存在 → 确认 ahead/behind → 干净 push。$ARGUMENTS = 分支名（缺省 = 当前分支 `git rev-parse --abbrev-ref HEAD`，**不**默认 main）。Detached HEAD → fail loudly。不 --force / 不 --no-verify / 不 push 受保护分支；不 commit / 不 merge / 不 rebase。触发：push / 推一下 / 推上去 / /push <branch>。
 ---
 
 # /push — 把分支 push 到 remote

@@ -1,6 +1,6 @@
 ---
 name: monitor
-description: 后台进程进度监控 — 以固定间隔（默认 5min，argument 可指定如 3min/10min）定期汇报由 ai_context/skills_config.md `## Background processes` 声明的进程（PID、进度、错误、吞吐、ETA、异常）。只读不改：发现问题先查清原因给信息+建议，不 kill、不重启、不改配置，等用户决定后再让 /go 执行。支持带场景说明定位关注点。`## Background processes` 留空且 $ARGUMENTS 未指定临时目标 → 提示无可监控对象并停手。用户说"监控一下"、"monitor 5min ..." 时触发。
+description: 后台进程进度监控 — 定期（默认 5min）汇报 skills_config.md `## Background processes` 声明的进程：PID、进度、错误、吞吐、ETA、异常。$ARGUMENTS = 间隔（如 3min / 10min）+ 关注点（可选）。`## Background processes` 留空且 $ARGUMENTS 未指定临时目标 → 提示无可监控对象并停手。发现问题先查根因给建议，不 kill / 不重启 / 不改配置；用户决定后调 /go 执行。触发：监控一下 / monitor 5min / 监控 X 进程。
 ---
 
 # /monitor — 后台进程进度监控

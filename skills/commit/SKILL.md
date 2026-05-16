@@ -1,5 +1,6 @@
 ---
-description: 快速确认并提交当前改动 — 校验 working tree 有效性、追踪状态（禁提路径/大文件/未跟踪文件），按逻辑单元分 commit，message 风格对齐仓库惯例。$ARGUMENTS = commit message 主题（可选）。不做 ai_context/docs 对齐（那是 /go 范围），不做跨分支同步（那是 /forward 范围），不 push / 不 force / 不 amend。用户说"commit 一下"、"提交当前改动"、"/commit" 时触发。
+name: commit
+description: 提交当前 working tree 改动 — 校验追踪状态（禁提路径 / 大文件 / 未跟踪文件），按逻辑单元分 commit，message 对齐仓库惯例（drawn from git log）。$ARGUMENTS = commit 主题（可选）。不 push / 不 force / 不 amend / 不 --no-verify；跨文件 ai_context/docs 对齐 → /go，跨分支同步 → /forward。触发：commit / 提交一下 / 提交当前改动。
 ---
 
 # /commit — 快速确认并提交当前改动

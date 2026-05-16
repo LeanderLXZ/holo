@@ -1,6 +1,6 @@
 ---
 name: recent-activity
-description: 最近 N 条项目动作倒序时间线 — 综合 git commits（含 commit body）、logs/change_logs/（含文件正文首部）、docs/todo_list.md 条目的 `**更新时间**` 字段，按时间戳 DESC 合并取前 N 条，输出"块视图"——每条带可读详情让你直接看懂"做了什么"。$ARGUMENTS 可选叠加：N（纯数字 / `N=10`，默认 10）、源过滤（commits / logs / todo，默认全扫）。和 /branch-inventory（看分支） / /extraction-status（看任务）形成"看一眼现状"三件套；本 skill 看"最近做了 / 讨论了什么 / 改了什么"。只读：不改 git、不改文件、不 commit、不调外部。skills_config 的 `## Timezone` / `## Activity sources` 任一缺失 → fail loudly。用户说 "最近做了什么"、"recent-activity"、"近期变更"、"近期讨论"、"看下时间线"、"最近 10 条动作" 时触发。
+description: 最近 N 条项目动作倒序时间线 — 合并 git commits（含 body）、logs/change_logs/（含正文首部）、docs/todo_list.md `**Updated**` 字段，按时间戳 DESC 取前 N 条；每条带可读详情。$ARGUMENTS = N（默认 10）+ 源过滤（commits / logs / todo；缺省全扫）。skills_config.md `## Timezone` / `## Activity sources` 任一缺失 → fail loudly。只读：不改 git / 不改文件 / 不 commit / 不调外部。触发：最近做了什么 / recent-activity / 近期变更 / 看下时间线 / 最近 N 条动作。
 ---
 
 # /recent-activity — 最近 N 条项目动作倒序时间线

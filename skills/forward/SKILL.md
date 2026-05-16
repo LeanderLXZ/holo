@@ -1,5 +1,6 @@
 ---
-description: 把当前分支的最新 commit 显式 forward / merge 到指定（或全部候选）目标分支 — 加载配置 → 前置校验（dirty 即停） → 候选预检（不存在 / 受保护 / 已同步 / dirty / 进程 / 冲突 分类） → 批量无障碍 merge → 障碍分支逐条询问（仅 ⚠️ 才问） → 最终结果列表。$ARGUMENTS = 目标分支列表（空格分隔；省略 = 所有候选非当前分支）。源分支恒等于当前分支；不 push / 不 force / 不 amend。用户说"/forward"、"forward 一下"、"把当前分支同步到 develop"、"把 commit 推到其他分支" 时触发。
+name: forward
+description: 把当前分支的 HEAD 显式 merge 到一或多个目标分支 — 加载配置 → 前置校验（dirty 即停） → 候选预检（6 类：不存在 / 受保护 / 已同步 / dirty target / 进程 / 预测冲突） → 批量无障碍 merge → 障碍分支逐条询问（仅 ⚠️ 预测冲突才问） → 结果列表。$ARGUMENTS = 目标分支列表（空格分隔；缺省 = 所有候选非当前分支）。源分支恒等于当前分支；不 push / 不 force / 不 amend / 不 rebase。触发：forward / 同步到 develop / 把 commit 推到其他分支 / 推到 X Y Z。
 ---
 
 # /forward — 显式分支同步

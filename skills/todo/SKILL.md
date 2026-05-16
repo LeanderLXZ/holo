@@ -1,6 +1,6 @@
 ---
 name: todo
-description: 直接读 docs/todo_list.md 顶部 ## Index (auto-generated; do not hand-edit) 段并原样渲染给用户，末尾问一句"想看哪条？"。$ARGUMENTS 可传关键字过滤 ID。索引由维护 todo_list.md 的人在改条目时同步刷新（规则在 todo_list.md 顶部 "Index maintenance" 段），/todo 信任索引、不重新解析、不重新分档、不生成建议。只读不改 todo_list / 代码 / 不 commit。用户说"todo"、"接下来做啥"、"todo list 上有啥"、"现在该干嘛"时触发。
+description: 读 docs/todo_list.md 顶部 `## Index` 段并原样渲染给用户，末尾问"想看哪条？" — 信任索引（由 /todo-add 维护），不重新解析、不重新分档、不生成建议。$ARGUMENTS = ID 关键字过滤（可选）。只读不改 todo_list / 代码 / 不 commit。触发：todo / 接下来做啥 / todo list 上有啥 / 现在该干嘛。
 ---
 
 # /todo — todo_list 索引展示

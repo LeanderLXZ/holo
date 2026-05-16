@@ -1,5 +1,6 @@
 ---
-description: 复核 review 报告 — 读取 logs/review_reports/ 下最近一份报告（可选按模型过滤：claude / codex / gpt / 具体 slug；不传参则取全局最新），逐条复核 finding / risk / open question 是否仍真实存在，给出证据（文件+行号）与落地方案草稿，输出不落盘不改代码，等用户确认后再用 /go 执行。用户说"复核 review"、"核一下 codex/gpt/claude 的 review"、"check-review" 时触发。
+name: check-review
+description: 复核 review 报告 — 读取 logs/review_reports/ 下指定模型最近一份报告，逐条复核 finding / risk / open question 是否仍真实存在，给证据（文件 + 行号）+ 落地方案草稿。$ARGUMENTS = 模型筛选关键字（claude / codex / gpt / 具体 slug；缺省取全局最新）。不落盘不改代码；用户确认后调 /go 执行。触发：复核 review / 核一下 codex review / check-review。
 ---
 
 # /check-review — 复核 review 报告

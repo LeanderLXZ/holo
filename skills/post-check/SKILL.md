@@ -1,5 +1,6 @@
 ---
-description: /go 之后的针对性复审 — 双轨并进：轨 1 用 PRE log 对账本次 /go 计划动作清单 + 验证标准的落实情况，轨 2 向计划之外的文件扩散找跨文件冲突/歧义/bug/不一致。强制加载 logs/change_logs/ 里最近一份 PRE log 作为 intent 基线（可用 $ARGUMENTS 指定 slug）。可并行派 sub-agent 跑规范线/实现线/产物线。完整双轨报告直接打印到对话供用户决策；同时在 log 文件追加复查摘要 + 状态。除 log 摘要回写外只读不写，不改代码、不提交。用户说"再确认一下这次改动"、"after-check"、"/go 完了复审一下" 时触发。
+name: post-check
+description: /go 之后的针对性复审 — 双轨并进：轨 1 用 PRE log 对账计划动作清单 + 验证标准的落实情况，轨 2 向计划外文件扩散找跨文件冲突 / 歧义 / bug / 不一致。强制加载 logs/change_logs/ 最近 PRE log 作为 intent 基线；可并行派 sub-agent 跑规范线 / 实现线 / 产物线。$ARGUMENTS = log slug（缺省取最新）。报告打印 + 摘要回写 log；除 log 摘要外只读不写，不改代码 / 不提交。全仓 review → /full-review。触发：再确认这次改动 / after-check / /go 完了复审一下 / post-check。
 ---
 
 # /post-check — /go 之后的针对性复审

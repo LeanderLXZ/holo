@@ -1,5 +1,6 @@
 ---
-description: **仅在用户当前发送的这条消息字面里包含 `/plan` 时**进入只讨论模式，作用域 = 本轮一条消息，不跨消息延续——下一条消息没有 /plan → 默认行为恢复，所有写工具解锁。激活时禁用 Write / Edit / NotebookEdit；Bash 仅允许只读查询命令（cat / grep / ls / find / git log / git diff / git status / wc / head / tail 等），任何 mutating 命令（git add / commit / push / pull / merge / checkout / reset / rm / mv / mkdir / touch / 写文件 / 网络写）禁止；不主动触发 /go / /commit / /todo-add / /post-check / /full-review 等写 skill；不开 plan.md / draft.md / notes.md 临时文件。会话历史里出现过 /plan 不算激活。讨论收敛后由用户自行调用写 skill 落盘。$ARGUMENTS = 本次讨论主题（可省）。用户说 '/plan'、'纯讨论'、'只讨论不动文件'、'分析一下方案'、'plan 一下'、'先讨论再说' 等触发。
+name: plan
+description: 锁定本轮消息为只讨论模式 — 仅在用户当前消息字面含 `/plan` 时激活，禁 Write/Edit/NotebookEdit 及一切 mutating Bash（git add/commit/push/merge/checkout/写文件/网络写），只允许只读查询（cat/grep/ls/find/git log/diff/status/head/tail），不开 plan.md/draft.md/notes.md 临时文件。作用域 = 一条消息，不跨延续；会话历史出现过 /plan 不算激活。$ARGUMENTS = 讨论主题（可选）。讨论收敛后用户自行调 /go 等写 skill 落盘。触发：/plan / 纯讨论 / 只讨论不动文件 / 分析一下方案 / 先讨论再说。
 ---
 
 # /plan — 锁定为只讨论模式（仅本轮消息）

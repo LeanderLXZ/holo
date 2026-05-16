@@ -1,38 +1,40 @@
 # holo
 
-A Claude Code plugin for AI-paired engineering workflow. Provides slash
-commands, query skills, and a project-skeleton scaffold designed
-around a small, project-side config file (`ai_context/skills_config.md`)
-that lets every skill adapt to the repo it's running in.
+A Claude Code plugin for AI-paired engineering workflow. Provides
+plugin-meta commands, workflow + query skills, and a project-skeleton
+scaffold designed around a small, project-side config file
+(`ai_context/skills_config.md`) that lets every skill adapt to the
+repo it's running in.
 
 ## Contents
 
 ```
 holo/
 ├── .claude-plugin/plugin.json          # plugin manifest
-├── commands/                           # slash commands
-│   ├── plan.md                         # discussion-only mode (one turn)
-│   ├── go.md                           # plan → land flow with branch-strategy prompts
-│   ├── post-check.md                   # two-track audit after /go
-│   ├── full-review.md                  # whole-repo alignment audit
-│   ├── check-review.md                 # re-validate a stored review report
-│   ├── commit.md                       # commit current working-tree changes
-│   ├── forward.md                      # merge current branch into target branches
-│   ├── push.md                         # fast-forward-only push (current branch by default)
-│   ├── todo-add.md                     # add/update docs/todo_list.md
+├── commands/                           # plugin-meta commands (/holo: prefix)
 │   ├── holo-init.md                    # materialize the project skeleton
 │   └── holo-update.md                  # post-plugin-update sync check
-├── skills/                             # query skills (agent-autonomous)
-│   ├── monitor/                        # background process inventory
-│   ├── todo/                           # todo_list index view
-│   ├── branch-inventory/               # branch grouping & health
-│   ├── recent-activity/                # unified reverse-chrono timeline
-│   └── run-prompt/                     # load & run a prompt file
+├── skills/                             # workflow + query skills (bare-name invocation)
+│   ├── plan/                           # discussion-only mode (one turn)
+│   ├── go/                             # plan → land flow with branch-strategy prompts
+│   ├── commit/                         # commit current working-tree changes
+│   ├── push/                           # fast-forward-only push (current branch by default)
+│   ├── forward/                        # merge current branch into target branches
+│   ├── post-check/                     # two-track audit after /go
+│   ├── full-review/                    # whole-repo alignment audit
+│   ├── check-review/                   # re-validate a stored review report
+│   ├── todo-add/                       # add/update docs/todo_list.md
+│   ├── todo/                           # todo_list index view (read-only)
+│   ├── branch-inventory/               # branch grouping & health (read-only)
+│   ├── recent-activity/                # unified reverse-chrono timeline (read-only)
+│   ├── monitor/                        # background process inventory (read-only)
+│   └── run-prompt/                     # load & run a prompt file (read-only)
 ├── templates/
-│   └── project-skeleton/               # files copied by /holo-init
+│   └── project-skeleton/               # files copied by /holo:init
 ├── hooks/
 │   └── hooks.json                      # SessionStart registration
 └── scripts/
+    ├── holo_update_check.py            # drift detection SSOT
     └── session_branch_check.sh         # one-line branch banner
 ```
 
@@ -45,9 +47,9 @@ In Claude Code:
 /plugin install holo
 ```
 
-## /holo-init — project skeleton scaffolding
+## /holo:init — project skeleton scaffolding
 
-Run `/holo-init` from inside a new or existing project. The command:
+Run `/holo:init` from inside a new or existing project. The command:
 
 1. **Detects state** — current dir, git status, conflicting template
    files, project-name / description / main-branch candidates from
@@ -101,51 +103,56 @@ The required `## <name>` headers (each at top level of
 gracefully when the config is absent (defaults: main branch = `main`,
 no process detection performed).
 
-`/holo-init` materialises a starter `ai_context/skills_config.md` with
+`/holo:init` materialises a starter `ai_context/skills_config.md` with
 all required headers present and `(none)` bodies, ready to fill in.
 
 ## commands/ vs skills/
 
-`commands/` and `skills/` are **separate, non-overlapping** sources:
+`commands/` and `skills/` are **two distinct source kinds** with
+different user-facing slash semantics:
 
-- `commands/<name>.md` — user-typed slash commands. YAML frontmatter
-  carries `description` (shown in slash-command UI; also doubles as
-  the trigger hint when mirrored into `.agents/skills/`). No `name:`
-  field — Claude Code derives it from filename.
-- `skills/<name>/SKILL.md` — agent-autonomous query skills. YAML
-  frontmatter must carry both `name:` and `description:`.
+- `commands/<name>.md` — **plugin-meta operations**. Operate on the
+  plugin itself. Claude Code's plugin runtime requires the `/holo:`
+  prefix for these entries (e.g. `/holo:init`, `/holo:update`). YAML
+  frontmatter carries `description:` only; Claude Code derives
+  `name:` from the filename. List the current entries with
+  `ls commands/`.
+- `skills/<name>/SKILL.md` — **workflow + query entries**. Daily
+  plan→land loop plus read-only inventory. Invoked by **bare name** —
+  Claude Code resolves plugin skills into the top-level slash
+  namespace. YAML frontmatter must carry both `name:` and
+  `description:`. List the current entries with `ls skills/`.
 
-There is **no per-file mirror constraint** between `commands/` and
-`skills/`. Each lives in exactly one place. `/holo-update` is the
-sole mechanism that detects drift between the plugin source and any
-user-project `.agents/skills/` copy.
+Each entry lives in exactly one directory. The mutation contract is
+declared per skill — workflow skills may mutate under explicit
+user-confirmation gates; query skills are pure-read.
 
 ### `.agents/skills/` for non-Claude runtimes
 
-`/holo-init` (when user opts in) generates `.agents/skills/<name>/SKILL.md`
-in the consuming project from **both** sources, so runtimes that don't
-understand slash commands (Codex / Cursor / etc.) see everything as
-skills:
+`/holo:init` (when user opts in) generates `.agents/skills/<name>/SKILL.md`
+in the consuming project from **both** source kinds, so runtimes that
+don't understand slash commands (Codex / Cursor / etc.) see everything
+as skills:
 
 | Source | Path | Conversion |
 |---|---|---|
 | commands | `${CLAUDE_PLUGIN_ROOT}/commands/<name>.md` | inject `name: <name>` into frontmatter; body unchanged |
 | skills | `${CLAUDE_PLUGIN_ROOT}/skills/<name>/SKILL.md` | byte-for-byte copy |
 
-After a plugin update, run `/holo-update` to detect and fix
+After a plugin update, run `/holo:update` to detect and fix
 `.agents/skills/` drift, plus new template files / sections.
 
 ## Design notes
 
-- **Runtime-agnostic with graceful degrade** — every command's
+- **Runtime-agnostic with graceful degrade** — every skill's
   `<进度工具> 解析` / `<问询工具> 解析` line maps the placeholder to
   the runtime's structured tool (`TodoWrite` / `update_plan` /
   `AskUserQuestion`) and falls back to plain-markdown when none is
-  available, so the same command body works in Claude Code, Codex,
+  available, so the same skill body works in Claude Code, Codex,
   and Copilot agent mode.
-- **No automatic git ops** — `/holo-init` does not `git add` or
+- **No automatic git ops** — `/holo:init` does not `git add` or
   commit; persistence is the user's choice via `/commit` or `/go`.
-- **`${CLAUDE_PLUGIN_ROOT}`** — commands reference `templates/` and
-  `skills/` via this variable; falls back to path-relative discovery
-  if the env var is unset (e.g. when copy-pasting a command body
-  into a non-plugin chat session).
+- **`${CLAUDE_PLUGIN_ROOT}`** — skill bodies reference `templates/`
+  and sibling skills via this variable; falls back to path-relative
+  discovery if the env var is unset (e.g. when copy-pasting a skill
+  body into a non-plugin chat session).
