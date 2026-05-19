@@ -67,19 +67,26 @@ From inside a new or existing project:
 
 The command detects current state, copies the template (silent for
 new files, interactive `keep` / `overwrite` / `merge` for conflicts),
-asks three rounds of questions, and verifies that no `<...>`
+asks four rounds of setup questions, and verifies that no `<...>`
 placeholders remain.
 
 ### What it asks
 
 | Round | Questions | Skippable? |
 |---|---|---|
-| 1 — Project basics | project name · one-line description · main branch · timezone | No — required for skill bookkeeping |
-| 2 — Top-level directory classification | which directories are **source** / **data-contract** / **example-artifact** / **do-not-commit** | No — required for review-skill scoping (pick `(none)` if a class doesn't apply) |
-| 3 — Project context | project background · current status · next steps · handoff note | **Yes** — each question may be skipped; skipped fields are marked `_(TODO)_` in the file so you can fill them later |
+| 1 — Language axes | `content_language` (disk-bound output) · `conversation_language` (AI ↔ user turns) | No — drives every subsequent skill |
+| 2 — Project basics | project name · one-line description · main branch · timezone | No — required for skill bookkeeping |
+| 3 — Top-level directory classification | which directories are **source** / **data-contract** / **example-artifact** / **do-not-commit** | No — required for review-skill scoping (pick `(none)` if a class doesn't apply) |
+| 4 — Project context | project background · current status · next steps · handoff note | **Yes** — each question may be skipped; skipped fields are marked `_(TODO)_` in the file so you can fill them later |
 
-`/holo:init` never silently overwrites and does not `git add` or
-commit. Persistence stays your choice via `/commit` or `/go`.
+The two language axes shape every later skill invocation:
+
+- **`content_language`** — what language the AI writes to disk
+  (`ai_context/` / `docs/` / `logs/` / commits / README / new code
+  comments). Default `en`; accepts any ISO 639-1 code.
+- **`conversation_language`** — what language AI ↔ user turns use.
+  Default `auto` (per-turn match the user's last message); accepts
+  `auto` or any ISO 639-1 code.
 
 ### What you get
 
