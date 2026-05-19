@@ -1,54 +1,56 @@
 ---
 name: push
-description: 把指定本地分支 fast-forward push 到 remote — 解析分支 → 校验存在 → 确认 ahead/behind → 干净 push。$ARGUMENTS = 分支名（缺省 = 当前分支 `git rev-parse --abbrev-ref HEAD`，**不**默认 main）。Detached HEAD → fail loudly。不 --force / 不 --no-verify / 不 push 受保护分支；不 commit / 不 merge / 不 rebase。触发：push / 推一下 / 推上去 / /push <branch>。
+description: Fast-forward push a specified local branch to its remote — resolve branch → verify existence → check ahead/behind → clean push. $ARGUMENTS = branch name (default = current branch `git rev-parse --abbrev-ref HEAD`, **not** main). Detached HEAD → fail loudly. No --force / no --no-verify / no pushing protected branches; no commit / no merge / no rebase. Triggers: push / push it / push up / /push <branch>.
 ---
 
-# /push — 把分支 push 到 remote
+> **Language**: per `ai_context/skills_config.md §Language` — disk-bound output (logs / docs / commit messages / code comments / files written) uses `content_language`; user-facing surface (chat prose / `AskUserQuestion` prompts and option labels / progress-tool entry `content` / status lines / strategy declarations / findings rendered in chat) uses `conversation_language`. Code identifiers, file paths, field names, frontmatter keys, and structural prefixes (`Step N:`, `LOG:`, etc.) stay English regardless.
 
-把指定本地分支推到它的 remote。**不做 commit、不做 merge、不做 rebase**——这只是个干净的 push。
+# /push — Push a branch to remote
+
+Push the specified local branch to its remote. **No commit, no merge, no rebase** — this is just a clean push.
 
 ## Progress reporting
 
-下方流程分为 `## Step 0:` ~ `## Step 3:`（前置一段 `## $ARGUMENTS 解析` 是参数解析，不算正式 step）。
+The flow below is divided into `## Step 0:` ~ `## Step 3:` (the preceding `## $ARGUMENTS parsing` section is argument parsing, not a formal step).
 
-**进入 Step 0 之前**：调用 **<进度工具>** 把 Step 0 ~ Step 3 全部预登记（每个 step 一条，`content` 用 `Step N: <子段标题>`，`status` 全为 `pending`；`$ARGUMENTS` 解析不计入）。这是硬性要求，**不调 <进度工具> 不许往下走**。
+**Before entering Step 0**: call **<progress tool>** to pre-register Step 0 ~ Step 3 (one entry per step, `content` set to `Step N: <sub-section title>`, `status` all `pending`; `$ARGUMENTS` parsing is not counted). This is a hard requirement — **do not proceed without calling <progress tool>**.
 
-每进入一个 step：调 **<进度工具>** 把当前 step 改 `in_progress`（同一次调用里把上一个 step 标 `completed`），然后做实际工作。**step 跨越时不要漏调**。进度由 <进度工具> 的 UI 直接显示，**对话里不再打 `[/push] Step N: ...` 之类的进度行**。
+On entering each step: call **<progress tool>** to flip the current step to `in_progress` (in the same call, mark the previous step `completed`), then do the actual work. **Do not skip the call when crossing steps.** Progress is shown directly in the <progress tool> UI; **do not print `[/push] Step N: ...` style progress lines in conversation**.
 
-跳过某 step：调 **<进度工具>** 把对应条目直接标 `completed`，并在对话里打一行 `Step N 跳过（理由：…）`——"理由"是 UI 缺失的信息，保留这一行；不要静默略过。
+Skipping a step: call **<progress tool>** to mark that entry `completed` directly, and print one line in conversation: `Step N skipped (reason: …)` — the "reason" is information the UI lacks, keep that line; do not silently skip.
 
-最后一步完成：调 **<进度工具>** 把最后一条标 `completed`。
+Final step done: call **<progress tool>** to mark the last entry `completed`.
 
-**<进度工具> 解析**：Claude → `TodoWrite`（界面显示为 "Update Todos"）；Codex → `update_plan`；其他 runtime（无结构化进度工具，如 Copilot agent mode）→ 在 response 文本里维护一份 markdown checkbox 列表当 step 状态，每次状态切换前整段重写一遍。语义对齐：预登记 + 切状态 + 标完成。
+**<progress tool> resolution**: Claude → `TodoWrite` (rendered as "Update Todos"); Codex → `update_plan`; other runtimes (no structured progress tool, e.g. Copilot agent mode) → maintain a markdown checkbox list in the response text as step state, rewriting the whole block on every state change. Semantic alignment: pre-register + flip state + mark complete.
 
-## `$ARGUMENTS` 解析
+## `$ARGUMENTS` parsing
 
-- `$ARGUMENTS` 为空 → 目标分支 = `git rev-parse --abbrev-ref HEAD`（当前分支）。游离 HEAD（输出 `HEAD`）→ 停手报告，让用户先 checkout
-- 否则 → 目标分支 = `$ARGUMENTS` 去掉首尾空白后的字符串（只取首个 token；多余 token 报错停手，让用户重新表达）
+- `$ARGUMENTS` empty → target branch = `git rev-parse --abbrev-ref HEAD` (current branch). Detached HEAD (output `HEAD`) → stop and report, ask the user to checkout first
+- Otherwise → target branch = `$ARGUMENTS` trimmed of surrounding whitespace (take only the first token; extra tokens → error stop, ask the user to restate)
 
-## Step 1: 校验目标分支
+## Step 1: Verify target branch
 
-- `git rev-parse --verify <target>` 确认本地分支存在；不存在 → 停手报告
-- `git config --get branch.<target>.remote` + `branch.<target>.merge` 取追踪 remote / 远端分支名
-  - 没有追踪 → 停手问用户：是否要 `git push -u origin <target>` 建追踪？得到肯定回复才继续
-- 当前 HEAD 不必切到目标分支；用 `git push <remote> <target>:<remote-branch>` 即可（无需 checkout）
+- `git rev-parse --verify <target>` confirms the local branch exists; missing → stop and report
+- `git config --get branch.<target>.remote` + `branch.<target>.merge` fetch the tracking remote / remote branch name
+  - No tracking → stop and ask the user: should `git push -u origin <target>` set up tracking? continue only on affirmative reply
+- The HEAD does not need to be on the target branch; use `git push <remote> <target>:<remote-branch>` directly (no checkout needed)
 
-## Step 2: 推前盘点
+## Step 2: Pre-push inventory
 
-- `git fetch <remote> <remote-branch>` 拉最新远端引用
-- 算 ahead / behind：`git rev-list --left-right --count <target>...<remote>/<remote-branch>`
-  - ahead=0, behind=0 → 已同步，跳过 Step 3，打印"无需 push"收尾
-  - ahead>0, behind=0 → 可 fast-forward，进 Step 3
-  - behind>0（无论 ahead 多少）→ 远端有本地没有的 commit，**停手报告**，让用户决定（pull / rebase / 放弃）；**不自动 force push**
-- 顺手列出 ahead 的 commit（`git log --oneline <remote>/<remote-branch>..<target>`），让用户在 push 前过一眼
+- `git fetch <remote> <remote-branch>` fetches the latest remote ref
+- Compute ahead / behind: `git rev-list --left-right --count <target>...<remote>/<remote-branch>`
+  - ahead=0, behind=0 → already in sync, skip Step 3, print "nothing to push" and wrap up
+  - ahead>0, behind=0 → fast-forward viable, enter Step 3
+  - behind>0 (regardless of ahead) → remote has commits the local branch lacks, **stop and report**, let the user decide (pull / rebase / abandon); **do not auto force push**
+- Also list the ahead commits (`git log --oneline <remote>/<remote-branch>..<target>`) so the user can eyeball them before push
 
 ## Step 3: Push
 
-- 执行 `git push <remote> <target>:<remote-branch>`（不传 `--force` / `--force-with-lease` / `--no-verify`）
-- push 成功 → 再 `git rev-list --left-right --count <target>...<remote>/<remote-branch>` 复核 0/0，打印结果
-- push 失败（hook 拦截、权限、网络等）→ 打印错误原文，停手让用户处理；**不重试 / 不绕过**
+- Execute `git push <remote> <target>:<remote-branch>` (do not pass `--force` / `--force-with-lease` / `--no-verify`)
+- Push succeeds → re-run `git rev-list --left-right --count <target>...<remote>/<remote-branch>` to verify 0/0, print the result
+- Push fails (hook block, permissions, network, etc.) → print the raw error, stop and let the user handle; **do not retry / do not bypass**
 
-## 约束
+## Constraints
 
-- 不 `--force` / `--force-with-lease` / `--no-verify` / `--no-gpg-sign`（除非用户在本轮明确授权）；不动 working tree（不 checkout / commit / merge / rebase）
-- 非"本地 ahead，远端 ancestor"之外的任何状态（behind>0 / 无追踪 / push 失败）→ 停手问，不绕过
+- No `--force` / `--force-with-lease` / `--no-verify` / `--no-gpg-sign` (unless the user explicitly authorizes in this turn); do not touch the working tree (no checkout / commit / merge / rebase)
+- Any state outside "local ahead, remote ancestor" (behind>0 / no tracking / push failed) → stop and ask, do not bypass

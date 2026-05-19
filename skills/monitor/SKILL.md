@@ -1,76 +1,122 @@
 ---
 name: monitor
-description: 后台进程进度监控 — 定期（默认 5min）汇报 skills_config.md `## Background processes` 声明的进程：PID、进度、错误、吞吐、ETA、异常。$ARGUMENTS = 间隔（如 3min / 10min）+ 关注点（可选）。`## Background processes` 留空且 $ARGUMENTS 未指定临时目标 → 提示无可监控对象并停手。发现问题先查根因给建议，不 kill / 不重启 / 不改配置；用户决定后调 /go 执行。触发：监控一下 / monitor 5min / 监控 X 进程。
+description: Background-process progress monitor — at a fixed interval (default 5min) report on the processes declared in skills_config.md `## Background processes` using a 7-aspect framework: 5 core (Time / State / Progress / Errors & retries / External constraints), 1 conditional (Artifacts), 1 mandatory verdict (Diagnosis), plus a trigger-only anomaly bucket (resource saturation / locks / throughput regression / special-phase entry / write-vs-commit gap / scenario-declared domain signals). Auto-infers finite vs always-on task shape to swap Progress / ETA semantics. $ARGUMENTS = interval (e.g. 3min / 10min) + focus (optional). `## Background processes` empty and $ARGUMENTS specifies no ad-hoc target → notify that there is nothing to monitor and stop. On finding an issue, diagnose root cause first and recommend; do not kill / restart / change config; user decides, then invoke /go. Triggers: monitor please / monitor 5min / monitor X process.
 ---
 
-# /monitor — 后台进程进度监控
+> **Language**: per `ai_context/skills_config.md §Language` — disk-bound output (logs / docs / commit messages / code comments / files written) uses `content_language`; user-facing surface (chat prose / `AskUserQuestion` prompts and option labels / progress-tool entry `content` / status lines / strategy declarations / findings rendered in chat) uses `conversation_language`. Code identifiers, file paths, field names, frontmatter keys, and structural prefixes (`Step N:`, `LOG:`, etc.) stay English regardless.
 
-以固定间隔监控正在运行的后台任务，定期向用户汇报进度、错误、效率、预估完成时间。**只读不改**：发现问题先查清原因，向用户提供信息与建议，不着急动手。
+# /monitor — Background-process progress monitor
 
-`$ARGUMENTS`：刷新间隔 + 可选场景说明。例：
-- `/monitor` → 默认 5 分钟
-- `/monitor 3min` → 3 分钟
-- `/monitor 5min 现在从某 phase 开始跑批量任务，目标 N 个，后台并行默认` → 5 分钟 + 场景上下文
-- `/monitor 5min pid=12345 logs=path/to/log` → 临时指定监控目标（skills_config.md `## Background processes` 留空时用）
+Monitor running background tasks at a fixed interval, periodically reporting progress, errors, efficiency, and estimated completion time to the user. **Read-only**: when an issue surfaces, first diagnose the cause and give the user information plus recommendations; do not rush to act.
 
-解析规则：首个 token 形如 `{N}min` / `{N}s` / `{N}m` / 纯数字（按分钟） → 间隔；其余为场景描述（含可能的临时 PID / 日志路径覆盖）。缺省 5 分钟。
+`$ARGUMENTS`: refresh interval + optional scenario description. Examples:
+- `/monitor` → default 5 minutes
+- `/monitor 3min` → 3 minutes
+- `/monitor 5min about to run a batch starting from phase X, target N items, default background parallelism` → 5 minutes + scenario context
+- `/monitor 5min pid=12345 logs=path/to/log` → ad-hoc monitoring target (used when skills_config.md `## Background processes` is empty)
+
+Parse rule: the first token shaped like `{N}min` / `{N}s` / `{N}m` / plain number (interpreted as minutes) → interval; the rest is scenario description (may include ad-hoc PID / log-path overrides). Default 5 minutes.
 
 ## 0. Load skills config
 
-`Read` `ai_context/skills_config.md`。
+`Read` `ai_context/skills_config.md`.
 
-- 文件不存在 / 某节标题缺失 → fail loudly：打印缺失项 + 提示按 plugin 模板补全，停手
-- `## Background processes` 内容 `(none)` 或留空：检查 `$ARGUMENTS` 是否提供临时 PID / 进程模式 / 日志路径；都没有则打印"本项目 skills_config.md `## Background processes` 未声明、$ARGUMENTS 也未指定监控目标，monitor 无可监控对象，停手"并退出
-- 某节列了具体路径但路径不存在 → fail loudly：提示该节漂移到不存在路径，停手等用户修
+- File missing / a section heading missing → fail loudly: print the missing item + suggest filling in from the plugin template, stop
+- `## Background processes` content is `(none)` or empty: check whether `$ARGUMENTS` provides an ad-hoc PID / process pattern / log path; if none, print "this project's skills_config.md `## Background processes` is not declared, and $ARGUMENTS did not specify a monitoring target either; monitor has nothing to watch, stopping" and exit
+- A section lists a concrete path but the path does not exist → fail loudly: report the drift to a missing path and stop for the user to fix
 
-后续步骤出现 "skills_config.md `## XX`" 时引用本配置。本 skill 用到：
-`## Background processes`（Step 2 进程盘点）、`## Timezone`（Step 3 单轮 Timestamp）。
+When subsequent steps reference "skills_config.md `## XX`" they refer back to this config. This skill uses:
+`## Background processes` (Step 2 process inventory), `## Timezone` (Step 3 per-round Timestamp).
 
-## 1. 场景登记
+## 1. Scenario registration
 
-- 打印："监控间隔 = {N}min；场景 = {场景说明或 'unspecified'}"
-- 场景描述里若提到具体 phase / 目标 / 并行数 → 记下，后续汇报时以此判断是否偏离预期
-- 询问是否有任何额外信号需要关注（如特定日志路径、特定 PID、特定 work 目录）—— 用户给就记下，不给就按默认扫
+- Print: "monitoring interval = {N}min; scenario = {scenario description or 'unspecified'}"
+- If the scenario description mentions a specific phase / target / parallelism → record it, and use it later to judge whether observation deviates from expectation
+- Ask whether there is any additional signal to watch (e.g. a specific log path, specific PID, specific work directory) — record what the user provides; otherwise scan the defaults
 
-## 2. 识别被监控的进程与产物
+**Task-shape inference** (drives Progress / ETA semantics; no user field):
 
-首轮先盘点，之后每轮都刷一遍：
+Infer from scenario description + `## Background processes` artifacts whether this monitoring target is:
 
-- 按 skills_config.md `## Background processes` 的 pgrep 模式列出 PID + 命令行（叠加场景中提到的其他脚本 / `$ARGUMENTS` 临时指定）
-- 按 skills_config.md `## Background processes` 的进程产物路径看 `.pid` / `.json` 进度文件
-- 按 skills_config.md `## Background processes` 的进程日志路径取最新一份日志 tail 若干行
-- 用户指定的自定义路径优先
+- **finite** — bounded work with a definable "done" state (chunk extraction, backtest run, training epoch loop, batch pipeline). Progress = `N / M (xx%)`; ETA = projected wall-clock to completion; "time remaining" framing
+- **always-on** — open-ended daemon with no terminal "done" (live trading, news feed monitor, server, long-running orchestrator without target N). Progress = throughput over a windowed period (events/min, trades/hr); ETA = "next scheduled checkpoint / next milestone / next round-trip"; "time elapsed" framing replaces "time remaining"
 
-## 3. 单轮汇报内容
+Default to `finite` when ambiguous; switch to `always-on` only when scenario explicitly indicates open-ended (`watch …`, `daemon`, `live`, `always-on`, no target N anywhere). Print one line: `task shape = finite | always-on` so the user can correct.
 
-每轮输出一个紧凑汇报块，字段固定：
+## 2. Identify monitored processes and artifacts
 
-1. **Timestamp**：按 skills_config.md `## Timezone` 的命令模板执行（仅取 HH:MM:SS 部分；该节缺失则 fallback 到 `date '+%H:%M:%S'` 系统时区）
-2. **Processes**：PID + 命令摘要 + 运行时长（`ps -o etime= -p <PID>`）；若某 PID 消失 → 标红 "gone"
-3. **Progress**：每个 work / 目标的当前阶段 / 完成比例（从 progress 文件或日志解析）
-4. **Errors**：近一轮日志里有没有 `ERROR` / `Traceback` / `failed` / `retry exhausted`；有则摘录关键行 + 文件路径 + 行号
-5. **Throughput**：与上一轮对比的推进量（如 chunks 处理数、tokens 消耗、文件数）；算瞬时速率
-6. **ETA**：按最近 1–3 轮的速率外推剩余时间；样本不够 → 标注"样本不足"
-7. **Anomalies**：推进停滞、速率骤降、内存 / GPU 异常、临时文件堆积、PID flapping —— 任何值得注意的
+Inventory in the first round, then refresh each round:
 
-## 4. 发现问题时的处理
+- List PID + command line per skills_config.md `## Background processes` pgrep patterns (add any other scripts mentioned in the scenario / ad-hoc `$ARGUMENTS` overrides)
+- Read `.pid` / `.json` progress files at the process-artifact paths from skills_config.md `## Background processes`
+- Tail the latest log file at the process-log paths from skills_config.md `## Background processes`
+- User-specified custom paths take precedence
 
-- **不要改文件、不要 kill 进程、不要重启**
-- 先定位：日志行号、相关 work 目录、涉及的 schema / prompt / 代码文件
-- 给出 **信息 + 建议**：这是什么错、可能的原因、建议的下一步（重试 / 调参 / 换策略 / 先观察），标注"建议"不是"已执行"
-- 严重错误（全部进程挂掉 / 数据损坏 / 无限重试）→ 立即打断常规汇报节奏，单独高优告警一次，等用户指示
-- 用户明确批准才动手，否则继续只读监控
+## 3. Per-round report contents — 7-aspect framework
 
-## 5. 循环节奏
+Each round emits one report block organised by **aspects** (categories of information), not by fixed line-item fields. The aspect taxonomy is fixed; the layout (table vs list, grouping, column choice) is designed on the fly from the actual process structure in Round 1 and reused thereafter. **No round-0 layout confirmation** — print directly; if the user wants a different layout, they will say so.
 
-- 首轮立刻跑一次汇报
-- 之后每 N 分钟一轮；两轮之间保持安静，不要刷屏
-- 用户主动打断（提问 / 指令）→ 立即响应，完事后恢复节奏
-- 用户说"停"/"结束监控"/`/stop` 类意图 → 停止并打印最终汇总（总运行时长、最终状态、本次监控期间发生的 anomaly 列表）
-- 进程全部结束 → 主动打印"全部进程已结束"+ 最终汇总，停止循环
+### Core aspects (every round, when applicable)
 
-## 约束
+1. **Time** — timestamp (HH:MM:SS via skills_config.md `## Timezone` template; fall back to `date '+%H:%M:%S'` system tz if section missing); total wall-clock runtime; **ETA per lane + overall** (for `finite`; for `always-on` substitute "time elapsed" + "next checkpoint / next milestone"). Mark `sample insufficient` explicitly when too few rounds to extrapolate.
 
-- **只读不写**：不 kill / 重启 / 改 config / 删日志 / 动产物
-- 汇报紧凑：只报新增 / 变化 / 异常，不复述未变化的背景
-- 场景未提到的进程 / 目录 → 发现异常可以顺带报一句，但不抢占主场景
+2. **State** — each monitored unit's state-machine value: `pending / running / done / failed / paused / retrying / waiting-on-resource / awaiting-user`. **Render the topology (phase → lane → sub-lane → unit) implicitly through grouping / indentation / table row hierarchy** — do not list "topology" as a separate aspect. State is distinct from Progress: a `paused` unit is not stuck, a `failed` unit is not done.
+
+3. **Progress** — per-unit + overall completion. For `finite`: `N / M (xx%)` or stage label; for `always-on`: throughput over a windowed period (events/min, trades/hr). Inline delta vs last round (e.g. `1240 (+85)`, `42% (+3pt)`). Overall ≠ simple sum when lanes have different weights — call out the weighting if non-obvious.
+
+4. **Errors & retries** — error count + **retry budget remaining** (burndown, e.g. `2/5 left`) + last error message with file path + line number + repair-lifecycle state if applicable (L1 / L2 / L3, circuit-breaker open / closed / half-open, tolerance-gate triggered). Budget remaining matters more than raw error count — `1/5 left` means one fault from death.
+
+5. **External constraints** — API rate-limit pause state (`paused until 14:32 by <provider>`), quota remaining, cumulative token / dollar burn. Independent from Errors: "paused for rate-limit" looks like "stuck" if only Progress is watched, and is *not* an error. Cheap to report when nominal (`✓ no limits in effect`), costly to miss.
+
+### Conditional aspect (include in core only when applicable)
+
+6. **Artifacts** — files / records produced this round + cumulative count + size + path + delta vs last round. Distinguish `written` vs `committed` (vs `delivered` for jobs with side-channel push). Include in core when scenario or `## Background processes` indicates disk products / committed artifacts / external notifications; otherwise demote to the Anomaly bucket (fire only on write-vs-commit gap or delivery failure).
+
+### Mandatory verdict
+
+7. **Diagnosis** — **always present, never omit**. One sentence: `nominal` / `stuck (cause)` / `waiting on X (until Y)` / `degrading (rate ↓40% vs last round)` / `budget critical (1 retry left)` / `paused for rate-limit` — plus a one-line recommendation if action is warranted (labelled "recommendation", not "executed"; see §4). Raw data without a verdict is not monitoring.
+
+### Anomaly bucket (fire only when triggered)
+
+A single line slot (e.g. `Anomalies: ✓ none` or `Anomalies: ⚠ rate-limit paused / GPU idle`) that surfaces categories which would be pure noise as fixed core rows:
+
+- **Resource saturation** — OOM risk, CPU pegged, GPU idle when scenario said it should be used, disk near full, FD exhaustion
+- **Coordination** — stale PID lock, lock contention, worktree lock conflict
+- **Throughput regression** — rate dropped > 30% round-over-round (the trend-alert piece of throughput; raw throughput numbers belong in Progress delta, not here)
+- **Special-phase entry** — recovery sweep, circuit-breaker open, tolerance-gate triggered, mode flag flipped
+- **Artifact write-vs-commit gap** — files landed on disk but not durably committed (limbo state)
+- **Scenario-declared domain signals** — quality metrics the user named in `$ARGUMENTS` (Sharpe / max drawdown, validation pass rate, training loss / val accuracy, alert delivery rate); skill only watches these when the scenario explicitly names them — no `skills_config.md` field
+
+The bucket expands into Diagnosis when it has content; when empty, collapse it onto the Diagnosis line (`Diagnosis: nominal, no anomalies`).
+
+### Rendering discipline
+
+- **Layout designed in Round 1, reused thereafter** — eye-track friendliness across rounds matters more than per-round optimisation
+- **Stable aspect order across rounds** — never reshuffle Time / State / Progress / Errors / External / Artifacts / Diagnosis
+- **Severity prefix** on every row / cell — `✓` nominal / `⚠` warning / `✗` failure — so the user spots red first
+- **Inline delta** for any numeric value where it makes sense — `1240 (+85)`, `42% (+3pt)`, `runtime 4h12m (+5m)`
+- **Topology shown by grouping** — table row hierarchy or indented list expresses lane → sublane → unit; never flatten when nesting exists
+- **Anomaly-triggered aspects stay hidden** when nominal — do not print `Resources: ✓ all nominal` every round; only surface when something fires
+- **Aspect is `applicable-only`** — if a category has no data (no external API → no External constraints row; no disk products → no Artifacts row), skip it; do not print empty placeholders
+
+## 4. Handling problems on discovery
+
+- **Do not edit files, do not kill processes, do not restart**
+- Locate first: log line number, related work directory, affected schema / prompt / code files
+- Provide **information + recommendations**: what the error is, possible causes, recommended next step (retry / tune / switch strategy / observe first), labelled "recommendation" not "executed"
+- Severe errors (all processes dead / data corruption / infinite retries) → immediately break the regular reporting cadence, issue one high-priority alert separately, wait for user instruction
+- Act only with explicit user approval; otherwise continue read-only monitoring
+
+## 5. Loop cadence
+
+- Run a report immediately on the first round
+- Then one round every N minutes; stay quiet between rounds, do not flood the chat
+- User interrupt (question / instruction) → respond immediately, resume the cadence afterward
+- User says "stop" / "end monitoring" / `/stop` intent → halt and print a final summary (total runtime, final state, list of anomalies observed during this monitoring session)
+- All processes finished → proactively print "all processes finished" + final summary, halt the loop
+
+## Constraints
+
+- **Read-only**: no kill / restart / config change / log deletion / artifact mutation
+- Reports stay compact: report only new / changed / anomalous items, do not restate unchanged background
+- Processes / directories outside the stated scenario → flag anomalies in passing, but do not displace the primary scenario

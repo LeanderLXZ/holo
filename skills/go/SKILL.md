@@ -1,238 +1,277 @@
 ---
 name: go
-description: 按上文讨论把方案落盘 — 11 步流程：加载配置 → 工作位置询问 → PRE log → 文档创作 → 实现 → smoke → 跨文档对齐+todo → 多线 review → POST log → commit → stash/worktree 收尾。Step 1 必问工作位置（clean 3 选 / dirty 4 选）；Steps 2-9 静默无询问；Step 10 只处理本轮残留，不 fan-out（跨分支同步 → /forward）。Step 2 PRE log 是 /post-check 的 intent 基线，无 PRE 不准动文件。$ARGUMENTS = 本次改动焦点（可选）。触发：落地 / 执行方案 / go / 把刚才讨论的改下来。
+description: Land the discussed plan to disk — 11-step flow: load config → ask work location → PRE log → doc authoring → implementation → smoke → cross-file alignment + todo → multi-line review → POST log → commit → stash/worktree wrap-up. Step 1 always asks the work location (clean 3 options / dirty 4 options); Steps 2-9 are silent without questioning; Step 10 only handles residue from this round, no fan-out (cross-branch sync → /forward). Step 2 PRE log is the intent baseline for /post-check; no PRE, no file changes allowed. $ARGUMENTS = focus of this change (optional). Triggers: land / execute the plan / go / land what we just discussed.
 ---
 
-# /go — 方案落盘
+> **Language**: per `ai_context/skills_config.md §Language` — disk-bound output (logs / docs / commit messages / code comments / files written) uses `content_language`; user-facing surface (chat prose / `AskUserQuestion` prompts and option labels / progress-tool entry `content` / status lines / strategy declarations / findings rendered in chat) uses `conversation_language`. Code identifiers, file paths, field names, frontmatter keys, and structural prefixes (`Step N:`, `LOG:`, etc.) stay English regardless.
 
-按上文讨论执行；某步本次 N/A 就明说"跳过 Step X"。`$ARGUMENTS` 存在即本次改动焦点。
+# /go — land the plan
+
+Execute per the discussion above; if a step is N/A this round, say so explicitly ("skip Step X"). If `$ARGUMENTS` is present, it is the focus of this change.
 
 ## Progress reporting
 
-下方流程分为 `## Step 0:` ~ `## Step 10:`。
+> **Language**: progress-tool entries (`content` field) are user-facing — write them in `conversation_language` per `ai_context/skills_config.md §Language`. The `Step N:` prefix stays English (structural label); subtitle text after the colon translates to `conversation_language`. Same rule applies to sub-task entries `Step Na:` / `Step Nb:` / ….
 
-**进入 Step 0 之前**：调用 **<进度工具>** 把 Step 0 ~ Step 10 全部预登记（每个 step 一条，`content` 用 `Step N: <子段标题>`，`status` 全为 `pending`）。这是硬性要求，**不调 <进度工具> 不许往下走**。
+The flow below is split into `## Step 0:` ~ `## Step 10:`.
 
-每进入一个 step：调 **<进度工具>** 把当前 step 改 `in_progress`（同一次调用里把上一个 step 标 `completed`），然后做实际工作。**step 跨越时不要漏调**。进度由 <进度工具> 的 UI 直接显示，**对话里不再打 `[/go] Step N: ...` 之类的进度行**。
+**Before entering Step 0**: call **<progress tool>** to pre-register Step 0 ~ Step 10 (one entry per step, `content` as `Step N: <sub-section title>`, all `status` = `pending`). This is a hard requirement — **do not proceed without calling <progress tool>**.
 
-跳过某 step：调 **<进度工具>** 把对应条目直接标 `completed`，并在对话里打一行 `Step N 跳过（理由：…）`——"理由"是 UI 缺失的信息，保留这一行；不要静默略过。
+On entering each step: call **<progress tool>** to flip the current step to `in_progress` (in the same call, mark the previous step `completed`), then do the actual work. **Do not skip the call when crossing steps.** Progress is shown directly through the <progress tool> UI; **do not print progress lines like `[/go] Step N: ...` in the conversation**.
 
-最后一步完成：调 **<进度工具>** 把最后一条标 `completed`。
+Skipping a step: call **<progress tool>** to mark the corresponding entry `completed` directly, and print one line in the conversation `Step N skipped (reason: …)` — the "reason" is information the UI lacks, so keep this line; do not silently skip.
 
-**子任务（可选，按需启用）**：当某个 step 内部工作复杂、明显由多个独立小任务组成（如 Step 4 同批改 schema / prompt / code / config 多块）时，进入该 step 时可在 <进度工具> 里把 `Step N: <title>` **展开**为若干条 `Step Na: <子标题>` / `Step Nb: …` / `Step Nc: …`（用字母序，同次调用替换原 `Step N` 条目），按子任务推进切 `in_progress` / `completed`。**只展开当前正在做的 step 的子任务**——其他 step 保持单条 `Step M: <title>` 折叠形态，不展开。当前 step 的子任务全部 `completed` 后，**进入下一 step 时把这些子任务折回成一条** `Step N: <title>` `status=completed`，再展开下一 step（如有需要）。这样 UI 里始终是"当前 step 细粒度 + 其他 step 折叠粗粒度"。
+Final step done: call **<progress tool>** to mark the last entry `completed`.
 
-简单 step 不必启用——直接按 `Step N: <title>` 切状态即可。子任务编号用同一字母序，**不要嵌套二层**（不要 `4a-1` / `4a-2`）。
+**Sub-tasks (optional, enable on demand)**: when a step's internal work is complex and obviously composed of multiple independent small tasks (e.g. Step 4 simultaneously changing schema / prompt / code / config blocks), upon entering that step you may **expand** `Step N: <title>` in the <progress tool> into several entries `Step Na: <sub-title>` / `Step Nb: …` / `Step Nc: …` (alphabetical, replacing the original `Step N` entry in the same call), flipping `in_progress` / `completed` as sub-tasks progress. **Only expand sub-tasks for the currently active step** — other steps stay collapsed as a single `Step M: <title>` entry, not expanded. Once all sub-tasks of the current step are `completed`, **on entering the next step fold these sub-tasks back into one** `Step N: <title>` `status=completed`, then expand the next step (if needed). This way the UI is always "current step fine-grained + other steps collapsed coarse-grained".
 
-**<进度工具> 解析**：Claude → `TodoWrite`（界面显示为 "Update Todos"）；Codex → `update_plan`；其他 runtime（无结构化进度工具，如 Copilot agent mode）→ 在 response 文本里维护一份 markdown checkbox 列表当 step 状态，每次状态切换前整段重写一遍。语义对齐：预登记 + 切状态 + 标完成（含子任务展开 / 折回）。
+Simple steps need not enable this — just flip state on `Step N: <title>` directly. Sub-task numbering uses the same alphabetical series; **do not nest a second layer** (no `4a-1` / `4a-2`).
 
-**<问询工具> 解析**：Claude → `AskUserQuestion`（每次最多 4 题，超过分批问）；其他 runtime（无结构化询问工具，如 Codex / Copilot agent mode）→ 在 response 文本里编号列出问题 + 每题的可选选项，让用户一次回答（仍按每批最多 4 题，超过分批问）。
+**<progress tool> resolution**: Claude → `TodoWrite` (rendered as "Update Todos"); Codex → `update_plan`; other runtimes (no structured progress tool, e.g. Copilot agent mode) → maintain a markdown checkbox list in the response text as step state, rewriting the whole block before each state change. Semantic alignment: pre-register + flip state + mark complete (including sub-task expand / fold-back).
 
-## Step 0: 加载 skills 配置
+**<ask tool> resolution**: Claude → `AskUserQuestion` (max 4 questions per call, batch beyond); other runtimes (no structured ask tool, e.g. Codex / Copilot agent mode) → enumerate questions + options per question in the response text and let the user answer in one pass (still max 4 per batch, batch beyond).
 
-`Read` `ai_context/skills_config.md`。
+## Step 0: Load skills config
 
-- 文件不存在 / 某节标题缺失 → fail loudly：打印缺失项 + 提示按 plugin 模板补全，停手
-- 某节内容 `(none)` 或留空 → 跳过该节相关步骤（视为本项目无此项）
-- 某节列了具体路径但路径不存在 → fail loudly：提示该节漂移到不存在路径，停手等用户修
+`Read` `ai_context/skills_config.md`.
 
-后续步骤出现 "skills_config.md `## XX`" 时引用本配置。本 skill 用到：
-`## Background processes`（Step 1 dirty 提问的关联进程探测）、
-`## Do-not-commit paths`（Step 9 commit 前禁提路径扫描）、
-`## Timezone`（Step 2 / Step 8 时间戳）、
-`## Sensitive content placeholder rules`（Step 3 / Step 7）、
-`## Data contract directories`（Step 5 / Step 7 数据契约扫描；含 JSON Schema / proto / OpenAPI / Pydantic / SQL DDL 等）。
+- File missing / any section header missing → fail loudly: print the missing items + prompt to complete per plugin template, stop
+- Section content `(none)` or empty → skip the related steps for that section (treat as N/A in this project)
+- Section lists concrete paths but the path does not exist → fail loudly: report the section drifting to a nonexistent path, stop and wait for the user to fix
 
-## Step 1: 锁定工作位置（环境探测 + 询问驱动）
-`/go` 的 git 交互契约：**Step 1 必问一次**（这里选定工作位置）；**Step 2 到 Step 9 中途一次都不问**；**Step 10** 视 Step 1 选择再决定是否问一次（worktree follow-up / stash pop 等）。`/go` 不再隐式"切到主分支再说"——是否切分支、是否启 worktree 由用户在 Step 1 显式选定。
+Subsequent steps referencing "skills_config.md `## XX`" use this config. This skill uses:
+`## Background processes` (Step 1 dirty question's associated-process detection),
+`## Do-not-commit paths` (Step 9 do-not-commit path scan before commit),
+`## Timezone` (Step 2 / Step 8 timestamps),
+`## Sensitive content placeholder rules` (Step 3 / Step 7),
+`## Data contract directories` (Step 5 / Step 7 data contract scan; includes JSON Schema / proto / OpenAPI / Pydantic / SQL DDL etc.).
 
-- `git branch --show-current` 取当前分支 `<X>`；`git status --porcelain` 判工作区 clean / dirty；按 skills_config.md `## Background processes` 探测（pgrep 模式 + 进程产物路径；该节留空则跳过进程检测）。把 dirty 摘要 + 关联进程（如有）合并成一行 `<dirty 摘要 / 关联进程 P>`，作为 Dirty 提问的上下文
-- **<问询工具>** 一题，按 clean / dirty 走不同选项集：
+## Step 1: Lock the work location (environment probe + question-driven)
 
-**Clean 路径**（工作区 clean 且无关联进程）：
+> **Language**: user-facing — render the `<ask tool>` prompts, option labels, the strategy declaration, and the language-axes anchor line below in `conversation_language` per `ai_context/skills_config.md §Language`. Structural prefixes (`Strategy:` / `Language axes:`) translate to their `conversation_language` equivalent if natural; the axis values are echoed verbatim from §Language.
 
-提问："当前分支为 `<X>`。请选择 `/go` 的工作位置。"
+The `/go` git interaction contract: **Step 1 always asks once** (selecting the work location here); **Steps 2 through 9 never ask in the middle**; **Step 10** decides whether to ask once more based on the Step 1 choice (worktree follow-up / stash pop etc.). `/go` no longer implicitly "switches to the main branch first" — whether to switch branches and whether to launch a worktree is explicitly selected by the user in Step 1.
 
-1. **在当前分支 `<X>` 上原地执行（推荐）** — 留在 `<X>`，后续编辑 / PRE log / commit 全部落在该分支
-2. **切换至指定分支后执行** — 需提供分支名；进入 worktree follow-up（见下）但用 `git checkout` 而非 `git worktree add`：本地分支存在则直接 checkout；不存在则追问 base 分支后 `git checkout -b <branch> <base>`
-3. **在独立 worktree 中执行** — 需提供分支名；进入 worktree follow-up
+- `git branch --show-current` to get current branch `<X>`; `git status --porcelain` to judge clean / dirty; probe per skills_config.md `## Background processes` (pgrep patterns + process artifact paths; skip process detection when the section is empty). Merge the dirty summary + associated processes (if any) into a single line `<dirty summary / associated process P>` as context for the Dirty question
+- **Orphan-stash probe** (runs before either question dispatches): `git stash list | grep -F "/go autostash"` to count any earlier `/go` autostash entries still on the stash stack. A non-zero count means a previous `/go` run crashed between Step 2 and Step 9 (no pop in Step 10); pushing another autostash on top makes the stack ambiguous. Carry the count as `<stash-orphan-count>` (default 0) — referenced inside the Dirty question below
+- **<ask tool>** one question, with different option sets for clean / dirty:
 
-**Dirty 路径**（工作区 dirty 或有关联进程）：
+**Clean path** (working tree clean and no associated processes):
 
-提问："当前分支为 `<X>`，工作区检测到 `<dirty 摘要 / 关联进程 P>`。请选择处理方式。"
+Question: "Current branch is `<X>`. Please choose `/go`'s work location."
 
-1. **提交当前 WIP 进度后执行 `/go`（推荐）** — 复用 `/commit` Step 1–3 的扫描契约（禁提路径 + 未跟踪文件 + 大文件兜底；**不绕过** Step 2 的安全检查）做一次 WIP commit（message 默认 `wip: <X> snapshot before /go`，可由当前 `$ARGUMENTS` 重写主题），commit 完后留在 `<X>` 上继续 `/go`
-2. **不处理直接执行 `/go`** — 未提交改动将随本次变更一并提交（用户自行确认这是想要的）
-3. **在独立 worktree 中执行** — 需提供分支名；进入 worktree follow-up（worktree 与当前 dirty 工作区互不干扰）
-4. **暂存当前改动（`git stash`）后执行 `/go`** — `git stash push -u -m "/go autostash <X>"` 后留在 `<X>`；Step 10 末尾自动 `git stash pop` 还原（见 Step 10）
+1. **Execute in place on current branch `<X>` (recommended)** — stay on `<X>`; subsequent edits / PRE log / commit all land on that branch
+2. **Switch to a specified branch then execute** — branch name required; enters worktree follow-up (see below) but uses `git checkout` rather than `git worktree add`: if the local branch exists, `git checkout` directly; if not, ask for base branch then `git checkout -b <branch> <base>`
+3. **Execute in a separate worktree** — branch name required; enters worktree follow-up
 
-**Worktree follow-up（仅 Clean 选项 3 / Dirty 选项 3）**：
+**Dirty path** (working tree dirty or associated process detected):
 
-再问一题："worktree 要 checkout 哪个分支？请填分支名。"
+Question: "Current branch is `<X>`; working tree detected `<dirty summary / associated process P>`. Please choose how to handle it." When `<stash-orphan-count>` > 0, append a prefix sentence to the question body: `⚠️ Detected <stash-orphan-count> existing "/go autostash" entr(y/ies) on the stash stack from a previous crashed run; consider \`git stash drop\` / \`git stash pop\` before re-stashing (option 4 below will push another autostash on top).` This surfacing is informational; the user still picks freely.
 
-- 用户填的分支本地已存在 → `git worktree add ../<repo>-<branch> <branch>`；worktree 路径下后续编辑 / PRE log / commit 全走该 worktree
-- 用户填的分支不存在 → 追问一题："分支 `<branch>` 不存在。请填 base 分支（默认 = 当前分支 `<X>`）"，得到 base 后 `git worktree add -b <branch> ../<repo>-<branch> <base>`
-- worktree 路径冲突（目录已存在）→ 停手报告，让用户决定（手动清理后重跑 / 换分支名）
+1. **Commit current WIP progress, then execute `/go` (recommended)** — reuse the `/commit` Step 1–3 scan contract (do-not-commit paths + untracked files + large-file fallback; **does not bypass** the Step 2 safety checks) to make one WIP commit (message defaults to `wip: <X> snapshot before /go`, may be overridden in subject by current `$ARGUMENTS`), then stay on `<X>` and continue `/go`
+2. **Execute `/go` directly without handling** — uncommitted changes will be committed together with this change (user confirms this is intended)
+3. **Execute in a separate worktree** — branch name required; enters worktree follow-up (worktree and current dirty working tree do not interfere)
+4. **Stash current changes (`git stash`) then execute `/go`** — `git stash push -u -m "/go autostash <X>"` then stay on `<X>`; Step 10 at the end auto `git stash pop` to restore (see Step 10). When `<stash-orphan-count>` > 0 the option label gains a `(WARN: <N> orphan autostash already on stack)` suffix so the user sees the ambiguity hazard at the picker
 
-**切换至指定分支 follow-up（仅 Clean 选项 2）**：
+**Worktree follow-up (only for Clean option 3 / Dirty option 3)**:
 
-同上的"分支名 → 不存在追问 base"流程，但用 `git checkout` / `git checkout -b <branch> <base>` 而不开 worktree。仅 Clean 路径出现该选项——Dirty 路径下直接切分支会污染工作区，由用户先用 Dirty 选项 1 / 4 把工作区清干净再换分支。
+Ask another question: "Which branch should the worktree check out? Provide the branch name."
 
-选定后打印一行策略声明，举例：
-- `策略：当前分支 develop 原地`
-- `策略：切到 feature/x 原地`
-- `策略：../holo-main worktree 隔离（branch=main）`
-- `策略：WIP commit 后留在 develop 原地`
-- `策略：stash 后留在 develop 原地（Step 10 自动 pop）`
+- The branch the user provided exists locally → `git worktree add ../<repo>-<branch> <branch>`; subsequent edits / PRE log / commit under the worktree path all go through that worktree
+- The branch the user provided does not exist → ask one more: "Branch `<branch>` does not exist. Provide the base branch (default = current branch `<X>`)", then with the base obtained, `git worktree add -b <branch> ../<repo>-<branch> <base>`
+- Worktree path conflict (directory already exists) → stop and report, let the user decide (clean up manually then re-run / pick another branch name)
 
-`git checkout` / `git worktree add` / WIP commit / `git stash` 中任一失败 → 停手报告原因，等用户决定。**Step 1 之后不再询问**，直到 Step 10 末尾。
+**Switch to specified branch follow-up (only for Clean option 2)**:
 
-## Step 2: PRE log 登记（先登记再动手）
-**任何代码 / schema / prompt / docs / ai_context / skill 改动之前**，先创建本次改动的 log 文件并写入 PRE 段。这是 `/post-check` 的 intent 基线来源，强制。
+Same "branch name → ask base if not exists" flow, but use `git checkout` / `git checkout -b <branch> <base>` and do not open a worktree. This option only appears on the Clean path — switching branches directly on a Dirty path would pollute the working tree; the user should first use Dirty option 1 / 4 to clean up the working tree then switch.
 
-- 文件名：`logs/change_logs/{YYYY-MM-DD}_{HHMMSS}_{slug}.md`。HHMMSS 强制，按 skills_config.md `## Timezone` 的命令模板执行（该节缺失则 fallback 到 `date '+%Y-%m-%d_%H%M%S'` 系统时区）；slug 语义化英文短名
-- 回显路径给用户（一行 `LOG: logs/change_logs/...md`），便于后续 `/post-check` 显式引用
+After selecting, print **two declaration lines** in succession:
 
-PRE 段必须包含：
+- **Strategy line**: `Strategy: <chosen path>`, e.g. `Strategy: current branch develop in place` / `Strategy: switch to feature/x in place` / `Strategy: ../holo-main worktree isolation (branch=main)` / `Strategy: WIP commit then stay on develop in place` / `Strategy: stash then stay on develop in place (Step 10 auto pop)`. Natural-language portion translates to `conversation_language` (e.g. `策略: 当前分支 develop 原地` under `conversation_language: zh`); the structural prefix `Strategy:` (or its `conversation_language` equivalent) leads the line.
+- **Language-axes anchor line**: `Language axes: conversation_language=<value> · content_language=<value> (source: ai_context/skills_config.md §Language)`. Both axis values are echoed **verbatim** from the §Language section read in Step 0; the bracketed source path stays English; the natural-language prefix translates to `conversation_language` (e.g. `语言双轴: conversation_language=zh · content_language=en （来源: ai_context/skills_config.md §Language）` under `conversation_language: zh`). This line is a deliberate high-salience anchor planted before Steps 2–10 accumulate context.
+
+If any of `git checkout` / `git worktree add` / WIP commit / `git stash` fails → stop and report the cause, wait for the user to decide. **No further questioning after Step 1** until the end of Step 10.
+
+## Step 2: PRE log registration (register before acting)
+
+> **Cross-skill protocol ownership**: this Step defines the PRE log template (section names, `Status: PRE` token, the `## Background / Trigger` / `## Conclusion and decisions` / `## Planned action list` / `## Validation criteria` / `## Execution deviations` subsection set) — the canonical definition consumed by `/post-check` Step 1.5 (intent baseline read). Renaming any of these subsection names, the `Status` token, or the file-header structure requires a lockstep edit in `/post-check` Step 1.5 + Step 5 per `ai_context/conventions.md §Cross-File Alignment` (row: "PRE/POST/REVIEW change-log protocol"). `/recent-activity` reads only the file head 25 lines and is heading-insensitive — NOT a lockstep consumer for these renames.
+
+> **Language**: disk-bound — write this PRE log file in `content_language` per `ai_context/skills_config.md §Language`. The `LOG: …` echo printed to the user is user-facing (label `LOG:` stays English, path text translates only if a non-default `conversation_language` makes it natural; default = leave the line as `LOG: <path>`). Code identifiers, file paths, field names stay English regardless.
+
+**Before any code / schema / prompt / docs / ai_context / skill change**, create this round's log file and write the PRE section. This is the intent baseline source for `/post-check`; mandatory.
+
+- Filename: `<change_logs_path>/<filename pattern with slug substituted>` — `<change_logs_path>` is `skills_config.md ## Activity sources.Change logs.Path` and the pattern is `## Activity sources.Change logs.Filename time pattern` (defaults: `logs/change_logs/` + `{YYYY-MM-DD}_{HHMMSS}_{slug}.md`). HHMMSS is mandatory and executed per the skills_config.md `## Timezone` command template; if §Timezone is missing or its command fails, follow the fallback declared in §Timezone (system-tz `date '+%Y-%m-%d_%H%M%S'`). slug is a semantic short English name.
+- Echo the path back to the user (one line `LOG: logs/change_logs/...md`) for later explicit reference by `/post-check`
+
+The PRE section must contain:
 
 ```markdown
 # {slug}
 
-- **Started**: {YYYY-MM-DD HH:MM:SS} {时区缩写：按 skills_config.md `## Timezone` 的设定}
-- **Branch**: {/go 进入时的工作分支}
+- **Started**: {YYYY-MM-DD HH:MM:SS} {timezone abbrev: per skills_config.md `## Timezone` setting}
+- **Branch**: {work branch at /go entry}
 - **Status**: PRE
 
-## 背景 / 触发
-{会话上下文、用户原始需求、上游讨论链条摘要}
+## Background / Trigger
+{session context, user original ask, upstream discussion chain summary}
 
-## 结论与决策
-{/go 进来时已拍板的方案：选了哪个方向、改什么、不改什么}
+## Conclusion and decisions
+{plan already decided at /go entry: direction picked, what changes, what does not}
 
-## 计划动作清单
-- file: {path} → {改动要点}
+## Planned action list
+- file: {path} → {change focus}
 - ...
 
-## 验证标准
-- [ ] {如 Import 无报错}
-- [ ] {如 数据契约校验通过}
-- [ ] {如 grep 残留为 0}
+## Validation criteria
+- [ ] {e.g. Import has no error}
+- [ ] {e.g. data contract validation passes}
+- [ ] {e.g. grep residue = 0}
 - ...
 
-## 执行偏差
-（执行中追加；无偏差则写"无"）
+## Execution deviations
+(append during execution; write "none" if no deviation)
 ```
 
-写完 PRE 段**再进入 Step 3**。中途发现偏离计划 → 在 log 里追加 `## 执行偏差` 段落记新决定，**不默默改**。
+Write the PRE section, then **enter Step 3**. If execution mid-way drifts from the plan → append a `## Execution deviations` paragraph to the log recording the new decision, **do not silently change**.
 
-## Step 3: 把讨论结论落到文档（内容创作）
+If the PRE log file write fails (IO error, path not writable, disk full, permission denied) → **stop and report the cause; do not enter Step 3**. `ai_context/conventions.md` §Logging "No PRE log → do not start modifying files" is the operative invariant; a failed write means no PRE log exists, so subsequent steps must not run.
 
-把会话里已拍板的方案翻译成文档语言。**这一步只做"写入"**——跨文档对齐校验留给 Step 6，全库 review 留给 Step 7；本步任何"某文件 A 写完发现文件 B 也得改"的连带感觉，**先记进 PRE log 的「执行偏差」段**，留给 Step 6 系统补齐，不要边写边四处串改。
+## Step 3: Land discussion conclusions into docs (content authoring)
 
-按本次讨论触及的范围筛取（不要无脑全跑）：
+> **Language**: disk-bound — write these docs / ai_context updates in `content_language` per `ai_context/skills_config.md §Language`. Code identifiers, file paths, field names stay English regardless.
 
-- **`docs/requirements.md` + `ai_context/requirements.md`**（一对，lockstep）：本次涉及**用户可见的功能契约 / 验收标准 / 边界情况约束**变化时更新对应节
-- **`docs/architecture/` + `ai_context/architecture.md`**（一对，lockstep）：本次涉及以下任一时更新对应节 —— **新模块 / 新接口 / 新状态机 / 调用关系变化 / 新分支策略 / 新工作流契约 / 新入口点**
-- **`ai_context/decisions.md`**：本次产生的 durable 决策立刻落条目，不要拖到 Step 6 / Step 8；**若决策涉及上一行的触发词，必须同步在 architecture / requirements 加一节描述**（决策是 "why"，architecture / requirements 是 "what"）
-- **`prompts/`**：讨论结论包含 prompt 行为契约 / 模板变化时更新
-- **`README.md`**：仅当目录 / 入口 / 启动方式有变化
+Translate decisions from the conversation into doc language. **This step only does "writing"** — cross-file alignment verification belongs to Step 6; full-repo review belongs to Step 7. Any "I wrote file A and now feel file B needs changing too" sensation in this step **first goes into the PRE log's "Execution deviations" section**, deferred to Step 6 for systematic patching; do not stream-edit across files while writing.
 
-写作约束：
+Filter by scope touched in this discussion (do not blindly run all):
 
-- **按 skills_config.md `## Sensitive content placeholder rules` 用占位符替换真实内容**（该节留空则跳过该项扫描）
-- 描述只写当前设计，不写"旧 / legacy / 已废弃 / 原为"
+- **`docs/requirements.md` + `ai_context/requirements.md`** (paired, lockstep): update the matching sections when this round touches **user-visible functional contract / acceptance criteria / boundary constraint** changes
+- **`docs/architecture/` + `ai_context/architecture.md`** (paired, lockstep): update matching sections when this round touches any of — **new module / new interface / new state machine / call-graph change / new branch strategy / new workflow contract / new entry point**
+- **`ai_context/decisions.md`**: durable decisions produced this round land as entries immediately, not deferred to Step 6 / Step 8; **if the decision touches the trigger words above, simultaneously add a section in architecture / requirements describing it** (decision is "why", architecture / requirements is "what")
+- **Prompt sources** (path per `skills_config.md ## Activity sources.Prompt sources.Path`; skip when `(none)`): update when discussion conclusions include prompt behavior contract / template changes
+- **`README.md`**: only when directory / entry point / startup method changes
 
-## Step 4: 实现代码 / schema / prompt / 配置
-按讨论改 schema、prompt template、架构代码、配置。**先确认 PRE log「验证标准」段已有 ≥ 1 条具体可执行项**（如 `import 无报错` / `grep 残留 = 0` / `smoke X 全过`；非"做对了就行"这类含糊）；含糊 → 立刻补具体的再继续。对照 `ai_context/conventions.md` 的 Cross-File Alignment 表列出连带文件（该表不存在则跳过本项，仅按本次改动直觉判断）。
+Authoring constraints:
 
-## Step 5: Smoke 测试 + 数据契约校验（仅当代码 / 数据契约改动时）
-Import 检查 + 关键函数 smoke test；如本次改动触及 skills_config.md `## Data contract directories` 列出的目录（schema / proto / openapi / pydantic / SQL DDL 等数据契约），按项目对应的校验工具跑一次（例：JSON Schema → `jsonschema` / `ajv`；OpenAPI → `openapi-spec-validator` / `redocly lint`；proto → `protoc --lint_out`；pydantic → 模型 import + `model_rebuild()`；SQL DDL → migration dry-run）。该节 `(none)` 时跳过本步契约校验。有错立即修。
+- **Use placeholders per skills_config.md `## Sensitive content placeholder rules` to replace real content** (skip this scan when the section is empty)
+- Descriptions write only the current design; do not write "old / legacy / deprecated / formerly"
 
-## Step 6: 跨文档对齐 + todo_list 维护
+## Step 4: Implement code / schema / prompt / config
 
-到这里 Step 3 / 4 / 5 已分别把内容写进文档与代码。**本步只做"对齐校验 + 维护收尾"**，不做内容创作——若发现某项需要重新写一段需求 / 架构描述，回到 Step 3 重写而不是在本步硬塞。
+> **Language**: disk-bound — write these code / schema / prompt / config changes in `content_language` per `ai_context/skills_config.md §Language`. Code identifiers, file paths, field names stay English regardless; user-facing chat reports of what changed translate to `conversation_language`.
 
-**跨文档对齐**：
+Change schema, prompt template, architecture code, config per the discussion. **First confirm the PRE log "Validation criteria" section has ≥ 1 concrete executable item** (e.g. `import has no error` / `grep residue = 0` / `smoke X all pass`; not vague "as long as it works"); if vague → immediately add concrete ones then continue. Consult the Cross-File Alignment table in `ai_context/conventions.md` to list linked files (skip this if the table does not exist; judge by intuition based on this change).
 
-- 对照 `ai_context/conventions.md` 的 Cross-File Alignment 表（不存在则按 Step 3 / Step 4 实际触及的文件直觉判断），核对 schema / prompt / code / docs / ai_context / README 在以下维度是否一致：
-  - 字段名 / 参数 / 返回值 / 状态值 / 错误码
-  - 流程描述 / 状态机 / 门控时序
-  - 术语 / 概念命名
-- 发现某文件本应同步却没动 → **查漏补缺**式补上；改动量小（一两行同步）就地修，改动量大（要重写整段需求 / 架构描述）→ 回 Step 3 重做
+## Step 5: Smoke test + data contract validation (only when code / data contract changes)
 
-**ai_context durable 维护**：
+> **Language**: user-facing — render any chat report of smoke / contract validation outcomes (pass / fail summary, tool output rendered for the user) in `conversation_language` per `ai_context/skills_config.md §Language`. Tool stdout / stderr captured verbatim stays in its original form; only the surrounding explanatory prose translates. Code identifiers / file paths / structural labels (`PASS:` / `FAIL:`) stay English.
 
-- `ai_context/current_status.md`：当前状态行是否需要更新
-- `ai_context/next_steps.md`：本次产生的新方向 / 阻塞是否需要登记
-- `ai_context/handoff.md`：是否需要给下一会话留一句话
+Import check + smoke test on key functions; if this change touches directories listed in skills_config.md `## Data contract directories` (schema / proto / openapi / pydantic / SQL DDL etc. data contracts), run the project's corresponding validation tool once (e.g.: JSON Schema → `jsonschema` / `ajv`; OpenAPI → `openapi-spec-validator` / `redocly lint`; proto → `protoc --lint_out`; pydantic → model import + `model_rebuild()`; SQL DDL → migration dry-run). Skip this contract validation when the section is `(none)`. Fix errors immediately.
 
-**todo_list 维护**：
+## Step 6: Cross-file alignment + todo_list maintenance
 
-- `docs/todo_list.md`：本次完成的条目**整条移到 `docs/todo_list_archived.md`** 的 `## Completed` 段（瘦身：标题 + 完成形式 + 1 行摘要 + 本次 log 链接）；状态变化更新
-- 任务移段 / 增改后**同步刷新顶部 `## Index` 段**（规则在 `docs/todo_list.md` 顶部"Index maintenance"小节）。`/todo` skill 只读索引，不刷新就会给出过期信息
-- ⚠️ 仅维护"本次改动直接产生 / 完成"的条目；Step 7 review 期间发现的新问题**不在本步登记**，按 Step 7 的处理规则走
+> **Language**: disk-bound — write these ai_context / docs / todo_list maintenance edits in `content_language` per `ai_context/skills_config.md §Language`. Code identifiers, file paths, field names stay English regardless.
 
-## Step 7: 全库多线 review（并行）
+By here, Step 3 / 4 / 5 have written content into docs and code. **This step only does "alignment verification + maintenance wrap-up"**, no content authoring — if something needs re-authoring of a requirements / architecture description paragraph, go back to Step 3 to rewrite rather than cramming it in here.
 
-并行扫描全仓与本次改动相关 / 受牵连的文件，**至少四条线，可派 sub-agent 并行**；改动面小则单线串跑。
+**Cross-file alignment**:
 
-**四条线**（每条都先重读 PRE log 再扫描）：
+- Consult the Cross-File Alignment table in `ai_context/conventions.md` (if absent, judge by intuition based on the files actually touched in Step 3 / Step 4), and check whether schema / prompt / code / docs / ai_context / README are consistent across these dimensions:
+  - field names / params / return values / state values / error codes
+  - flow descriptions / state machines / gating timing
+  - terminology / concept naming
+- If a file should have synced but did not → patch as a **gap-fix**; small change (one or two lines of sync) fix in place; large change (rewriting a whole requirements / architecture description paragraph) → go back to Step 3
 
-1. **规范线**：`ai_context/` / `docs/` / skills_config.md `## Data contract directories` 列出的目录（`(none)` 时跳过该节扫描）/ `prompts/` —— 描述 vs. 本次改动是否一致，有无残留旧描述 / 旧字段 / 旧流程；顺查有无违反 skills_config.md `## Sensitive content placeholder rules` 的真实内容、`旧 / legacy / 已废弃 / 原为` 字样
-2. **实现线**：本次改过的代码 + 其上下游（调用方 / 被调用方 / 导入方）—— 字段名 / 参数 / 返回值 / 状态机 / 门控 / 异常路径是否连贯，import 是否还能跑
-3. **风险线**：本次改过的代码 + 受其牵连的相关代码（调用方 / 被调用方 / 共享状态 / 共享数据流）—— 边界条件、空值 / None、异常路径、并发、重试 / 回滚、错误处理是否藏 bug；新行为是否引入数据丢失 / 安全口子 / 性能回退；状态机 / 门控 / 不变量是否有漏覆盖分支。**与实现线区分**：实现线问"还连得上吗"（签名 / import 一致性），风险线问"做的事对吗"（语义正确性 + 失败模式）
-4. **结构线**：README / 目录结构 / 已提交样例产物 / artifact 目录 是否与本次变化对齐；改了文件名 / 目录结构 → 追查所有引用点
+**ai_context durable maintenance**:
 
-**Findings 处理**（**重要**：本步发现的问题不要直接写进 `docs/todo_list.md`）：
+- `ai_context/current_status.md`: does the current-state line need updating
+- `ai_context/next_steps.md`: do new directions / blockers from this round need to be logged
+- `ai_context/handoff.md`: does the next session need a one-liner handoff
 
-- **一行能修的小问题**（错别字、漏占位符、漏一个 import、明显笔误、悬挂引用一处）→ **发现即修**，不留尾
-- **大问题 / 跨范围 / 需要重新讨论 / 不在本次 intent 范围内的发现** → **不自己写进 `docs/todo_list.md`**；在对话里列一段「**建议登记到 todo_list**」清单，每条带：文件 + 行号、问题摘要、建议归到哪个分段。等用户拍板后由 `/todo-add` 或下一轮 `/go` 落条目——避免本次 intent 之外的发现污染 todo_list 历史
+**todo_list maintenance**:
 
-> **进入本步之前，自己先重读 Step 2 创建的 PRE log**——经过前几步的编辑上下文，已经离"原始 intent"有距离；以 PRE 的"结论与决策 / 计划动作清单 / 验证标准"重新校准，再开始扫描。
+- The TODO list (path per `skills_config.md ## Activity sources.TODO list.Path`, typically `docs/todo_list.md`): completed entries this round **move wholesale to the `## Completed` section of the archived TODO list** (path per `## Activity sources.Archived TODO list.Path`, typically `docs/todo_list_archived.md`) — slimmed: title + completion form + 1 line summary + this round's log link; update state changes
+- After moves / additions / updates, **refresh the top `## Index` section in sync** (rule in the "Index maintenance" subsection at the top of `docs/todo_list.md`). The `/todo` skill reads the index only; without refresh it returns stale info
+- ⚠️ Only maintain entries "directly produced / completed by this change"; new issues discovered during Step 7 review **do not register here**; follow Step 7 handling rules
+
+## Step 7: Full-repo multi-line review (parallel)
+
+> **Language**: disk-bound — when a finding is fixed in place inside a target file, the edited file follows that file's existing `content_language` rules (typically `content_language` per `ai_context/skills_config.md §Language`). Code identifiers, file paths, field names stay English.
+
+> **Language**: user-facing — render the "suggest registering to todo_list" chat list (file + line + issue summary + suggested segment) in `conversation_language` per `ai_context/skills_config.md §Language`. Structural labels (`file:`, `line:`, `suggest segment:`) stay English; only the summary prose translates.
+
+> **Language (sub-agent dispatch)**: when spawning sub-agents at this step, the parent MUST inject the language axes into each sub-agent's prompt explicitly. Include verbatim: "Reply in `conversation_language`=`<value>`; write any disk artifacts in `content_language`=`<value>`; both values from `ai_context/skills_config.md §Language`." Sub-agents do not inherit the parent's language config — they must be told. The sub-agent's report-back to the parent is a USER surface; its on-disk edits (if any) are DISK surface.
+
+Scan in parallel files across the repo related to / dragged along by this change, **at least four lines, sub-agents may run in parallel**; for small change surface, run a single line serially.
+
+**Four lines** (each re-reads the PRE log before scanning):
+
+1. **Spec line**: `ai_context/` / `docs/` / directories listed in skills_config.md `## Data contract directories` (skip scan when `(none)`) / the prompt-sources path from skills_config.md `## Activity sources.Prompt sources.Path` (skip when `(none)`) — descriptions vs. this change consistent; any residual old descriptions / old fields / old flows; also check for real content violating skills_config.md `## Sensitive content placeholder rules`, or `old / legacy / deprecated / formerly` wording
+2. **Implementation line**: code changed this round + its upstream / downstream (callers / callees / importers) — field names / params / return values / state machines / gates / exception paths still coherent; do imports still run
+3. **Risk line**: code changed this round + related code dragged along (callers / callees / shared state / shared data flow) — boundary conditions, null / None, exception paths, concurrency, retry / rollback, error handling hiding bugs; do new behaviors introduce data loss / security holes / performance regressions; do state machines / gates / invariants have missed branches. **Distinct from implementation line**: implementation line asks "does it still hook up" (signature / import consistency); risk line asks "is what it does correct" (semantic correctness + failure modes)
+4. **Structure line**: are README / directory structure / committed example artifacts / artifact directories aligned with this change; if filenames / directory structure changed → trace all reference points
+
+**Findings handling** (**important**: issues discovered in this step do not get written directly into `docs/todo_list.md`):
+
+- **One-line fixes** (typo, missed placeholder, missing import, obvious slip, single dangling reference) → **fix on the spot**, no tail
+- **Big issues / cross-scope / need re-discussion / outside this round's intent** → **do not write into `docs/todo_list.md` yourself**; in the conversation list a "**suggest registering to todo_list**" block, each entry with: file + line, issue summary, suggested segment. After the user decides, `/todo-add` or the next `/go` lands the entry — avoid polluting todo_list history with findings outside this round's intent
+
+> **Before entering this step, re-read the PRE log Step 2 created yourself** — after the editing context of prior steps, you have drifted from "original intent"; recalibrate against the PRE "Conclusion and decisions / Planned action list / Validation criteria" before scanning.
 >
-> **派出的每个 sub agent 也必须先重读同一份 PRE log**：把 `LOG:` 路径塞进它的 prompt，并**明示要求它开工前先读完该 log 的 PRE 段**再做事。sub agent 是独立 context，不强制它读 PRE 就只会按 prompt 里的 brief 空转，容易脱离本次 intent。
+> **Each dispatched sub-agent must also re-read the same PRE log**: stuff the `LOG:` path into its prompt and **explicitly require it to read the log's PRE section before acting**. Sub-agents have independent context; without enforced PRE reading they will spin only on the brief in the prompt, easily drifting from this round's intent.
 
-## Step 8: POST log 收尾
-更新 **Step 2 创建的同一份 log**，追加 POST 段：
+## Step 8: POST log wrap-up
+
+> **Cross-skill protocol ownership**: this Step defines the POST section template (`## Landed changes` / `## Diff from plan` / `## Validation results` / `## Completed` subsection set) and the `Status: DONE | BLOCKED` state-machine transition from `PRE`. The POST section is consumed by `/post-check` Step 5 (REVIEW append, which expects the POST section to already exist and reads the `Status` token to decide whether to flip to `REVIEWED-*`). Renaming any of these subsection names, the `Status` tokens, or the `Completed` block structure requires a lockstep edit in `/post-check` Step 5 per `ai_context/conventions.md §Cross-File Alignment` (row: "PRE/POST/REVIEW change-log protocol").
+
+> **Language**: disk-bound — write this POST log section appended to the same log file in `content_language` per `ai_context/skills_config.md §Language`. Code identifiers, file paths, field names stay English regardless.
+
+Update **the same log Step 2 created**, appending the POST section:
 
 ```markdown
-<!-- POST 阶段填写 -->
+<!-- POST phase fills in -->
 
-## 已落地变更
-{实际改了哪些文件、每份改了什么，文件 + 行号或 diff 摘要}
+## Landed changes
+{which files actually changed, what each changed, file + line numbers or diff summary}
 
-## 与计划的差异
-{对比 PRE 的"计划动作清单"，新增 / 删除 / 修改了什么；无则写"无"}
+## Diff from plan
+{compared with PRE "Planned action list", what was added / removed / modified; write "none" if nothing}
 
-## 验证结果
-- [x] {PRE 验证标准 1} — {输出摘要}
-- [ ] {PRE 验证标准 2} — {失败原因}
+## Validation results
+- [x] {PRE validation 1} — {output summary}
+- [ ] {PRE validation 2} — {failure cause}
 - ...
 
 ## Completed
 - **Status**: DONE | BLOCKED
-- **Finished**: {timestamp，按 skills_config.md `## Timezone` 的命令模板取，与 PRE Started 同时区}
+- **Finished**: {timestamp, per skills_config.md `## Timezone` command template, same timezone as PRE Started}
 ```
 
-不要新建 log 文件；就地更新 PRE 段那份。
+Do not create a new log file; update the same file that holds the PRE section in place.
 
 ## Step 9: Git commit
-Step 1 已经把工作位置锁定（当前分支原地 / 切换后的分支 / worktree 内的分支），commit **落到 Step 1 选定的分支**。worktree 是否清理留给 Step 10——本步不动。
 
-- `git status` 只剩本次改动；按 skills_config.md `## Do-not-commit paths` 列表 +（`.gitignore` + `ai_context/conventions.md`）兜底扫描
-- message 风格对齐 `git log --oneline -10`
-- **本次改动 + PRE/POST log 文件合并为单次 commit**——不再拆 `<slug>: ...` + `log(<slug>): /go PRE+POST` 两次
-- 提交后 `git status` 确认干净
-- **若 Step 1 走了 worktree 路径**：commit 在该 worktree 内执行；commit 完成后**不自动清理** worktree（清理由 Step 10 末尾询问）。`/go` 始终留在 Step 1 选定的工作位置（worktree / 切到的分支 / 原分支），不背着用户切回别处
+> **Language**: disk-bound — write this commit message in `content_language` per `ai_context/skills_config.md §Language`. Code identifiers, file paths, field names stay English regardless. The pre-commit confirmation surface (the message preview shown to the user) is user-facing — render explanatory prose around the message in `conversation_language`, but the commit message text itself stays in `content_language`.
 
-## Step 10: 收尾（stash pop + worktree follow-up）
+Step 1 has locked the work location (current branch in place / branch after switch / branch inside the worktree); commit **lands on the branch selected in Step 1**. Whether to clean up the worktree is left to Step 10 — this step does not touch it.
 
-`/go` **不再 fan-out 到其他分支**——跨分支同步是 `/forward` 的事，由用户在本轮 `/go` 完成后显式调用。本步只处理 Step 1 选择遗留的状态。
+- `git status` shows only this change; scan per skills_config.md `## Do-not-commit paths` + (`.gitignore` + `ai_context/conventions.md`) as fallback
+- message style aligned with `git log --oneline -10`
+- **This change + PRE/POST log file merge into one commit** — no longer split into `<slug>: ...` + `log(<slug>): /go PRE+POST` two commits
+- After commit, `git status` confirms clean
+- **If Step 1 went the worktree path**: commit executes inside that worktree; after commit **does not auto-clean** the worktree (cleanup goes through the Step 10 end question). `/go` always stays at the work location selected in Step 1 (worktree / switched branch / original branch), does not switch back behind the user's back
 
-按 Step 1 实际走的路径分支处理：
+## Step 10: Wrap-up (stash pop + worktree follow-up)
 
-- **Clean 选项 1（当前分支原地）/ Clean 选项 2（切到指定分支原地）/ Dirty 选项 1（WIP commit 后原地）/ Dirty 选项 2（不处理直接执行）** → 无遗留状态，直接打印"`/go` 完成，当前在 `<branch>`，commit 已落地。后续如需同步到其他分支，请 `/forward`"，**不询问**，结束
-- **Dirty 选项 4（stash 后执行）** → 在源分支 `<X>` 上自动 `git stash pop` 还原工作区。pop 失败（冲突 / stash 丢失）→ 停手报告，让用户决定；成功则打印一行 `stash 已 pop 还原`，**不询问**，结束
-- **Clean 选项 3 / Dirty 选项 3（worktree 路径）** → 用 **<问询工具>** 问一次："`/go` 已完成，本次 commit 已落到 `<branch>`。worktree `../<path>` 如何处理？"
-  1. **保留 worktree（推荐——便于后续在该分支继续工作）** — 不动 worktree；打印当前 worktree 路径供用户下次使用
-  2. **立即清理（`git worktree remove`）** — 在源仓库根目录执行 `git worktree remove ../<path>`；commit 已落到分支 ref，worktree 目录删除不丢数据。`git worktree remove` 因脏文件失败 → 停手报告，让用户决定（不自动加 `--force`）
+> **Language**: user-facing — render the worktree-handling `<ask tool>` prompt, the final state line, and the `stash popped and restored` confirmation in `conversation_language` per `ai_context/skills_config.md §Language`. Structural prefixes (`stash`, `worktree`, `HEAD`) stay English; only surrounding prose translates.
 
-打印一行最终状态：`/go` 完成，当前 HEAD = `<branch>`；worktree 处理结果（保留 / 清理）。**不切回任何"主分支"**——`/go` 始终尊重 Step 1 选定的工作位置，把"我现在在哪个分支" 的决定权留给用户。
+`/go` **no longer fans out to other branches** — cross-branch sync is `/forward`'s job, explicitly invoked by the user after this `/go` completes. This step only handles the state left by the Step 1 choice.
+
+Handle per the path actually taken in Step 1:
+
+- **Clean option 1 (current branch in place) / Clean option 2 (switched branch in place) / Dirty option 1 (WIP commit in place) / Dirty option 2 (execute without handling)** → no leftover state; print directly "`/go` complete; currently on `<branch>`; commit landed. For subsequent sync to other branches, use `/forward`", **no questioning**, end
+- **Dirty option 4 (stash then execute)** → on source branch `<X>`, auto `git stash pop` to restore the working tree. pop failure (conflict / stash lost) → stop and report, let the user decide; on success, print one line `stash popped and restored`, **no questioning**, end
+- **Clean option 3 / Dirty option 3 (worktree path)** → use **<ask tool>** to ask once: "`/go` complete; this commit landed on `<branch>`. How to handle worktree `../<path>`?"
+  1. **Keep worktree (recommended — convenient for continued work on that branch)** — leave the worktree alone; print the current worktree path for next-time use
+  2. **Clean up immediately (`git worktree remove`)** — execute `git worktree remove ../<path>` from the source repo root; the commit has landed on the branch ref, removing the worktree directory does not lose data. If `git worktree remove` fails due to dirty files → stop and report, let the user decide (do not auto-add `--force`)
+
+Print a final state line: `/go` complete; current HEAD = `<branch>`; worktree handling result (kept / cleaned). **Does not switch back to any "main branch"** — `/go` always respects the work location selected in Step 1, leaving "which branch I am on" to the user.

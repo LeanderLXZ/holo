@@ -1,66 +1,78 @@
 ---
 name: commit
-description: 提交当前 working tree 改动 — 校验追踪状态（禁提路径 / 大文件 / 未跟踪文件），按逻辑单元分 commit，message 对齐仓库惯例（drawn from git log）。$ARGUMENTS = commit 主题（可选）。不 push / 不 force / 不 amend / 不 --no-verify；跨文件 ai_context/docs 对齐 → /go，跨分支同步 → /forward。触发：commit / 提交一下 / 提交当前改动。
+description: Commit the current working tree changes — verify tracking state (forbidden paths / large files / untracked files), split commits along logical units, message aligned to repo convention (drawn from git log). $ARGUMENTS = commit subject (optional). No push / no force / no amend / no --no-verify; cross-file ai_context/docs alignment → /go, cross-branch sync → /forward. Triggers: commit / commit it / commit the current changes.
 ---
 
-# /commit — 快速确认并提交当前改动
+> **Language**: per `ai_context/skills_config.md §Language` — disk-bound output (the commit message body, any in-place file edits like `.gitignore` additions) uses `content_language`; user-facing surface (chat prose / `AskUserQuestion` prompts and option labels / progress-tool entry `content` / wrap-up `commit OK: <sha> <subject>` line) uses `conversation_language`. Code identifiers, file paths, field names, frontmatter keys, structural prefixes (`Step N:`, `commit OK:`, commit SHAs, branch names) stay English regardless.
 
-对当前 working tree 做一次轻量校验，确认改动有效、追踪状态无误后 commit。**不做全仓 review、不动 ai_context / docs 对齐**（那是 `/go` 的事）；**不做跨分支同步**（那是 `/forward` 的事）。
+# /commit — Quickly confirm and commit the current changes
+
+Run a light verification of the current working tree, then commit once the changes are valid and tracking state is clean. **No full-repo review, no ai_context / docs alignment** (that is `/go`'s job); **no cross-branch sync** (that is `/forward`'s job).
 
 ## Progress reporting
 
-下方流程分为 `## Step 0:` ~ `## Step 3:`（前置一段 `## $ARGUMENTS 解析` 是参数解析，不算正式 step）。
+> **Language**: progress-tool entries (`content` field) are user-facing — write them in `conversation_language` per `ai_context/skills_config.md §Language`. The `Step N:` prefix stays English (structural label); subtitle text after the colon translates to `conversation_language`.
 
-**进入 Step 0 之前**：调用 **<进度工具>** 把 Step 0 ~ Step 3 全部预登记（每个 step 一条，`content` 用 `Step N: <子段标题>`，`status` 全为 `pending`；`$ARGUMENTS` 解析不计入）。这是硬性要求，**不调 <进度工具> 不许往下走**。
+The flow below is divided into `## Step 0:` ~ `## Step 3:` (the preceding `## $ARGUMENTS parsing` section is argument parsing, not a formal step).
 
-每进入一个 step：调 **<进度工具>** 把当前 step 改 `in_progress`（同一次调用里把上一个 step 标 `completed`），然后做实际工作。**step 跨越时不要漏调**。进度由 <进度工具> 的 UI 直接显示，**对话里不再打 `[/commit] Step N: ...` 之类的进度行**。
+**Before entering Step 0**: call **<progress tool>** to pre-register Step 0 ~ Step 3 (one entry per step, `content` set to `Step N: <sub-section title>`, `status` all `pending`; `$ARGUMENTS` parsing is not counted). This is a hard requirement — **do not proceed without calling <progress tool>**.
 
-跳过某 step：调 **<进度工具>** 把对应条目直接标 `completed`，并在对话里打一行 `Step N 跳过（理由：…）`——"理由"是 UI 缺失的信息，保留这一行；不要静默略过。
+On entering each step: call **<progress tool>** to flip the current step to `in_progress` (in the same call, mark the previous step `completed`), then do the actual work. **Do not skip the call when crossing steps.** Progress is shown directly in the <progress tool> UI; **do not print `[/commit] Step N: ...` style progress lines in conversation**.
 
-最后一步完成：调 **<进度工具>** 把最后一条标 `completed`。
+Skipping a step: call **<progress tool>** to mark that entry `completed` directly, and print one line in conversation: `Step N skipped (reason: …)` — the "reason" is information the UI lacks, keep that line; do not silently skip.
 
-**<进度工具> 解析**：Claude → `TodoWrite`（界面显示为 "Update Todos"）；Codex → `update_plan`；其他 runtime（无结构化进度工具，如 Copilot agent mode）→ 在 response 文本里维护一份 markdown checkbox 列表当 step 状态，每次状态切换前整段重写一遍。语义对齐：预登记 + 切状态 + 标完成。
+Final step done: call **<progress tool>** to mark the last entry `completed`.
 
-## `$ARGUMENTS` 解析
+**<progress tool> resolution**: Claude → `TodoWrite` (rendered as "Update Todos"); Codex → `update_plan`; other runtimes (no structured progress tool, e.g. Copilot agent mode) → maintain a markdown checkbox list in the response text as step state, rewriting the whole block on every state change. Semantic alignment: pre-register + flip state + mark complete.
 
-`$ARGUMENTS` 整体作为 commit message 的提示 / 主题（参见 Step 3）；为空时由 diff 自动归纳消息。**不再含 sync 触发词**——跨分支同步请用 `/forward`。
+## `$ARGUMENTS` parsing
+
+`$ARGUMENTS` as a whole is taken as a hint / subject for the commit message (see Step 3); when empty the message is summarized from the diff. **No longer carries sync trigger words** — for cross-branch sync use `/forward`.
 
 ## Step 0: Load skills config
 
-`Read` `ai_context/skills_config.md`。
+`Read` `ai_context/skills_config.md`.
 
-- 文件不存在 / 某节标题缺失 → fail loudly：打印缺失项 + 提示按 plugin 模板补全，停手
-- 某节内容 `(none)` 或留空 → 跳过该节相关步骤（视为本项目无此项）
-- 某节列了具体路径但路径不存在 → fail loudly：提示该节漂移到不存在路径，停手等用户修
+- File missing / a section heading missing → fail loudly: print the missing item + prompt to fill it in per the plugin template, stop
+- A section's content is `(none)` or empty → skip the section's related steps (treat as not applicable to this project)
+- A section lists a concrete path but the path does not exist → fail loudly: report that the section has drifted to a non-existent path, stop and wait for the user to fix
 
-后续步骤出现 "skills_config.md `## XX`" 时引用本配置。本 skill 用到：
-`## Do-not-commit paths`（Step 2 追踪状态扫描）。
+When later steps reference "skills_config.md `## XX`", they refer to this config. This skill uses:
+`## Do-not-commit paths` (Step 2 tracking-state scan).
 
-## Step 1: 改动有效性
+## Step 1: Change validity
 
-- `git status` + `git diff --stat` 看 working tree 与 index
-- **若完全没有改动**（working tree 干净 + index 空）：本轮无 commit 可造，打印"无改动可提交"并结束；后续 step 全部跳过
-- 扫改动列表，判断是否值得独立 commit（不是空白 / 误保存 / 临时 debug 打印）；有可疑 → 先问用户
+> **Language**: user-facing — render the `no changes to commit` exit message and any "is this change worth its own commit?" questions to the user in `conversation_language` per `ai_context/skills_config.md §Language`. Git output (`git status` / `git diff --stat`) captured verbatim stays in its original form; only the surrounding explanatory prose translates.
 
-## Step 2: 追踪状态
+- `git status` + `git diff --stat` inspect working tree and index
+- **If there are no changes at all** (working tree clean + empty index): nothing to commit this turn, print "no changes to commit" and end; subsequent steps all skipped
+- Scan the change list and judge whether each is worth an independent commit (not whitespace / accidental save / temp debug print); anything suspicious → ask the user first
 
-- 扫禁提路径：按 skills_config.md `## Do-not-commit paths` 列表 +（`.gitignore` + `ai_context/conventions.md`）兜底
-- `git ls-files --others --exclude-standard` 看未跟踪文件，判断是否应该一并加入 / 加入 .gitignore / 留着
-- 大文件（>1MB）或二进制单独列出，请用户确认是否入库
-- 任一项可疑 → 停手问用户，不要擅自 `git add -A`
+## Step 2: Tracking state
+
+> **Language**: user-facing — render the forbidden-path / untracked-file / large-file confirmation prompts to the user in `conversation_language` per `ai_context/skills_config.md §Language`. File paths quoted in the prompts stay verbatim; only surrounding explanatory prose translates.
+
+- Scan forbidden paths: per skills_config.md `## Do-not-commit paths` list +(`.gitignore` + `ai_context/conventions.md`) fallback
+- `git ls-files --others --exclude-standard` shows untracked files, judge whether to include / add to .gitignore / leave alone
+- Large files (>1MB) or binaries listed separately, ask the user to confirm inclusion
+- Anything suspicious → stop and ask the user, do not run `git add -A` on your own
 
 ## Step 3: Commit
 
-- 按逻辑单元分 commit（若单次改动跨多个独立主题）；一次别塞太多
-- message 风格对照 `git log --oneline -10`，保持仓库惯例（中英文 / prefix / 动词时态）
-- `$ARGUMENTS` 非空 → 以此为主题扩写；否则根据 diff 归纳
-- 执行 `git add <具体文件>` + `git commit`（**不用 `git add -A` / `git add .`**，避免误入敏感文件）
-- commit 后 `git status` 确认干净
+> **Language**: disk-bound — write the commit message text itself in `content_language` per `ai_context/skills_config.md §Language`. The commit message follows repo-convention prefixes (`feat:` / `fix:` / `log:` / `docs:` etc.) per `git log --oneline -10`; those prefixes stay English regardless of `content_language`. Code identifiers, file paths, field names stay English regardless.
 
-完成后打印一行 `commit OK：<short-sha> <subject>` 收尾。如需 forward 到其他分支，由用户随后显式调用 `/forward`。
+> **Language**: user-facing — render any pre-commit preview wrapper around the message, the post-commit `commit OK: <short-sha> <subject>` line, and any `/forward` follow-up suggestion in `conversation_language` per `ai_context/skills_config.md §Language`. The commit message text inside the preview stays in `content_language` (it is the disk-bound surface).
 
-## 约束
+- Split commits along logical units (if the change spans multiple independent topics); do not stuff too much into one
+- Message style follows `git log --oneline -10`, keep repo convention (English/Chinese / prefix / verb tense)
+- `$ARGUMENTS` non-empty → expand from it as subject; otherwise summarize from the diff
+- Execute `git add <specific files>` + `git commit` (**do not use `git add -A` / `git add .`**, avoid accidentally including sensitive files)
+- After commit `git status` confirms clean
 
-- 不 `git push`、不 `--force`、不 `--amend`、不切分支、不 merge（除非用户明确要求）
-- 发现可疑（禁提路径、巨型 diff、未解决冲突）→ 停手问，不绕过
-- 不做跨分支同步——这部分能力已迁移到 `/forward`
+When done print one line `commit OK: <short-sha> <subject>` to wrap up. If forwarding to other branches is needed, the user will explicitly invoke `/forward` next.
+
+## Constraints
+
+- No `git push`, no `--force`, no `--amend`, no branch switching, no merge (unless the user explicitly requests)
+- Anything suspicious found (forbidden paths, huge diff, unresolved conflicts) → stop and ask, do not bypass
+- No cross-branch sync — that capability has moved to `/forward`

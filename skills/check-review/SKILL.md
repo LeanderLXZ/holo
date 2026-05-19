@@ -1,78 +1,80 @@
 ---
 name: check-review
-description: 复核 review 报告 — 读取 logs/review_reports/ 下指定模型最近一份报告，逐条复核 finding / risk / open question 是否仍真实存在，给证据（文件 + 行号）+ 落地方案草稿。$ARGUMENTS = 模型筛选关键字（claude / codex / gpt / 具体 slug；缺省取全局最新）。不落盘不改代码；用户确认后调 /go 执行。触发：复核 review / 核一下 codex review / check-review。
+description: Re-check a review report — read the latest report under logs/review_reports/ for the specified model, verify each finding / risk / open question is still genuinely present, attach evidence (file + line) + draft landing plan. $ARGUMENTS = model filter keyword (claude / codex / gpt / specific slug; default takes the globally latest). Does not write or change code; user confirms, then invoke /go. Triggers: re-check review / re-check codex review / check-review.
 ---
 
-# /check-review — 复核 review 报告
+> **Language**: per `ai_context/skills_config.md §Language` — disk-bound output (logs / docs / commit messages / code comments / files written) uses `content_language`; user-facing surface (chat prose / `AskUserQuestion` prompts and option labels / progress-tool entry `content` / status lines / strategy declarations / findings rendered in chat) uses `conversation_language`. Code identifiers, file paths, field names, frontmatter keys, and structural prefixes (`Step N:`, `LOG:`, etc.) stay English regardless.
 
-对 `logs/review_reports/` 下指定模型**最近一次** review 报告做"真实性复核 + 方案设计"。**不改代码**，只确认每条 finding / risk / open question 是否真实存在，并给出落地方案草稿；用户确认细节后再用 `/go` 执行。
+# /check-review — Re-check a review report
 
-`$ARGUMENTS` = 模型筛选关键字，**可选**。映射规则：
-- 缺省（不传参） → 不按模型过滤，直接取目录下**时间戳最新**的一份
-- `claude` / `opus` / `sonnet` / `haiku` → 同义别名；匹配 slug 以 `opus-` / `sonnet-` / `haiku-` 开头的报告（Claude 家族产出视为同一来源）
-- `codex` / `gpt` → 同义别名；匹配 slug 为 `codex` 或以 `gpt-` 开头的报告（codex 与 gpt 系列产出视为同一来源）
-- `gpt-5`、`opus-4-7` 等具体 slug → 精确匹配
-- 有参数但无匹配：报错，列出 `logs/review_reports/` 下已有的 model slug 供选择
+Perform "truth re-check + plan design" on the **most recent** review report for the specified model under the path declared at `ai_context/skills_config.md ## Activity sources.Review reports.Path` (typically `logs/review_reports/`). **No code changes**; only confirm whether each finding / risk / open question is still genuinely present, and produce a draft landing plan; once the user confirms details, run `/go` to execute.
 
-## 0. 选文件
+`$ARGUMENTS` = model filter keyword, **optional**. Mapping rules:
+- Empty (no arg) → no model filter; take the **latest by timestamp** in the directory
+- `claude` / `opus` / `sonnet` / `haiku` → synonymous aliases; match reports whose slug begins with `opus-` / `sonnet-` / `haiku-` (the Claude family is treated as one source)
+- `codex` / `gpt` → synonymous aliases; match reports whose slug is `codex` or begins with `gpt-` (codex and gpt series are treated as one source)
+- `gpt-5`, `opus-4-7`, and similar concrete slugs → exact match
+- Argument given but no match: error out, listing existing model slugs under the review-reports directory (path per `## Activity sources.Review reports.Path`) for selection
 
-1. 枚举 `logs/review_reports/` 下所有 `{YYYY-MM-DD_HHMMSS}_{model}_{slug}.md`
-2. 按 `$ARGUMENTS` 映射规则过滤（无参数则跳过过滤）
-3. 按时间戳降序取**最新一份**（只取 1 份，不合并多份）
-4. 打印："选中：`{filename}`（模型：{model}，生成时间：{timestamp}）"
-5. 若有参数但无匹配：报错并列出目录下所有 model slug 及最近一份的时间戳
-6. 若目录为空：报错并停手
+## 0. Pick the file
 
-## 1. 通读报告
+1. Enumerate every file matching the filename pattern declared at `ai_context/skills_config.md ## Activity sources.Review reports.Filename pattern` (typically `{YYYY-MM-DD_HHMMSS}_{model}_{slug}.md`) under the path declared at `## Activity sources.Review reports.Path` (typically `logs/review_reports/`)
+2. Filter per `$ARGUMENTS` mapping rules (skip filter if no argument)
+3. Take the **latest** by descending timestamp (only 1; do not merge several)
+4. Print: "Selected: `{filename}` (model: {model}, generated: {timestamp})"
+5. If argument is given but no match: error out and list every model slug in the directory plus the timestamp of its most recent report
+6. If the directory is empty: error out and stop
 
-完整读选中的报告；把 `Findings`（按 High / Medium / Low）、`Open Questions / Ambiguities`、`Alignment Summary`、`Residual Risks`、建议落地顺序逐条拆成条目清单。**不略读、不跳过 Low**。
+## 1. Read the report end to end
 
-## 2. 加载真相来源
+Read the selected report in full; break out every entry from `Findings` (by High / Medium / Low), `Open Questions / Ambiguities`, `Alignment Summary`, `Residual Risks`, and the suggested landing order into an item checklist. **Do not skim, do not skip Low.**
 
-- `ai_context/` 核心文件：conventions / requirements / current_status / architecture / decisions（如本项目 `ai_context/` 结构不同，则读所有 `.md` 文件作为兜底）
-- `docs/requirements.md`、`docs/architecture/`
-- 报告中引用的代码文件 + 行号：直接读当前代码，不要依赖报告里的节选
-- 若报告时间戳较早、期间有 commit：`git log --since={报告时间戳} --oneline` 快速扫一眼，识别可能已修复的条目
+## 2. Load the sources of truth
 
-## 3. 逐条复核
+- Core `ai_context/` files: conventions / requirements / current_status / architecture / decisions (if this project's `ai_context/` structure differs, fall back to every `.md` file)
+- `docs/requirements.md`, `docs/architecture/`
+- Code files + line numbers referenced in the report: read the current code directly; do not rely on the report's quoted excerpts
+- If the report timestamp is older and commits happened since: `git log --since={report timestamp} --oneline` for a quick scan to identify entries that may already be fixed
 
-对每条 finding / risk / open question，产出：
+## 3. Re-check each entry
 
-- **复核结论**：`真实` / `部分真实` / `已失效`（已修复 / 误判 / 版本不一致）
-- **证据**：引当前代码 / 文档的具体文件 + 行号，直接确认或反驳报告描述；区分"直接证据"与"推断"
-- **影响评估**：是否仍影响当前主线；严重性是否需要调整（升 / 降 / 保留），并说明理由
-- **方案草稿**（仅对"真实 / 部分真实"）：
-  - 改哪个文件 / 函数 / 文档节 / schema 字段 / prompt 段
-  - 改动边界（**不要顺带重构 / 扩范围**）
-  - 风险点与回退方式
-  - 跨文件连带更新：对照 `ai_context/conventions.md` 的 "Cross-File Alignment" 段列出（该段不存在则跳过本项）
-- **依赖顺序**：与其他 finding 的方案之间是否有依赖、是否可合并成一个 commit
-- **推迟 / 驳回**：明说"本轮不做"并写理由（登记 `docs/todo_list.md` 是下一步 /go 的事，这里只标记）
+For each finding / risk / open question, produce:
 
-## 4. 输出结构
+- **Re-check verdict**: `genuine` / `partially genuine` / `no longer valid` (already fixed / misjudged / version mismatch)
+- **Evidence**: cite the concrete current code / doc file + line number, directly confirming or refuting the report's description; distinguish "direct evidence" from "inference"
+- **Impact assessment**: still affects the current main line? does severity need adjusting (raise / lower / keep), with reasoning
+- **Plan draft** (only for "genuine / partially genuine"):
+  - Which file / function / doc section / schema field / prompt segment to change
+  - Change boundary (**no incidental refactor / scope creep**)
+  - Risks and rollback path
+  - Cross-file consequential updates: cross-check the "Cross-File Alignment" section of `ai_context/conventions.md` and list them (skip this item if the section does not exist)
+- **Dependency ordering**: dependencies between this plan and other findings' plans; whether they can be combined into one commit
+- **Defer / reject**: state "not this round" with reasoning (logging into `docs/todo_list.md` is for the next /go; here we only flag)
 
-输出 markdown（**不落盘、不改代码、不提交**）：
+## 4. Output structure
 
-1. `Source Report`：文件路径、报告模型、生成时间戳
-2. `Per-Finding Review`：逐条带复核结论 / 证据 / 方案草稿
-   - **强制沿用 source report 的 finding ID**（`H1` / `M1` / `L1`...）；source report 若缺 ID 则按其顺序补编号并在本轮报告说明 "ID 由本次复核回填"。复核后**保留同 ID**——即使严重度调整或合并，原 ID 不重排（撤回的标 "撤回"，合并的标 "合入 H1"）
-3. `Revised Priority`：按复核后的严重度重排（仍引用原 ID，不改名）
-4. `Proposed Execution Plan`：本轮建议做哪些、commit 拆分、先后顺序（按 ID 引用）
-5. `Deferred / Rejected`：推迟或驳回的条目及原因（按 ID 引用）
-6. `Open Questions for User`：需用户拍板的分歧点；每条编号 `OQ1` / `OQ2`...
+Output markdown (**no write to disk, no code changes, no commit**):
+
+1. `Source Report`: file path, report model, generation timestamp
+2. `Per-Finding Review`: per entry with re-check verdict / evidence / plan draft
+   - **Strictly reuse the source report's finding IDs** (`H1` / `M1` / `L1`...); if the source report lacks IDs, backfill numbering in source order and note in this report "IDs backfilled this round". After re-check, **preserve the same IDs** — even when severity is adjusted or items are merged, do not renumber (mark withdrawn as "withdrawn", merged as "merged into H1")
+3. `Revised Priority`: re-rank by post-check severity (still cite the original IDs, do not rename)
+4. `Proposed Execution Plan`: which items to do this round, commit split, ordering (cite by ID)
+5. `Deferred / Rejected`: deferred or rejected entries and reasons (cite by ID)
+6. `Open Questions for User`: open points needing the user's decision; number each `OQ1` / `OQ2`...
 7. `Recommendations`
-   - **仅供参考，用户拍板优先**。给出每条建议前先过三问自检：
-     1. **必要吗** —— 不修会怎样？只是看着不顺眼 / 强迫症 → 倾向"跳过"或"留 todo"
-     2. **能更简单吗** —— 能改 3 行解决就别抽 helper / 加层 / 加配置 / 加 flag
-     3. **超出 source report scope 吗** —— 顺手改的"相关项"是不是已经溢出本轮目标
-   - 一段 flat list：每条 finding ID（沿用原 ID）+ 每条 OQ 给"建议{修 / 留 todo / 跳过}：{一句话理由 / 推荐方案}"
+   - **Reference only; the user's decision wins.** Before each recommendation pass three self-checks:
+     1. **Necessary?** — what happens if not fixed? Merely cosmetic / OCD-driven → lean toward "skip" or "park as todo"
+     2. **Can it be simpler?** — if a 3-line edit solves it, do not extract a helper / add a layer / add config / add a flag
+     3. **Outside source report scope?** — is the opportunistic "related fix" I'm tacking on already exceeding this round's target
+   - One flat list: per finding ID (keep original ID) + per OQ give "Suggest {fix / park todo / skip}: {one-line reason / recommended approach}"
 
-## 5. 等待确认
+## 5. Wait for confirmation
 
-输出后**停手**。不要进入 `/go`、不要写 log、不要改文件；等用户逐条确认 / 调整方案后再执行。
+After output, **stop**. Do not enter `/go`, do not write a log, do not change files; wait for the user to confirm / adjust each item before executing.
 
-## 约束
+## Constraints
 
-- 这是复核，不是二次 review；不要在报告之外新增 finding（除非报告明显漏掉了与其同一根因的连带问题，需标注"报告外补充"）
-- 不要因为报告写得模糊就盲信，也不要无证据就驳回；每条结论都要落到文件 + 行号
-- 不同模型的判断差异本身是信号：若你的复核结论与报告显著不同，明说分歧点，让用户裁决
+- This is a re-check, not a second-round review; do not add findings outside the report (unless the report obviously missed a sibling issue sharing the same root cause, which must be tagged "supplemental to report")
+- Do not blindly trust the report when its wording is vague, nor reject without evidence; every conclusion must land on file + line number
+- Divergence between models is itself a signal: when your re-check conclusion differs significantly from the report, state the disagreement clearly and let the user adjudicate

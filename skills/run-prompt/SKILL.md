@@ -1,59 +1,63 @@
 ---
 name: run-prompt
-description: 加载并执行指定 prompt 文件作为本轮任务 — $ARGUMENTS 接路径或 stem（路径直读 / stem 在 `prompts/` 全树模糊搜匹配 `<stem>` 或 `<stem>.md`；0 命中 fail loudly + 列目录结构 / ≥ 2 命中列所有匹配 / 1 命中即用）。含 1 对外层 fenced code block（```text / ```markdown / ```）→ 仅取块内；否则取整文件。打印解析路径让用户确认 → 把 prompt 当作用户指令接管执行；prompt 要求补字段而 $ARGUMENTS 未附带 → 先列待补字段再开干。只读 prompt 自身，不改 / 不 commit / push。触发：运行 prompt / run-prompt <name> / 跑一下 <prompt> / 按 <prompt> 处理 / 加载 <prompt>。
+description: Load and execute a specified prompt file as the current task — $ARGUMENTS takes a path or stem (path read directly / stem fuzzy-matched across the `prompts/` tree against `<stem>` or `<stem>.md`; 0 matches fail loudly + list directory structure / ≥ 2 matches list all matches / 1 match used). Contains one outer fenced code block (```text / ```markdown / ```) → take only the inner content; otherwise take the whole file. Print the resolved path for user confirmation → take over execution treating the prompt as the user instruction; prompt requires fields and $ARGUMENTS does not supply them → list the missing fields first then proceed. Reads the prompt file only, no edits / no commit / no push. Triggers: run prompt / run-prompt <name> / run <prompt> / handle per <prompt> / load <prompt>.
 ---
 
-# /run-prompt — 运行指定 prompt 文件
+> **Language**: per `ai_context/skills_config.md §Language` — disk-bound output (logs / docs / commit messages / code comments / files written) uses `content_language`; user-facing surface (chat prose / `AskUserQuestion` prompts and option labels / progress-tool entry `content` / status lines / strategy declarations / findings rendered in chat) uses `conversation_language`. Code identifiers, file paths, field names, frontmatter keys, and structural prefixes (`Step N:`, `LOG:`, etc.) stay English regardless.
 
-把指定的 prompt 文件内容当作本轮任务直接执行。等价于"把 prompt 文件粘贴到对话框作为用户消息发出"，但省去复制粘贴 + 自动模糊匹配文件名。
+# /run-prompt — Run a specified prompt file
 
-## Step 0: 解析 $ARGUMENTS
+Execute the contents of the specified prompt file as the current task. Equivalent to "pasting the prompt file into the chat box as a user message", but skips the copy-paste plus auto-fuzzy-matches the filename.
 
-`$ARGUMENTS` 必须非空；缺省 → fail loudly：提示 `/run-prompt 需要 prompt 文件路径或名称参数（如 /run-prompt ./prompts/ingestion/原始资料规范化.md 或 /run-prompt 原始资料规范化）`，停手。
+## Step 0: Parse $ARGUMENTS
 
-参数形态判定（按以下顺序）：
+`$ARGUMENTS` must be non-empty; missing → fail loudly: print `/run-prompt requires a prompt file path or name argument (e.g. /run-prompt ./prompts/ingestion/原始资料规范化.md or /run-prompt 原始资料规范化)`, stop.
 
-- **路径形态**：以 `/`、`./`、`../` 开头，或含 `/` → 视为相对 / 绝对路径
-- **名称形态**：纯文件名 stem（无 `/`，可带可不带 `.md` 扩展名）→ 视为模糊匹配键
+Argument form detection (in this order):
 
-## Step 1: 解析到单个 prompt 文件
+- **Path form**: starts with `/`, `./`, `../`, or contains `/` → treat as relative / absolute path
+- **Name form**: plain filename stem (no `/`, with or without `.md` extension) → treat as fuzzy-match key
 
-**路径形态**：
+## Step 1: Resolve to a single prompt file
 
-- 直接 `Read` 该路径
-- 文件不存在 → fail loudly：`$ARGUMENTS 解析为路径 '<arg>' 但文件不存在`，停手
+**Path form**:
 
-**名称形态**：
+- `Read` that path directly
+- File missing → fail loudly: `$ARGUMENTS resolved to path '<arg>' but file does not exist`, stop
 
-- 剥离可能的 `.md` 后缀得到 stem
-- `find prompts/ -type f \( -name '<stem>' -o -name '<stem>.md' \)` 全树搜索
-  - **0 命中** → fail loudly：`在 prompts/ 下找不到名为 '<stem>' 的 .md 文件` + 跑 `find prompts/ -maxdepth 2 -type f -name '*.md'` 列出候选帮助用户校对，停手
-  - **1 命中** → 使用该文件
-  - **≥ 2 命中** → 列出所有匹配的完整路径，提示 `多个 prompt 同名，请用完整路径再运行`，停手
+**Name form**:
 
-## Step 2: 提取 prompt 正文
+- Resolve `<prompt_sources_path>` from `ai_context/skills_config.md ## Activity sources.Prompt sources.Path`
+  - Section body `(none)` → fail loudly: `name-form $ARGUMENTS requires a configured prompt-sources directory; ai_context/skills_config.md ## Activity sources.Prompt sources.Path is (none). Either rerun with an explicit path or set the section value.`, stop
+- Strip any `.md` suffix to obtain the stem
+- `find <prompt_sources_path> -type f \( -name '<stem>' -o -name '<stem>.md' \)` searches the whole tree
+  - **0 matches** → fail loudly: `no .md file named '<stem>' found under <prompt_sources_path>` + run `find <prompt_sources_path> -maxdepth 2 -type f -name '*.md'` to list candidates and help the user verify, stop
+  - **1 match** → use that file
+  - **≥ 2 matches** → list all matching full paths, prompt `multiple prompts share that name, please rerun with the full path`, stop
 
-读取文件后判断结构：
+## Step 2: Extract prompt body
 
-- **若文件含恰好 1 对外层 fenced 代码块**（``` 后跟可选语言标记如 `text` / `markdown`，再到匹配的闭合 ```）：
-  这是项目里"可直接使用的提示词"包装格式（典型例：`prompts/ingestion/原始资料规范化.md` line 14-117）→ 提取该代码块**内部内容**作为 prompt 正文（不含 fence 行本身）
-- **否则**（无 fence / 多对 fence / fence 不匹配）→ 使用整个文件正文作为 prompt 正文
+After reading the file, judge the structure:
 
-## Step 3: 打印解析摘要 + 接管执行
+- **If the file contains exactly one outer fenced code block** (``` followed by an optional language marker such as `text` / `markdown`, then a matching closing ```):
+  this is the project's "ready-to-use prompt" wrapper format (canonical example: `prompts/ingestion/原始资料规范化.md` line 14-117) → extract the **inner content** of that code block as the prompt body (excluding the fence lines themselves)
+- **Otherwise** (no fence / multiple fence pairs / unmatched fence) → use the whole file body as the prompt body
 
-打印一行：`运行 prompt: <相对工作目录的路径>`（让用户一眼确认解析正确）。
+## Step 3: Print resolution summary + take over execution
 
-然后**把 prompt 正文当作本轮用户指令直接接管执行**——按 prompt 内的指引开始干活。
+Print one line: `running prompt: <path relative to working dir>` (so the user can confirm resolution at a glance).
 
-**输入字段补全**：
+Then **take over execution by treating the prompt body as the user instruction for this turn** — start work per the prompt's guidance.
 
-- 不少 prompt 末尾会列出"用户补充输入"清单（典型例：原始资料路径 / 书名 / 作者 / 语言 / 其他说明）
-- 若 prompt 末尾存在此类清单**且** `$ARGUMENTS` 仅是 prompt 选择器（没附带这些字段）→ **先列出待补字段 + 一行示例格式，等用户回复再开干**，不要擅自推断 / 留空走默认值
-- 若 `$ARGUMENTS` 已经在 prompt 选择器之外附带了输入信息（例如 `/run-prompt 原始资料规范化 path=/tmp/book.epub title=测试`）→ 直接代入对应字段执行
+**Input field completion**:
 
-## 限制
+- Many prompts end with a "user-supplied input" list (canonical fields: raw material path / book title / author / language / other notes)
+- If the prompt ends with such a list **and** `$ARGUMENTS` is only the prompt selector (without those fields attached) → **first list the fields to fill + one example format line, wait for the user's reply before proceeding**; do not infer arbitrarily or fall back to defaults
+- If `$ARGUMENTS` already attaches input information beyond the prompt selector (e.g. `/run-prompt 原始资料规范化 path=/tmp/book.epub title=Test`) → substitute into the corresponding fields and execute directly
 
-- **不修改 prompt 文件本身**——本 skill 只读 + 执行 prompt 内容，不写回该文件
-- **不递归触发 /run-prompt**——被加载的 prompt 自己不许在执行中再 `/run-prompt` 别的文件；如果 prompt 流程要分支到别的 prompt，应该走显式步骤（read + 跟随）而非嵌套触发
-- **不 commit / 不 push / 不改 git 状态**——本 skill 的工作止于"加载并按 prompt 执行"；commit / push 等 git 动作只能由 prompt 内部明确要求时才发生（且按那个 prompt 自己的规则做）
-- **不绕过 prompt 内的安全 / 范围约束**——例如 `prompts/ingestion/原始资料规范化.md` 明确 "不要写入 `works/` / `users/`"，本 skill 加载该 prompt 后必须遵守，不许借口"被 /run-prompt 调用所以不算"
+## Constraints
+
+- **Do not modify the prompt file itself** — this skill reads + executes prompt content only, never writes back to the file
+- **No recursive /run-prompt** — a loaded prompt must not invoke `/run-prompt` on another file during execution; if a prompt flow needs to branch into another prompt, do it via explicit steps (read + follow) instead of nested triggering
+- **No commit / no push / no git state change** — this skill's work ends at "load and execute per the prompt"; commit / push and other git actions occur only when the prompt itself explicitly requires them (and per that prompt's own rules)
+- **Do not bypass the prompt's internal safety / scope constraints** — e.g. `prompts/ingestion/原始资料规范化.md` explicitly states "do not write into `works/` / `users/`"; after loading that prompt this skill must comply, no excuse of "called via /run-prompt so it doesn't count"

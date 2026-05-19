@@ -1,214 +1,236 @@
 ---
 name: post-check
-description: /go 之后的针对性复审 — 双轨并进：轨 1 用 PRE log 对账计划动作清单 + 验证标准的落实情况，轨 2 向计划外文件扩散找跨文件冲突 / 歧义 / bug / 不一致。强制加载 logs/change_logs/ 最近 PRE log 作为 intent 基线；可并行派 sub-agent 跑规范线 / 实现线 / 产物线。$ARGUMENTS = log slug（缺省取最新）。报告打印 + 摘要回写 log；除 log 摘要外只读不写，不改代码 / 不提交。全仓 review → /full-review。触发：再确认这次改动 / after-check / /go 完了复审一下 / post-check。
+description: Focused review after /go — two tracks in parallel: track 1 uses the PRE log to reconcile the planned action list + validation criteria; track 2 expands to files outside the plan to find cross-file conflicts / ambiguity / bugs / inconsistencies. Mandatory loading of the latest PRE log under logs/change_logs/ as the intent baseline; may dispatch sub-agents in parallel to run the spec / implementation / artifact lines. $ARGUMENTS = log slug (defaults to latest). Report printed + summary written back to log; aside from the log summary, read-only, no code changes / no commits. Full-repo review → /full-review. Triggers: re-confirm this change / after-check / review after /go completes / post-check.
 ---
 
-# /post-check — /go 之后的针对性复审
+> **Language**: per `ai_context/skills_config.md §Language` — disk-bound output (logs / docs / commit messages / code comments / files written) uses `content_language`; user-facing surface (chat prose / `AskUserQuestion` prompts and option labels / progress-tool entry `content` / status lines / strategy declarations / findings rendered in chat) uses `conversation_language`. Code identifiers, file paths, field names, frontmatter keys, and structural prefixes (`Step N:`, `LOG:`, `H1:`, `REVIEWED-PASS`, etc.) stay English regardless.
 
-对**本次修改**做一次聚焦复审，双轨并进：**轨 1 — 原始需求落实情况**（对账 PRE log 的计划动作清单 + 验证标准）、**轨 2 — 影响扩散 / 计划外副作用**（向计划之外的文件扩散找冲突 / bug / 歧义 / 不一致）。**可并行用 sub-agent 扫描审计**。
+# /post-check — focused review after /go
 
-这不是全仓 review（那是 `/full-review`），只针对这次 `/go` 触及的细节。`$ARGUMENTS` 存在则作为本轮 log 文件 slug 精确匹配；否则取 `logs/change_logs/` 按 filename 时间戳最新的一份作为 intent 基线。
+Run a focused review of **this change set**, two tracks in parallel: **track 1 — original requirement fulfillment** (reconcile the planned action list + validation criteria from the PRE log), **track 2 — impact spread / unplanned side effects** (expand to files outside the plan to find conflicts / bugs / ambiguity / inconsistencies). **Sub-agents may run scans in parallel**.
+
+This is not a full-repo review (that is `/full-review`); it only targets the details touched by this `/go`. If `$ARGUMENTS` is present, use it as an exact slug match for this round's log file; otherwise pick the most recent file under `logs/change_logs/` by filename timestamp as the intent baseline.
 
 ## Progress reporting
 
-下方流程分为 `## Step 0:` ~ `## Step 7:`（含子 step `## Step 1.5:`）。
+> **Language**: progress-tool entries (`content` field) are user-facing — write them in `conversation_language` per `ai_context/skills_config.md §Language`. The `Step N:` prefix stays English (structural label); subtitle text after the colon translates to `conversation_language`.
 
-**进入 Step 0 之前**：调用 **<进度工具>** 把 Step 0 / Step 1 / Step 1.5 / Step 2 ~ Step 7 全部预登记（每个 step 一条，`content` 用 `Step N: <子段标题>`，`status` 全为 `pending`）。这是硬性要求，**不调 <进度工具> 不许往下走**。
+The flow below is split into `## Step 0:` ~ `## Step 7:` (including sub-step `## Step 1.5:`).
 
-每进入一个 step：调 **<进度工具>** 把当前 step 改 `in_progress`（同一次调用里把上一个 step 标 `completed`），然后做实际工作。**step 跨越时不要漏调**。进度由 <进度工具> 的 UI 直接显示，**对话里不再打 `[/post-check] Step N: ...` 之类的进度行**。
+**Before entering Step 0**: call **<progress tool>** to pre-register Step 0 / Step 1 / Step 1.5 / Step 2 ~ Step 7 (one entry per step, `content` as `Step N: <sub-section title>`, all `status` = `pending`). This is a hard requirement — **do not proceed without calling <progress tool>**.
 
-跳过某 step：调 **<进度工具>** 把对应条目直接标 `completed`，并在对话里打一行 `Step N 跳过（理由：…）`——"理由"是 UI 缺失的信息，保留这一行；不要静默略过。
+On entering each step: call **<progress tool>** to flip the current step to `in_progress` (in the same call, mark the previous step `completed`), then do the actual work. **Do not skip the call when crossing steps.** Progress is shown directly through the <progress tool> UI; **do not print progress lines like `[/post-check] Step N: ...` in the conversation**.
 
-最后一步完成：调 **<进度工具>** 把最后一条标 `completed`。
+Skipping a step: call **<progress tool>** to mark the corresponding entry `completed` directly, and print one line in the conversation `Step N skipped (reason: …)` — the "reason" is information the UI lacks, so keep this line; do not silently skip.
 
-**<进度工具> 解析**：Claude → `TodoWrite`（界面显示为 "Update Todos"）；Codex → `update_plan`；其他 runtime（无结构化进度工具，如 Copilot agent mode）→ 在 response 文本里维护一份 markdown checkbox 列表当 step 状态，每次状态切换前整段重写一遍。语义对齐：预登记 + 切状态 + 标完成。
+Final step done: call **<progress tool>** to mark the last entry `completed`.
+
+**<progress tool> resolution**: Claude → `TodoWrite` (rendered as "Update Todos"); Codex → `update_plan`; other runtimes (no structured progress tool, e.g. Copilot agent mode) → maintain a markdown checkbox list in the response text as step state, rewriting the whole block before each state change. Semantic alignment: pre-register + flip state + mark complete.
 
 ## Step 0: Load skills config
 
-`Read` `ai_context/skills_config.md`。
+`Read` `ai_context/skills_config.md`.
 
-- 文件不存在 / 某节标题缺失 → fail loudly：打印缺失项 + 提示按 plugin 模板补全，停手
-- 某节内容 `(none)` 或留空 → 跳过该节相关步骤（视为本项目无此项）
-- 某节列了具体路径但路径不存在 → fail loudly：提示该节漂移到不存在路径，停手等用户修
+- File missing / any section header missing → fail loudly: print the missing items + prompt to complete per plugin template, stop
+- Section content `(none)` or empty → skip the related steps for that section (treat as N/A in this project)
+- Section lists concrete paths but the path does not exist → fail loudly: report the section drifting to a nonexistent path, stop and wait for the user to fix
 
-后续步骤出现 "skills_config.md `## XX`" 时引用本配置。本 skill 用到：
-`## Example artifact directories`（轨 2 产物结构线）、
-`## Sensitive content placeholder rules`（轨 2 残留检查）、
-`## Data contract directories`（Step 3 规范线数据契约扫描；含 JSON Schema / proto / OpenAPI / Pydantic / SQL DDL 等）。
+Subsequent steps referencing "skills_config.md `## XX`" use this config. This skill uses:
+`## Example artifact directories` (track 2 artifact-structure line),
+`## Sensitive content placeholder rules` (track 2 residue check),
+`## Data contract directories` (Step 3 spec-line data contract scan; includes JSON Schema / proto / OpenAPI / Pydantic / SQL DDL etc.).
 
-## Step 1: 界定本次改动范围
+## Step 1: Scope this change
 
-- `git log --oneline -n 10` + `git status` 判断 `/go` 产出的 commit 区间（一般是最近 1–N 个）；改动若未提交则用 working tree 快照
-- `git diff <base>..HEAD --stat`（或 `git diff --stat`）列出本次触及的文件清单，作为"必须复核"的文件集
-- 明确打印："本次复审范围：commits {X..Y}（或 working tree），N 个文件"
+> **Language**: user-facing — render the scope print line and the language-axes anchor below in `conversation_language` per `ai_context/skills_config.md §Language`. Structural labels (`Review scope:`, `Language axes:`) translate to their `conversation_language` equivalent if natural; commit SHAs / file paths / axis values stay verbatim.
 
-## Step 1.5: 加载 intent 基线（强制）
+- `git log --oneline -n 10` + `git status` to determine the commit range produced by `/go` (typically the latest 1–N); if changes are uncommitted, use the working-tree snapshot
+- `git diff <base>..HEAD --stat` (or `git diff --stat`) to list files touched this round, as the "must review" file set
+- Print explicitly two lines in succession:
+  - **Scope line**: `Review scope this round: commits {X..Y} (or working tree), N files`. Natural-language portion translates to `conversation_language`.
+  - **Language-axes anchor line**: `Language axes: conversation_language=<value> · content_language=<value> (source: ai_context/skills_config.md §Language)`. Both axis values echoed verbatim from §Language read in Step 0; the natural-language prefix translates to `conversation_language` (e.g. `语言双轴: …` under `conversation_language: zh`). This anchor is planted before the parallel sub-agent fan-out in Step 3.
 
-- `$ARGUMENTS` 传 slug → 精确匹配 `logs/change_logs/*_{slug}.md`；否则取 `logs/change_logs/` 按 filename 时间戳最新的一份
-- 读 PRE 段：**背景 / 触发**、**结论与决策**、**计划动作清单**、**验证标准**、**执行偏差**
-- 打印："intent 基线：`logs/change_logs/{...}.md`" + PRE 段结构化摘要
-- log 缺失或无 PRE 段 → 打印"⚠️ intent 基线缺失，轨 1 跳过，只跑轨 2"并继续
+## Step 1.5: Load intent baseline (mandatory)
 
-## Step 2: Cross-File Alignment 对照
+- `$ARGUMENTS` provides a slug → exact match against `logs/change_logs/*_{slug}.md`; otherwise pick the most recent file under `logs/change_logs/` by filename timestamp
+- Read the PRE section: **Background / Trigger**, **Conclusion and decisions**, **Planned action list**, **Validation criteria**, **Execution deviations**
+- Print: "intent baseline: `logs/change_logs/{...}.md`" + a structured summary of the PRE section
+- Log missing or has no PRE section → print "⚠️ intent baseline missing; skipping track 1, running only track 2" and continue
 
-读 `ai_context/conventions.md` 的 Cross-File Alignment 表；对照本次触及的每个维度（需求 / schema / prompt / code / 架构 / ai_context / README / 目录结构），列出**本应一起被改**的文件集合。这份集合同时喂给轨 1（对账 Missed Updates）和轨 2（扩散起点）。
+## Step 2: Cross-File Alignment consult
 
-该表不存在时：跳过本步的对账输入，轨 1 仅用 PRE 计划清单 + 实际 diff 对账（Missed Updates 退化为"PRE 列了但没改"的子集），轨 2 扩散起点仅用本次 diff 触及文件 + 上下游引用。
+> **Language**: disk-bound — write this track 1 findings list (folded into log writeback at Step 5) in `content_language` per `ai_context/skills_config.md §Language`. Code identifiers, file paths, field names stay English regardless.
 
-## Step 3: 并行 sub-agent 双轨审计线
+Read the Cross-File Alignment table in `ai_context/conventions.md`; for each dimension touched this round (requirements / schema / prompt / code / architecture / ai_context / README / directory structure), list the file set that **should have been changed together**. This set feeds both track 1 (reconcile Missed Updates) and track 2 (spread starting points).
 
-> **轨 vs. 线**：**轨**是审计视角（轨 1 对账 / 轨 2 扩散，共 2 条），**线**是扫描分工（按文件域切片派 sub-agent，共 4 条）。两者正交——每条线都同时跑两条轨。
+When the table does not exist: skip the reconcile input from this step, track 1 reconciles only the PRE plan list against the actual diff (Missed Updates degrades to the subset "listed in PRE but not changed"), track 2 spread starting points use only the files touched by this diff + upstream/downstream references.
 
-改动面小就单线跑；跨模块或跨层时并行派 sub-agent，四条线各自同时承担双轨：
+## Step 3: Parallel sub-agent dual-track audit lines
 
-1. **规范线**：`docs/requirements.md` / `docs/architecture/` / `ai_context/` / skills_config.md `## Data contract directories` 列出的目录（`(none)` 时跳过该节扫描）/ `prompts/` —— 描述 vs. 本次改动是否一致，有无残留旧描述 / 旧字段 / 旧流程
-2. **实现线**：本次改过的代码 + 其上下游（调用方 / 被调用方 / 导入方）—— 字段名 / 参数 / 返回值 / 状态机 / 门控 / 异常路径是否连贯，import 是否还能跑
-3. **风险线**：本次改过的代码 + 受其牵连的相关代码（调用方 / 被调用方 / 共享状态 / 共享数据流）—— 边界条件、空值 / None、异常路径、并发、重试 / 回滚、错误处理是否藏 bug；新行为是否引入数据丢失 / 安全口子 / 性能回退；状态机 / 门控 / 不变量是否有漏覆盖分支。**与实现线区分**：实现线问"还连得上吗"（签名 / import / 上下游一致性），风险线问"做的事对吗"（语义正确性 + 失败模式）；产出归到 Step 4 的「bug / 行为风险」与 Step 6 报告的同名小节
-4. **产物与结构线**：本次是否影响 skills_config.md `## Example artifact directories` 列出的目录里的样例、相关 README 展示、目录结构；若改了目录或文件名，追查所有引用点。该节 `(none)` / 留空时跳过本线
+> **Language**: disk-bound — write this track 2 findings list (folded into log writeback at Step 5) in `content_language` per `ai_context/skills_config.md §Language`. Code identifiers, file paths, field names stay English regardless.
 
-> **派出的每个 sub agent 都必须先重读 intent 基线 PRE log**：把 Step 1.5 读到的 log 路径塞进它的 prompt，并**明示要求它开工前先读完 PRE 的"结论与决策 / 计划动作清单 / 验证标准 / 执行偏差"**，再按本条线的范围扫描。sub agent 是独立 context，不强制它读 PRE 就只会按 prompt 里的 brief 空转，容易脱离本次 intent；对账与扩散判断都必须扎根在 PRE log 上。
+> **Language (sub-agent dispatch)**: when spawning sub-agents at this step, the parent MUST inject the language axes into each sub-agent's prompt explicitly. Include verbatim: "Reply in `conversation_language`=`<value>`; write any disk artifacts in `content_language`=`<value>`; both values from `ai_context/skills_config.md §Language`." Sub-agents do not inherit the parent's language config — they must be told. Sub-agent report-back to the parent is a USER surface; its on-disk findings folded into the log are DISK surface.
 
-每条线产出：**轨 1 对账结果**（PRE 计划项 × 实际改动的核对）+ **轨 2 发现**（计划外文件的问题，带文件 + 行号、直接证据 vs. 推断）。
+> **Track vs. line**: a **track** is an audit perspective (track 1 reconcile / track 2 spread, 2 total); a **line** is the scan division (file-domain sliced sub-agents, 4 total). The two are orthogonal — each line runs both tracks simultaneously.
 
-## Step 4: 重点检查项（只针对本次改动）
+For small change surface, run serially in a single line; across modules or layers, dispatch sub-agents in parallel — four lines each carry both tracks:
 
-- **跨文件不一致**：同一字段 / 概念在 schema / 代码 / 文档 / prompt 里命名与定义是否一致
-- **歧义**：需求 / 架构描述里对新行为是否存在两种读法
-- **冲突**："文档说 A，代码做 B，样例又是 C" 是否出现
-- **残留旧逻辑 / legacy 措辞**：有无描述旧流程的段落、被替换的字段、失效的 import、死分支；顺查本次触及的 docs / prompts / ai_context 有没有违反 skills_config.md `## Sensitive content placeholder rules` 的真实内容，或 `旧 / legacy / 已废弃 / 原为` 字样
-- **悬挂引用 / 过度删除**：本次 diff 若删除了符号 / 文件 / 段落，grep 仓库剩余位置是否还有引用方未更新；这是「残留旧逻辑」的反向——旧目标已没，旧引用还在
-- **change_log / docs 内链断链**：本次 log 或修改过的 docs 里引用 `decisions.md #25` / `[xxx](path)` / `详见 logs/change_logs/.../X.md` 等，核对编号未漂移、相对路径存在、anchor 锚点真实
-- **todo_list 漂移**：本次改动若实质完成了某 todo 条目（PRE log「完成标准」段含「本 todo 条目移到 archived」、或 diff 等价于某条 Next/Discussing 条目的「改动清单」），核对 `docs/todo_list.md` 该条目是否已整条移到 `docs/todo_list_archived.md` `## Completed` + Index 段是否同步刷新。漏移 → 列入 Missed Updates
-- **bug / 行为风险**：新代码在边界条件、空值、异常路径下会不会崩；状态机 / 门控 / 重试 / 回滚是否有漏口
-- **README / 目录结构**：新增 / 删除 / 改名的文件是否同步到相关 README 与目录说明
-- **ai_context 漂移**：本次的 durable 决策是否已落 `ai_context/decisions.md` / `current_status.md` / `next_steps.md`；handoff 是否需要更新
-- **commit message vs diff 匹配度**：commit body 描述 vs `git diff --stat` 实际改动 是否互相覆盖——body 列了 N 处但 diff 只动 M 处，或 diff 改了文件 body 没提
+1. **Spec line**: `docs/requirements.md` / `docs/architecture/` / `ai_context/` / directories listed in skills_config.md `## Data contract directories` (skip scan when `(none)`) / the prompt-sources path from skills_config.md `## Activity sources.Prompt sources.Path` (skip when `(none)`) — descriptions vs. this change consistent; any residual old descriptions / old fields / old flows
+2. **Implementation line**: code changed this round + its upstream / downstream (callers / callees / importers) — field names / params / return values / state machines / gates / exception paths still coherent; do imports still run
+3. **Risk line**: code changed this round + related code dragged along (callers / callees / shared state / shared data flow) — boundary conditions, null / None, exception paths, concurrency, retry / rollback, error handling hiding bugs; do new behaviors introduce data loss / security holes / performance regressions; do state machines / gates / invariants have missed branches. **Distinct from implementation line**: implementation line asks "does it still hook up" (signatures / imports / upstream-downstream consistency); risk line asks "is what it does correct" (semantic correctness + failure modes); outputs go to Step 4 "bug / behavior risk" and the same-named subsection of the Step 6 report
+4. **Artifact and structure line**: did this round affect samples under directories listed in skills_config.md `## Example artifact directories`, related README displays, directory structure; if directories or filenames changed, trace all reference points. Skip this line when the section is `(none)` / empty
 
-> Step 3 / Step 4 跑完后，把双轨结论（计划项落实状态、Findings 列表、Missed Updates、Open Questions、Residual Risks）**先 hold 在脑里 / 笔记里**，不要立刻打印。Step 5 用结构化摘要回写 log + commit；Step 6 才把完整报告打印到对话——这样完整报告就是 `/post-check` 输出的最后一段，用户看完就能直接拍板，不需要往回翻屏。
+> **Each dispatched sub-agent must re-read the intent baseline PRE log first**: stuff the log path Step 1.5 read into its prompt and **explicitly require it to read the PRE "Conclusion and decisions / Planned action list / Validation criteria / Execution deviations" before starting**, then scan the scope of this line. Sub-agents have independent context; without enforced PRE reading they will spin only on the brief in the prompt, easily drifting from this round's intent; both reconcile and spread judgement must be anchored in the PRE log.
 
-## Step 5: 回写 log（摘要版）+ commit
+Each line produces: **track 1 reconcile result** (PRE plan items × actual change cross-check) + **track 2 findings** (issues in files outside the plan, with file + line, direct evidence vs. inference).
 
-把双轨结论的**结构化摘要**追加到 **intent 基线那份 log 文件**（Step 1.5 读的那份），**不重复贴完整 Findings 全文**（全文留给 Step 6 在对话里展开，避免 log 文件爆炸）：
+## Step 4: Key checks (only for this change)
+
+> **Language**: disk-bound — write this dual-track findings aggregation (folded into log writeback at Step 5) in `content_language` per `ai_context/skills_config.md §Language`. Code identifiers, file paths, field names stay English regardless.
+
+- **Cross-file inconsistency**: do the same field / concept in schema / code / docs / prompt match in naming and definition
+- **Ambiguity**: do requirements / architecture descriptions of new behavior admit two readings
+- **Conflict**: do "docs say A, code does B, samples say C" emerge
+- **Residual old logic / legacy wording**: any paragraphs describing the old flow, replaced fields, dead imports, dead branches; also check the docs / prompts / ai_context touched this round for real content violating skills_config.md `## Sensitive content placeholder rules`, or `old / legacy / deprecated / formerly` wording
+- **Dangling references / over-deletion**: if this diff deleted a symbol / file / section, grep the rest of the repo to see if references remain un-updated; this is the inverse of "residual old logic" — the old target is gone but the old reference stays
+- **change_log / docs internal-link breakage**: this round's log or modified docs reference `decisions.md #25` / `[xxx](path)` / `see logs/change_logs/.../X.md` etc.; verify the numbers have not drifted, relative paths exist, anchors are real
+- **todo_list drift**: if this round materially completes a todo entry (PRE log "Completion criteria" section says "this todo entry moves to archived", or the diff equals the "change list" of some Next/Discussing entry), check whether the TODO list (path per `skills_config.md ## Activity sources.TODO list.Path`, typically `docs/todo_list.md`) has moved the entry wholesale into the archived TODO list (path per `## Activity sources.Archived TODO list.Path`, typically `docs/todo_list_archived.md`) `## Completed` + whether the Index section has been refreshed in sync. Missed move → add to Missed Updates
+- **bug / behavior risk**: will new code crash under boundary / null / exception paths; state machines / gates / retry / rollback have holes
+- **README / directory structure**: are added / deleted / renamed files synced to the relevant README and directory descriptions
+- **ai_context drift**: have durable decisions this round landed in `ai_context/decisions.md` / `current_status.md` / `next_steps.md`; does handoff need updating
+- **commit message vs diff match**: commit body description vs `git diff --stat` actual changes — do they cover each other; body lists N items but diff only touches M, or diff changed files the body did not mention
+
+> After Step 3 / Step 4 run, hold the dual-track conclusions (plan-item fulfillment status, Findings list, Missed Updates, Open Questions, Residual Risks) **in your head / notes**, do not print immediately. Step 5 writes back a structured summary to the log + commit; Step 6 then expands the full report into the conversation — this way the full report is the last segment of `/post-check` output, the user reads it and decides without scrolling back.
+
+## Step 5: Write back log (summary) + commit
+
+> **Language**: disk-bound — write this review summary appended to the change log + REVIEWED-* verdict in `content_language` per `ai_context/skills_config.md §Language`. The verdict label `REVIEWED-PASS` / `REVIEWED-PARTIAL` / `REVIEWED-FAIL` stays English verbatim (structural). The commit message follows `content_language`. Code identifiers, file paths, field names stay English regardless.
+
+Append the **structured summary** of the dual-track conclusions to the **intent baseline log file** (the one Step 1.5 read), **without duplicating the full Findings text** (the full text goes to Step 6 in the conversation to avoid log file bloat):
 
 ```markdown
-<!-- /post-check 填写 -->
+<!-- /post-check writes -->
 
-## 复查结论（对话里有完整报告）
+## Review conclusion (full report in conversation)
 
-### 轨 1 — 需求落实
-- 落实率：{M/N 项计划 + K/L 项验证}
-- Missed updates: {X} 条（详见对话）
+### Track 1 — requirement fulfillment
+- Fulfillment rate: {M/N plan items + K/L validations}
+- Missed updates: {X} items (see conversation)
 
-### 轨 2 — 影响扩散
+### Track 2 — impact spread
 - Findings: High={h} / Medium={m} / Low={l}
-- Open Questions: {q} 条（详见对话）
+- Open Questions: {q} items (see conversation)
 
-## 复查时状态
+## Review state
 - **Reviewed**: {timestamp}
-- **Status**: REVIEWED-PASS | REVIEWED-FAIL | REVIEWED-PARTIAL
-  - PASS = 轨 1 全落实 且 轨 2 无 High/Medium
-  - PARTIAL = 轨 1 有缺口 或 轨 2 有 Medium，无 High
-  - FAIL = 轨 1 大面积未落实 或 轨 2 有 High
-- **Conversation ref**: 同会话内 /post-check 输出
+- **Status**: REVIEWED-PASS | REVIEWED-PARTIAL | REVIEWED-FAIL
+  - PASS = track 1 fully landed AND track 2 has no High/Medium
+  - PARTIAL = track 1 has gaps OR track 2 has Medium, no High
+  - FAIL = track 1 largely unlanded OR track 2 has High
+- **Conversation ref**: /post-check output in this session
 ```
 
-log 缺失时：打印"⚠️ 无 log 可回写，复查结论仅在对话中保留"，并**直接进入 Step 6**（无 commit 可做）。
+Log missing: print "⚠️ no log to write back; review conclusion kept only in conversation" and **go directly to Step 6** (no commit to make).
 
-回写完成后**立即 commit 这一份 log 文件**——不要留作脏工作区，否则下一轮 `/go` 的 Step 1 询问会把这份残留计入 dirty 摘要，迫使用户在 WIP commit / 直接执行 / worktree / stash 之间多分一次心，留作脏工作区毫无收益。
+After writing back, **immediately commit this log file** — do not leave it as a dirty working tree; otherwise the next `/go` Step 1 question would fold this residue into the dirty summary, forcing the user to choose among WIP commit / direct execute / worktree / stash for no benefit.
 
-- commit 在**当前分支**即可（`/post-check` 在用户当前所在分支跑，无需切换）
-- 仅 `git add` 这一份 log 文件——不要顺手把其他无关 dirty 文件带进 commit
-- commit message 风格对齐既有先例：`log({slug}): /post-check 复查结论回写 REVIEWED-PASS|PARTIAL|FAIL`
-- 不 push，不切分支；commit 后立刻进入 Step 6
+- commit on the **current branch** (`/post-check` runs on the user's current branch, no switching needed)
+- only `git add` this log file — do not opportunistically include unrelated dirty files in the commit
+- commit message style follows existing precedent: `log({slug}): /post-check review writeback REVIEWED-PASS|PARTIAL|FAIL`
+- no push, no branch switch; immediately enter Step 6 after commit
 
-log 缺失（无回写）时跳过 commit。
+When log is missing (no writeback), skip the commit.
 
-## Step 6: 对话输出完整双轨报告
+## Step 6: Print full dual-track report in conversation
 
-**这是用户决策的主要界面，所有 Findings / Missed Updates / Open Questions 完整打印到对话**，不省略、不只放摘要。**这是 `/post-check` 在对话里的最后一段实质内容**——放在 log 回写之后，用户看完报告就能直接拍板，不需要往回翻屏。
+> **Language**: user-facing — render the full dual-track report (Scope / Track 1 / Track 2 / Findings list / Alignment Summary / Residual Risks / Open Questions / Recommendations) in `conversation_language` per `ai_context/skills_config.md §Language`. Markdown section headings, table column labels, and structural prefixes (`H1`, `M1`, `L1`, `OQ1`, `Missed Updates`, etc.) stay English; only finding descriptions / evidence / recommendation prose translate.
 
-Markdown 模板：
+**This is the primary surface for the user's decision; all Findings / Missed Updates / Open Questions print fully into the conversation**, no omissions, no summary-only. **This is the last substantive segment `/post-check` produces in the conversation** — placed after log writeback, the user reads the report and decides without scrolling back.
+
+Markdown template:
 
 ```markdown
 ## Scope
-- commits {X..Y}（或 working tree），N 个文件
-- intent 基线：`logs/change_logs/{...}.md`（或"缺失"）
+- commits {X..Y} (or working tree), N files
+- intent baseline: `logs/change_logs/{...}.md` (or "missing")
 
 ---
 
-## 轨 1 — 原始需求落实情况（对账）
+## Track 1 — original requirement fulfillment (reconcile)
 
-基于 PRE log 的"计划动作清单 + 验证标准"逐项核对：
+Item-by-item check against the PRE log's "Planned action list + Validation criteria":
 
-| 计划项 | 状态 | 证据 |
-|--------|------|------|
-| {file A: 改动要点} | ✅ 已落实 | {diff 摘要 / 行号} |
-| {file B: 改动要点} | ⚠️ 部分落实 | {缺了 X} |
-| {file C: 改动要点} | ❌ 未落实 | {文件未触及} |
-| {验证标准 1} | ✅ 通过 | {命令输出摘要} |
-| {验证标准 2} | ❌ 失败 | {错误摘要} |
+| Plan item | Status | Evidence |
+|-----------|--------|----------|
+| {file A: change focus} | ✅ landed | {diff summary / line numbers} |
+| {file B: change focus} | ⚠️ partial | {missing X} |
+| {file C: change focus} | ❌ not landed | {file not touched} |
+| {validation 1} | ✅ pass | {command output summary} |
+| {validation 2} | ❌ fail | {error summary} |
 
-**Missed Updates**（对账差集 ∪ Cross-File Alignment 差集）：
-- {file 路径 — 本应同步但没同步的理由}
+**Missed Updates** (reconcile delta ∪ Cross-File Alignment delta):
+- {file path — why it should have been synced but was not}
 
-intent 基线缺失时：**跳过本轨**并打印"无 PRE log，无法对账"。
+When intent baseline is missing: **skip this track** and print "no PRE log, cannot reconcile".
 
 ---
 
-## 轨 2 — 影响扩散 / 计划外副作用
+## Track 2 — impact spread / unplanned side effects
 
-用 intent 圈定的 scope 为起点，向**计划之外**的文件扩散：
+Starting from the intent-scoped set, expand to files **outside the plan**:
 
 ### Findings
 
-**所有 finding 强制带序号 ID**——同优先级内 1 起递增（`H1` / `H2` / `H3`...；`M1` / `M2`...；`L1` / `L2`...）。后续对话 / `/go` / `/check-review` 引用某条 finding 时**必须用此 ID**；序号一旦发出不重排（即使后续合并 / 取消，原 ID 保留为占位 → "（撤回）"或"（已合入 H1）"，不要把 H3 改名 H2）。
+**All findings must carry a numbered ID** — within the same priority, increment from 1 (`H1` / `H2` / `H3`...; `M1` / `M2`...; `L1` / `L2`...). Subsequent conversation / `/go` / `/check-review` references to a finding **must use this ID**; once issued the numbers do not renumber (even on merge / cancel, the original ID stays as a placeholder → "(withdrawn)" or "(merged into H1)"; do not rename H3 to H2).
 
-- **H1** `{file:line}` — {冲突 / bug / 歧义描述} — 证据 / 推断
+- **H1** `{file:line}` — {conflict / bug / ambiguity description} — evidence / inference
 - **H2** `{file:line}` — ...
 - **M1** `{file:line}` — ...
 - **L1** `{file:line}` — ...
 
-### Cross-file 冲突
-- "文档说 A，代码做 B，样例又是 C"类发现
+### Cross-file conflicts
+- "docs say A, code does B, samples say C" style findings
 
-### 残留旧逻辑 / legacy 措辞
-- {位置 + 行号}
+### Residual old logic / legacy wording
+- {location + line numbers}
 
-### bug / 行为风险
-- {边界、空值、异常路径、状态机漏口}
+### bug / behavior risk
+- {boundary, null, exception path, state-machine holes}
 
-### README / 目录 / ai_context 漂移
-- {漂移点}
+### README / directory / ai_context drift
+- {drift points}
 
 ---
 
 ## Alignment Summary
-本次改动在 需求 / schema / 代码 / README / 架构 / ai_context / prompts / 目录 各层的对齐状况；哪层最不对齐
+This round's alignment status across requirements / schema / code / README / architecture / ai_context / prompts / directories; which layer is least aligned
 
 ## Residual Risks
-{未确认成 bug 但值得警惕}
+{not yet confirmed bugs but worth caution}
 
 ## Open Questions
-{仓库内无法独自判断、需用户拍板的点；每条建议带候选方向}
+{points the repo cannot resolve on its own and need the user to decide; each comes with candidate directions}
 
 ## Recommendations
 
-**仅供参考，用户拍板优先**。给出每条建议前先过三问自检：
+**For reference only; user decision takes priority**. Before each recommendation, pass the three-question self-check:
 
-1. **必要吗** —— 不修会怎样？只是看着不顺眼 / 强迫症 → 倾向"跳过"或"留 todo"
-2. **能更简单吗** —— 能改 3 行解决就别抽 helper / 加层 / 加配置 / 加 flag
-3. **超出本次 scope 吗** —— 顺手改的"相关项"是不是已经溢出本轮目标
+1. **Necessary?** — what happens if not fixed? Just looks off / OCD → lean "skip" or "leave as todo"
+2. **Can it be simpler?** — if 3 lines fix it, do not extract helpers / add layers / add config / add flags
+3. **Out of scope?** — is the opportunistic "related fix" spilling out of this round's goal
 
-- **{H1/M1/L1}** → 建议{修 / 留 todo / 跳过}：{一句话理由 / 推荐方案}
-- **OQ1** → 推荐{候选 A/B}：{一句话理由}
+- **{H1/M1/L1}** → recommend {fix / leave as todo / skip}: {one-sentence reason / recommended approach}
+- **OQ1** → recommend {candidate A/B}: {one-sentence reason}
 - ...
 ```
 
-## Step 7: 等待确认
+## Step 7: Wait for confirmation
 
-完整报告打印完成后**停手**。最多再补一句"等你拍板"或类似的极短语句作为结束语，**不要再写总结、不要再 commit、不要再列 next steps**——任何尾巴都会把双轨报告挤上去。不要进入 `/go`、不要改代码、不要改 schema / prompt / docs / ai_context；等用户基于对话里的完整报告逐条拍板，通常交由下一轮 `/go` 执行补改。
+> **Language**: user-facing — render the closing "awaiting your call" short line in `conversation_language` per `ai_context/skills_config.md §Language`. One short sentence at most; do not produce additional summary / recommendations / next-step lists.
 
-## 约束
+After the full report prints, **stop**. At most add one more sentence like "awaiting your call" or a similarly very short closing line, **do not write further summaries, do not commit further, do not list next steps** — any tail pushes the dual-track report up. Do not enter `/go`, do not modify code, do not modify schema / prompt / docs / ai_context; wait for the user to decide item by item based on the full report in the conversation, typically handed to the next `/go` for follow-up fixes.
 
-- 不要因为 `/go` Step 7 已经 review 过就走过场 —— 此轮用新的眼睛再看一遍，重点抓 `/go` 漏掉的连带文件和歧义
-- **输出顺序硬约束**：log 回写 + commit (Step 5) **先于** 对话报告输出 (Step 6)。完整双轨报告必须是 `/post-check` 在对话里的**最后一段实质内容**——Step 7 只放一行"等待确认"短语作收尾，不要在报告之后再跟一段总结 / commit 提示 / next steps，否则用户又得回滚屏幕
+## Constraints
+
+- Do not go through the motions just because `/go` Step 7 already reviewed — this round looks again with fresh eyes, focusing on the linked files and ambiguity `/go` missed
+- **Output order hard constraint**: log writeback + commit (Step 5) **precedes** conversation report output (Step 6). The full dual-track report must be the **last substantive segment** `/post-check` produces in the conversation — Step 7 closes with a single "awaiting confirmation" short phrase, no further summary / commit prompt / next steps after the report, otherwise the user has to scroll back again

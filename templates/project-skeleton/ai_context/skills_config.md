@@ -5,11 +5,14 @@ loaded by default at session start — only the specific skill that needs
 it reads it.
 
 Each section below has a fixed header. **Section headers (the `## …`
-lines) MUST exist** — a missing header means the config is structurally
-incomplete; skills will fail loudly and stop. If this project has no
-value for a section, write `(none)` in the body and skills will skip
-the related step. If a section lists concrete paths but those paths
-don't exist on disk, skills will fail loudly and report the drift.
+lines) MUST exist by default** — a missing header means the config is
+structurally incomplete; skills will fail loudly and stop. Exceptions
+are documented in the section body itself (currently only `## Timezone`
+declares a system-timezone `date` fallback; see that section). If this
+project has no value for a section, write `(none)` in the body and
+skills will skip the related step. If a section lists concrete paths
+but those paths don't exist on disk, skills will fail loudly and
+report the drift.
 
 When porting to another project, edit only this file — skill bodies
 stay untouched.
@@ -94,13 +97,51 @@ Drives timestamp generation across skills (log filenames, report
 filenames, per-cycle timestamps).
 
 - Command template: `TZ='UTC' date '+%Y-%m-%d_%H%M%S'`
+- Fallback: If this section is missing or the command template fails,
+  skills fall back to `date '+%Y-%m-%d_%H%M%S'` using the system
+  timezone. This fallback is part of the contract (see top-of-file
+  rule) — skills do not need to encode bespoke `try / except` per
+  caller.
+
+## Language
+
+Two project-wide language axes consumed by every skill that writes
+output or asks the user a question, plus the SessionStart hook
+banner.
+
+- `content_language: en`
+- `conversation_language: auto`
+
+Notes:
+
+- `content_language` governs every written artifact the AI produces
+  or maintains in this project: `ai_context/` / `docs/` / `logs/` /
+  commit messages / README / skill console output / error messages /
+  code comments the AI writes. Code identifiers and field names
+  stay English regardless. Accepts any ISO 639-1 code.
+- `conversation_language` governs AI ↔ user turns (`AskUserQuestion`
+  prompts, free-form replies, confirmations). Accepts
+  `auto | <ISO 639-1>`. `auto` = per-turn match the user's most
+  recent message language. Any explicit value is a hard rule with a
+  single-message escape hatch (user says "respond in `<other>`" →
+  that turn replies in `<other>`, next turn returns to config).
+- Language codes follow ISO 639-1 (`zh`, not the country code `cn`;
+  `en`, not `eng`). Locale variants (`zh-CN`, `zh-TW`) are reserved
+  for future regional splits.
+- Defaults above (`en` / `auto`) are the template's starting point;
+  edit to your project's preferred values, or let `/holo:init` set
+  them interactively when the project is initialised.
 
 ## Activity sources
 
-Used by activity-summary skills to assemble a unified
-reverse-chronological timeline of project actions. Git commits are
-implicit (always available from the current repo); the entries below
-are listed so non-default project layouts can override them.
+Per-source registry consumed by `/recent-activity`, `/todo-add`, `/go`,
+`/post-check`, `/full-review`, `/check-review`, and `/run-prompt`.
+Lists path + filename pattern + per-entry field names for each ledger
+the workflow skills touch. Git commits are implicit (always available
+from the current repo); the entries below are listed so non-default
+project layouts can override them. Sections whose body is `(none)` are
+treated as "not configured" — the consuming skill skips the related
+scan (graceful skip per top-of-file rule).
 
 - Change logs:
   - Path: `logs/change_logs/`
@@ -109,3 +150,10 @@ are listed so non-default project layouts can override them.
   - Path: `docs/todo_list.md`
   - Per-entry updated-time field: `**Updated**` (or project-chosen
     label; pick one and stay consistent)
+- Archived TODO list:
+  - Path: `docs/todo_list_archived.md`
+- Review reports:
+  - Path: `logs/review_reports/`
+  - Filename pattern: `{YYYY-MM-DD_HHMMSS}_{model}_{slug}.md`
+- Prompt sources:
+  - Path: `(none)`

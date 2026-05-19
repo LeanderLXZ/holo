@@ -1,129 +1,150 @@
 ---
 name: full-review
-description: 全仓库对齐审计 — 扫 ai_context / docs / schema / prompt / 代码 / 样例产物，找跨文件不一致、legacy 残留、文档与实现漂移、状态机门控缺口、bug 隐患。$ARGUMENTS = 本轮重点 / 额外关注点（可选）。findings 按严重度排序归档到 logs/review_reports/。只审计不改代码；改动落地 → /go；针对单次改动 → /post-check。触发：全库 review / 对齐审计 / full-review / 跑一轮 review。
+description: Whole-repo alignment audit — scan ai_context / docs / schema / prompts / code / sample artifacts, find cross-file inconsistencies, legacy residue, doc-vs-implementation drift, state-machine gating gaps, latent bugs. $ARGUMENTS = focus / extra concerns for this round (optional). Findings are sorted by severity and archived to logs/review_reports/. Audit only, no code changes; to land changes → /go; for a single change → /post-check. Triggers: full repo review / alignment audit / full-review / run a review pass.
 ---
 
-# /full-review — 全仓库对齐审计
+> **Language**: per `ai_context/skills_config.md §Language` — disk-bound output (the review report file at `logs/review_reports/...`, the commit landing it, code-comment-style notes) uses `content_language`; user-facing surface (chat prose / the in-conversation report / status lines / findings rendered in chat) uses `conversation_language`. Code identifiers, file paths, field names, frontmatter keys, and structural prefixes (`H1`, `M1`, `OQ1`, `REVIEWED-PASS`, etc.) stay English regardless.
 
-对整个仓库做一次"规范对齐 + 实现风险"的全量 review。`$ARGUMENTS` 存在则作为本轮重点或额外关注点。
+# /full-review — Whole-repo alignment audit
+
+Run a full "spec alignment + implementation risk" review over the entire repository. If `$ARGUMENTS` is present, take it as this round's focus or extra concerns.
 
 ## 0. Load skills config
 
-`Read` `ai_context/skills_config.md`。
+`Read` `ai_context/skills_config.md`.
 
-- 文件不存在 / 某节标题缺失 → fail loudly：打印缺失项 + 提示按 plugin 模板补全，停手
-- 某节内容 `(none)` 或留空 → 跳过该节相关步骤（视为本项目无此项）
-- 某节列了具体路径但路径不存在 → fail loudly：提示该节漂移到不存在路径，停手等用户修
+- File missing / some section title missing → fail loudly: print missing items + prompt to fill per plugin template, stop
+- A section's content is `(none)` or empty → skip the related steps for that section (treat as project doesn't have this item)
+- A section lists a concrete path but the path doesn't exist → fail loudly: report that the section drifted to a missing path, stop and wait for user to fix
 
-后续步骤出现 "skills_config.md `## XX`" 时引用本配置。本 skill 用到：
-`## Source directories`（实现线扫描范围）、
-`## Data contract directories`（规范线数据契约扫描；含 JSON Schema / proto / OpenAPI / Pydantic / SQL DDL 等）、
-`## Example artifact directories`（产物线扫描范围）、
-`## Core component keywords`（重点检查项）、
-`## Timezone`（结果归档时间戳）。
+Subsequent steps referring to "skills_config.md `## XX`" cite this config. This skill uses:
+`## Source directories` (implementation-line scan scope),
+`## Data contract directories` (spec-line data-contract scan; includes JSON Schema / proto / OpenAPI / Pydantic / SQL DDL etc.),
+`## Example artifact directories` (artifact-line scan scope),
+`## Core component keywords` (priority check items),
+`## Timezone` (timestamp on result archival),
+`## Language` (read both `content_language` and `conversation_language` here; print them once on the way out of §0 — see below).
 
-## 目标
+**Language-axes anchor (after skills_config load)**: print one line `Language axes: conversation_language=<value> · content_language=<value> (source: ai_context/skills_config.md §Language)`. Both axis values echoed verbatim from §Language; the natural-language prefix translates to `conversation_language` (e.g. `语言双轴: …` under `conversation_language: zh`). This anchor is planted before the four parallel audit lines fan out in "How to work" below.
 
-先阅读 `ai_context/` 和 `docs/` 来 follow 当前项目真相，再 review 整个仓库，判断：
-1. 文档、ai_context、schema、prompt、实现是否对齐
-2. 是否存在冲突、歧义、过时描述、未落地承诺
-3. 是否存在 bug、行为风险、状态机 / 流程门控问题、数据一致性风险
-4. 架构设计和实现上是否有明显问题、隐患、脆弱点
-5. 是否存在"文档说 A，代码做 B，样例数据又是 C"的情况
-6. 是否存在 legacy 逻辑、半迁移状态、死代码、失效校验、空跑检查
-7. 是否存在当前已提交样例 / 产物与仓库宣称状态不一致的问题
+## Goals
 
-## 工作方式
+First read `ai_context/` and `docs/` to follow the current project truth, then review the whole repository and judge:
+1. Whether docs, ai_context, schema, prompts and implementation are aligned
+2. Whether there are conflicts, ambiguities, stale descriptions, unfulfilled promises
+3. Whether there are bugs, behavioral risks, state-machine / flow gating issues, data consistency risks
+4. Whether the architecture and implementation have obvious problems, hazards, fragile points
+5. Whether there is a "doc says A, code does B, sample data is C" situation
+6. Whether there is legacy logic, half-migrated state, dead code, broken checks, no-op validations
+7. Whether committed samples / artifacts conflict with the repo's claimed status
 
-- 先读 `ai_context/`，把它当作默认 handoff 入口
-- 再读 `docs/requirements.md` 和 `docs/architecture/`
-- 不要默认去读 `logs/change_logs/`，除非已发现冲突、必须追溯历史决策
-- 然后扫描整个仓库，包括但不限于：
-  - skills_config.md `## Source directories` 列出的目录
-  - skills_config.md `## Data contract directories` 列出的目录（`(none)` 时跳过）、`prompts/`
-  - skills_config.md `## Example artifact directories` 列出的目录
-  - `README.md`、`.gitignore`
-- 如果能力支持并行，并行跑至少四条审计线：
-  1. **规范线（必跑）**：`ai_context/`、`docs/`、skills_config.md `## Data contract directories` 列出的目录（`(none)` 时跳过该节扫描）、`prompts/`
-  2. **实现线**：扫 skills_config.md `## Source directories` 列出的目录 + 脚本 / 状态机 / 校验 / 重试 / 回滚逻辑。该节 `(none)` / 留空时退化为"项目根下所有非 ai_context / docs / logs / .git / `## Data contract directories` 已列目录 / prompts 的子目录"
-  3. **风险线**：以实现线同样的扫描范围为底，但视角不同——实现线问"还连得上吗 / 字段是否漂移 / 门控是否对齐文档"，风险线问"做的事对吗"：边界条件、空值 / None、异常路径、并发、重试 / 回滚、错误处理是否藏 bug；新行为或长期未审的代码是否有数据丢失 / 安全口子 / 性能回退；状态机 / 门控 / 不变量是否有漏覆盖分支；产出归到「重点检查项」里的 bug / 行为风险类条目和 Findings 同名小节
-  4. **样例产物线**：扫 skills_config.md `## Example artifact directories` 列出的目录，看已提交的 progress / artifact 是否与规范一致。该节 `(none)` / 留空时跳过本线并打印"未声明示例产物目录，跳过产物线"
+## How to work
 
-## 重点检查项
+- Read `ai_context/` first, treating it as the default handoff entry point
+- Then read `docs/requirements.md` and `docs/architecture/`
+- Do not read `logs/change_logs/` by default unless a conflict has surfaced and historical decisions must be traced
+- Then scan the whole repository, including but not limited to:
+  - directories listed in skills_config.md `## Source directories`
+  - directories listed in skills_config.md `## Data contract directories` (skip if `(none)`), and the prompt-sources path from skills_config.md `## Activity sources.Prompt sources.Path` (skip when `(none)`)
+  - directories listed in skills_config.md `## Example artifact directories`
+  - `README.md`, `.gitignore`
+> **Language (sub-agent dispatch)**: when the runtime supports parallelism and the four audit lines below run as sub-agents, the parent MUST inject the language axes into each sub-agent's prompt explicitly. Include verbatim: "Reply in `conversation_language`=`<value>`; write any disk artifacts in `content_language`=`<value>`; both values from `ai_context/skills_config.md §Language`." Sub-agents do not inherit the parent's language config — they must be told. Sub-agent report-back to the parent is a USER surface; the consolidated review report file is DISK surface.
 
-- `ai_context` 与 `docs` 是否一致
-- `docs/requirements.md` 与 `docs/architecture/*` 是否一致
-- skills_config.md `## Data contract directories` 列出的目录（含 schema / proto / openapi / pydantic / SQL DDL 等数据契约层）是否覆盖文档承诺的核心数据结构（该节 `(none)` 时跳过本项）
-- prompt 模板是否仍引用过时字段、旧流程、已废弃文件
-- skills_config.md `## Core component keywords` 列出的组件是否真的兑现文档中的门控与校验承诺（该节 `(none)` / 留空时跳过本项）
-- Phase / 状态机 / 恢复 / 回滚 / 重试 / commit gate 是否有缺口
-- 是否有"文档宣称会阻断，但代码实际不会阻断"的问题
-- 是否有字段名漂移、schema 字段与代码字段不一致的问题
-- 是否有程序化检查实际上失效、漏检、空检的问题
-- `.gitignore`、本地产物、已跟踪文件之间是否矛盾
-- skills_config.md `## Example artifact directories` 下已提交样例是否与 `ai_context/current_status.md`、README、docs 描述一致
-- 是否有对外宣称"已完成 / 已验证"的内容，其实仓库现状并不支持
+- If the runtime supports parallelism, run at least four audit lines in parallel:
+  1. **Spec line (mandatory)**: `ai_context/`, `docs/`, directories listed in skills_config.md `## Data contract directories` (skip that section's scan if `(none)`), the prompt-sources path from skills_config.md `## Activity sources.Prompt sources.Path` (skip when `(none)`)
+  2. **Implementation line**: scan directories listed in skills_config.md `## Source directories` + scripts / state machines / validations / retries / rollback logic. If the section is `(none)` / empty, degrade to "every subdirectory under the project root except ai_context / docs / logs / .git / directories already listed in `## Data contract directories` / prompts"
+  3. **Risk line**: scope = implementation line, but a different lens — implementation line asks "does it still hook up / are fields drifting / is gating aligned with the docs", risk line asks "is what it does correct": edge cases, null / None, exception paths, concurrency, retry / rollback, error handling that hides bugs; whether new behavior or long-unreviewed code risks data loss / security holes / performance regression; whether the state machine / gates / invariants leave uncovered branches; produce entries under bug / behavior-risk categories under "priority check items" and the same-named Findings sub-section
+  4. **Sample artifact line**: scan directories listed in skills_config.md `## Example artifact directories`, check whether committed progress / artifacts match the spec. Skip this line if the section is `(none)` / empty and print "No example artifact directories declared, sample line skipped"
 
-## 审计要求
+## Priority check items
 
-- 这是 review，**不是改代码**；除"结果归档（必做）"那份新建的 review report 必须 commit 之外，不要修改、commit 或推送任何其他文件
-- 优先找"高价值问题"，不是泛泛而谈；尽量覆盖全仓库，但把重点放在真实影响后续开发 / 提取质量 / 运行时正确性的地方
-- 不要只给总结，先给 findings
-- findings 按严重性排序：High / Medium / Low
-- 每条 finding 尽量给出：
-  - 结论
-  - 为什么这是问题
-  - 影响范围
-  - 证据文件和具体行号
-- 如果是"推断"而不是"直接证据"，明确标注"这是推断"
-- 如果没有发现问题，也要明确说"未发现明确问题"，并列出残余风险和未覆盖区域
-- 不要为了凑数而列低价值意见
-- 不要把"未来可优化"混成 bug；把 bug / 冲突 / 风险 / 架构隐患分清楚
-- 报告 finding 时：文档之间互相冲突 → 明确指出哪个应视为更高优先级真相；`ai_context` 已过时 → 明确指出它会如何误导后续 AI
+- Are `ai_context` and `docs` consistent
+- Are `docs/requirements.md` and `docs/architecture/*` consistent
+- Do directories listed in skills_config.md `## Data contract directories` (data contract layer including schema / proto / openapi / pydantic / SQL DDL etc.) cover the core data structures promised in docs (skip if section is `(none)`)
+- Do prompt templates still reference stale fields, old flows, deprecated files
+- Do components listed in skills_config.md `## Core component keywords` actually deliver the gating and validation promised in docs (skip if `(none)` / empty)
+- Are there gaps in Phase / state machine / recovery / rollback / retry / commit gate
+- Is there a "doc claims it will block, code doesn't actually block" situation
+- Is there field name drift or schema-field / code-field mismatch
+- Are programmatic checks actually no-ops, missing checks, empty checks
+- Do `.gitignore`, local artifacts, tracked files contradict each other
+- Do committed samples under skills_config.md `## Example artifact directories` match `ai_context/current_status.md`, README, docs descriptions
+- Is there content claimed externally as "done / verified" that the repo state does not actually support
 
-## 输出格式
+## Audit requirements
+
+> **Language**: disk-bound — write this section's audit findings and output-structure prose (folded into the eventual report file at "Result archival") in `content_language` per `ai_context/skills_config.md §Language`. Code identifiers, file paths, field names stay English regardless.
+
+- This is a review, **not a code change**; aside from the new review report from "Result archival (mandatory)" which must be committed, do not modify, commit or push any other file
+- Prioritize "high-value problems" over generic remarks; cover the whole repo but focus on items that genuinely affect follow-up development / extraction quality / runtime correctness
+- Do not lead with a summary, lead with findings
+- Findings are sorted by severity: High / Medium / Low
+- Each finding should include where possible:
+  - Conclusion
+  - Why this is a problem
+  - Scope of impact
+  - Evidence files and specific line numbers
+- If it is "inference" rather than "direct evidence", explicitly label "this is inference"
+- If no problem is found, explicitly say "no clear problem found" and list residual risks and uncovered areas
+- Do not pad with low-value opinions
+- Do not lump "future optimization" into bugs; keep bugs / conflicts / risks / architectural hazards separate
+- When reporting findings: cross-doc conflict → explicitly call out which doc should be treated as the higher-priority truth; `ai_context` is stale → explicitly call out how it will mislead future AI
+
+## Output format
+
+> **Cross-skill protocol ownership**: this Section defines the review-report 5-section body order (`Findings` → `Alignment Summary` → `Residual Risks` → `Open Questions / Ambiguities` → `Recommendations`) and the finding ID prefix conventions (`H1` / `M1` / `L1` / `OQ1`, stable across merge / withdraw). This is consumed by `/check-review` Step 0 (file pick by pattern), Step 1 (body parse by section names), and Step 3 (per-finding re-check that reuses the original IDs). Renaming any section, reordering them, or changing the ID prefix scheme requires a lockstep edit in `/check-review` per `ai_context/conventions.md §Cross-File Alignment` (row: "Review-report protocol").
+
+> **Language**: user-facing — render the `Findings` / `Alignment Summary` / `Residual Risks` / `Open Questions` / `Recommendations` sections **as printed into the conversation** in `conversation_language` per `ai_context/skills_config.md §Language`. Section headings and finding ID prefixes (`Findings`, `H1`, `M1`, `L1`, `OQ1`, `Recommend:`, etc.) stay English; only the descriptive prose / evidence / recommendation text translate.
+
+> **Language**: disk-bound — the same sections **as written into the report file** at "Result archival" use `content_language` per `ai_context/skills_config.md §Language`. The on-disk report is the canonical archival surface and stays in `content_language` regardless of `conversation_language`; the in-chat render above is the user-facing surface. Code identifiers, file paths, field names stay English regardless.
 
 1. `Findings`
-   - 按严重性排序：High → Medium → Low
-   - **强制带序号 ID**：同优先级内 1 起递增（`H1` / `H2` / `H3`...；`M1` / `M2`...；`L1` / `L2`...）。后续 `/check-review` / 对话引用必须用此 ID；序号一旦发出不重排（合并 / 撤回时原 ID 保留占位，不重排其他条目）。Markdown 加粗，例：`**H1** path/file.py:42 — ...`
-   - 每条都带文件路径和行号
+   - Sorted by severity: High → Medium → Low
+   - **Numeric ID required**: within each priority, increment from 1 (`H1` / `H2` / `H3`...; `M1` / `M2`...; `L1` / `L2`...). Follow-up `/check-review` / conversation references must use this ID; once issued, IDs are not reordered (on merge / withdraw, the original ID stays as a placeholder, other entries are not renumbered). Bold in markdown, e.g. `**H1** path/file.py:42 — ...`
+   - Every entry carries a file path and line number
 2. `Alignment Summary`
-   - 简短总结哪些层是对齐的，哪些层最不对齐
+   - Brief summary of which layers are aligned and which are most misaligned
 3. `Residual Risks`
-   - 即使当前没确认成 bug，也值得警惕的地方
+   - Places worth watching even if not confirmed as bugs yet
 4. `Open Questions / Ambiguities`
-   - 列出仓库内部无法唯一判断、需要产品 / 架构决策澄清的点；每条 OQ 编号 `OQ1` / `OQ2`...
+   - List points the repo itself cannot uniquely decide and that need product / architecture clarification; number each OQ as `OQ1` / `OQ2`...
 5. `Recommendations`
-   - **仅供参考，用户拍板优先**。给出每条建议前先过三问自检：
-     1. **必要吗** —— 不修会怎样？只是看着不顺眼 / 强迫症 → 倾向"跳过"或"留 todo"
-     2. **能更简单吗** —— 能改 3 行解决就别抽 helper / 加层 / 加配置 / 加 flag
-     3. **超出本次 review scope 吗** —— 顺手改的"相关项"是不是已经溢出本轮目标
-   - 一段 flat list：每条 finding ID（H1 / M1 / L1...）+ 每条 OQ 给"建议{修 / 留 todo / 跳过}：{一句话理由 / 推荐方案}"
+   - **Reference only, the user decides**. Before issuing each recommendation, run a three-question self-check:
+     1. **Necessary?** — what happens if we don't fix it? Just an eyesore / OCD → lean "skip" or "leave as todo"
+     2. **Can it be simpler?** — if a 3-line change solves it, do not extract a helper / add a layer / add a config / add a flag
+     3. **Outside this review's scope?** — is the opportunistic "related fix" overflowing this round's goal
+   - One flat list: each finding ID (H1 / M1 / L1...) + each OQ gets "recommend {fix / leave todo / skip}: {one-sentence reason / preferred approach}"
 
-## 结果归档（必做）
+## Result archival (mandatory)
 
-Review 结束后，把本轮完整 findings（含 False Positives、Open Questions、
-Alignment Summary、Residual Risks、建议落地顺序）写到：
+> **Cross-skill protocol ownership**: this Section defines the review-report filename pattern + file-header structure (line `**Review model**: <full model name> (`<model-id>`)`). Filename path + pattern themselves come from `ai_context/skills_config.md ## Activity sources.Review reports.*`; this Section pins down the file-header line and the `{model}` / `{slug}` slug conventions. Consumed by `/check-review` Step 0 (file enumeration via the pattern, filter via `{model}` slug). Renaming the file-header label, changing the slug conventions, or altering the verdict label set (`REVIEWED-PASS` / `REVIEWED-PARTIAL` / `REVIEWED-FAIL`) requires a lockstep edit in `/check-review` per `ai_context/conventions.md §Cross-File Alignment` (row: "Review-report protocol").
+
+> **Language**: disk-bound — write this review report file at `logs/review_reports/{ts}_{model}_{slug}.md` in `content_language` per `ai_context/skills_config.md §Language`. The file header label `**Review model**:`, the filename's `{model}` slug, and the `REVIEWED-*` verdict labels stay English (structural). The commit message that lands this file follows `content_language`. Code identifiers, file paths, field names stay English regardless.
+
+After review, write the complete round's findings (including False Positives, Open Questions,
+Alignment Summary, Residual Risks, recommended landing order) into the path declared at
+`ai_context/skills_config.md ## Activity sources.Review reports.Path`, using the filename pattern
+declared at `## Activity sources.Review reports.Filename pattern` (defaults: `logs/review_reports/`
++ `{YYYY-MM-DD_HHMMSS}_{model}_{slug}.md`):
 
 ```
-logs/review_reports/{YYYY-MM-DD_HHMMSS}_{model}_{slug}.md
+<review_reports_path>/<filename pattern with {model} and {slug} substituted>
 ```
 
-- **时间戳**：按 skills_config.md `## Timezone` 的命令模板执行（该节缺失则 fallback 到 `date '+%Y-%m-%d_%H%M%S'` 系统时区）
-- **`{model}`**：执行本轮 review 的模型 slug，小写、用 `-` 连接。例：
-  `opus-4-7`、`sonnet-4-6`、`haiku-4-5`、`gpt-5`、`codex`。禁用空格、
-  下划线、厂商前缀（不要写 `claude-opus-4-7`，直接 `opus-4-7` 即可）
-- **`{slug}`**：英文或拼音短名描述本轮主题（如
-  `t-token-watch_review_findings`、`post-phase3_audit`）
-- **文件开头**必须有一行 `**Review 模型**：<完整模型名>（`<model-id>`）`，
-  与文件名中的 `{model}` 对应，便于后续搜索 / 区分不同模型的判断差异
-- 一次 review 一个文件，不追加、不覆盖旧文件
-- `logs/review_reports/` 仅存 review 结果快照；与 `logs/change_logs/`（历史决策
-  记录）、`docs/todo_list.md`（待办）职责互不重叠
+- **Timestamp**: execute the command template from skills_config.md `## Timezone` (on §Timezone failure, follow the fallback declared in that section body — system-tz `date '+%Y-%m-%d_%H%M%S'`)
+- **`{model}`**: the model slug that executed this review, lowercase, joined with `-`. Examples:
+  `opus-4-7`, `sonnet-4-6`, `haiku-4-5`, `gpt-5`, `codex`. Forbid spaces,
+  underscores, vendor prefixes (do not write `claude-opus-4-7`, just `opus-4-7`)
+- **`{slug}`**: short English or pinyin name describing this round's theme (e.g.
+  `t-token-watch_review_findings`, `post-phase3_audit`)
+- **File header** must have a line `**Review model**: <full model name> (`<model-id>`)`,
+  matching `{model}` in the filename, for later searching / distinguishing different models' judgments
+- One review = one file; do not append, do not overwrite an old file
+- The review-reports directory only stores review result snapshots; non-overlapping with the change-logs directory (path per `## Activity sources.Change logs.Path`, historical decision records) and the TODO list (path per `## Activity sources.TODO list.Path`)
 
-写完后**立即 commit 这一份 review report 文件**——不要留作脏工作区，否则下一轮 `/go` 的 Step 1 询问会把这份残留计入 dirty 摘要，迫使用户多分一次心，留作脏工作区毫无收益。
+After writing, **immediately commit this review report file** — do not leave a dirty working tree, otherwise the next `/go` Step 1 prompt will fold this residue into the dirty summary, forcing the user to spend extra attention, with zero benefit to leaving it dirty.
 
-- commit 在**当前分支**即可（`/full-review` 通常在用户当前所在分支跑，无需切换）
-- 仅 `git add` 这一份 review report 文件——不要顺手把其他无关 dirty 文件带进 commit
-- commit message 风格：`log(review_reports): /full-review {slug} ({model})`
-- 不 push，不切分支；commit 后即结束本轮 review
+- Commit on the **current branch** (`/full-review` is usually run on the user's current branch, no need to switch)
+- Only `git add` this review report file — do not casually bundle other unrelated dirty files into the commit
+- Commit message style: `log(review_reports): /full-review {slug} ({model})`
+- No push, no branch switch; end this review round once committed

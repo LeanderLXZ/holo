@@ -1,125 +1,125 @@
 ---
 name: forward
-description: 把当前分支的 HEAD 显式 merge 到一或多个目标分支 — 加载配置 → 前置校验（dirty 即停） → 候选预检（6 类：不存在 / 受保护 / 已同步 / dirty target / 进程 / 预测冲突） → 批量无障碍 merge → 障碍分支逐条询问（仅 ⚠️ 预测冲突才问） → 结果列表。$ARGUMENTS = 目标分支列表（空格分隔；缺省 = 所有候选非当前分支）。源分支恒等于当前分支；不 push / 不 force / 不 amend / 不 rebase。触发：forward / 同步到 develop / 把 commit 推到其他分支 / 推到 X Y Z。
+description: Explicitly merge the current branch's HEAD into one or more target branches — load config → pre-check (stop on dirty) → candidate triage (6 classes: missing / protected / already synced / dirty target / process / predicted conflict) → batch unobstructed merge → ask per obstructed branch (only ⚠️ predicted-conflict triggers a prompt) → result list. $ARGUMENTS = target branch list (space-separated; default = all candidate non-current branches). Source branch is always the current branch; no push / no force / no amend / no rebase. Triggers: forward / sync to develop / push commits to other branches / push to X Y Z.
 ---
 
-# /forward — 显式分支同步
+> **Language**: per `ai_context/skills_config.md §Language` — disk-bound output (logs / docs / commit messages / code comments / files written) uses `content_language`; user-facing surface (chat prose / `AskUserQuestion` prompts and option labels / progress-tool entry `content` / status lines / strategy declarations / findings rendered in chat) uses `conversation_language`. Code identifiers, file paths, field names, frontmatter keys, and structural prefixes (`Step N:`, `LOG:`, etc.) stay English regardless.
 
-把当前分支（= 源分支）的最新 commit `git merge` 到一或多个目标分支。
-**纯 merge，不 push / 不 --force / 不 --amend / 不 rebase**——只是把当前分支
-fast-forward / merge commit 进各目标。
+# /forward — Explicit branch sync
+
+`git merge` the latest commit on the current branch (= source branch) into one or more target branches.
+**Pure merge, no push / no --force / no --amend / no rebase** — only fast-forward / merge-commit the current branch into each target.
 
 ## Progress reporting
 
-下方流程分为 `## Step 0:` ~ `## Step 5:`（前置一段 `## $ARGUMENTS 解析` 是参数解析，不算正式 step）。
+The flow below is split into `## Step 0:` ~ `## Step 5:` (the leading `## $ARGUMENTS parsing` section is argument parsing, not a formal step).
 
-**进入 Step 0 之前**：调用 **<进度工具>** 把 Step 0 ~ Step 5 全部预登记（每个 step 一条，`content` 用 `Step N: <子段标题>`，`status` 全为 `pending`；`$ARGUMENTS` 解析不计入）。这是硬性要求，**不调 <进度工具> 不许往下走**。
+**Before entering Step 0**: call **<progress tool>** to pre-register all of Step 0 ~ Step 5 (one entry per step, `content` = `Step N: <sub-section title>`, `status` = `pending` for all; `$ARGUMENTS` parsing is not counted). This is a hard requirement — **do not proceed without calling <progress tool>**.
 
-每进入一个 step：调 **<进度工具>** 把当前 step 改 `in_progress`（同一次调用里把上一个 step 标 `completed`），然后做实际工作。**step 跨越时不要漏调**。进度由 <进度工具> 的 UI 直接显示，**对话里不再打 `[/forward] Step N: ...` 之类的进度行**。
+Each time you enter a step: call **<progress tool>** to flip the current step to `in_progress` (mark the previous step `completed` in the same call), then do the real work. **Do not skip the call across step boundaries**. Progress is rendered directly by the <progress tool> UI — **do not print `[/forward] Step N: ...` style progress lines in the conversation**.
 
-跳过某 step：调 **<进度工具>** 把对应条目直接标 `completed`，并在对话里打一行 `Step N 跳过（理由：…）`——"理由"是 UI 缺失的信息，保留这一行；不要静默略过。
+Skipping a step: call **<progress tool>** to mark the entry directly `completed`, and print one line `Step N skipped (reason: …)` in the conversation — "reason" is information the UI lacks, keep that line; do not silently skip.
 
-最后一步完成：调 **<进度工具>** 把最后一条标 `completed`。
+Final step completion: call **<progress tool>** to mark the last entry `completed`.
 
-**<进度工具> 解析**：Claude → `TodoWrite`（界面显示为 "Update Todos"）；Codex → `update_plan`；其他 runtime（无结构化进度工具，如 Copilot agent mode）→ 在 response 文本里维护一份 markdown checkbox 列表当 step 状态，每次状态切换前整段重写一遍。语义对齐：预登记 + 切状态 + 标完成。
+**<progress tool> resolution**: Claude → `TodoWrite` (rendered as "Update Todos"); Codex → `update_plan`; other runtimes (no structured progress tool, e.g. Copilot agent mode) → maintain a markdown checkbox list in the response text as step state, rewriting the whole block on every state change. Semantic alignment: pre-register + flip state + mark complete.
 
-**<问询工具> 解析**：Claude → `AskUserQuestion`（每次最多 4 题，超过分批问）；其他 runtime（无结构化询问工具，如 Codex / Copilot agent mode）→ 在 response 文本里编号列出问题 + 每题的可选选项，让用户一次回答（仍按每批最多 4 题，超过分批问）。
+**<ask tool> resolution**: Claude → `AskUserQuestion` (max 4 questions per call, batch if more); other runtimes (no structured ask tool, e.g. Codex / Copilot agent mode) → number questions in the response text with options per question and let the user answer all at once (still max 4 per batch, batch if more).
 
-## `$ARGUMENTS` 解析
+## `$ARGUMENTS` parsing
 
-`$ARGUMENTS` = 目标分支名列表（空格分隔），按以下规则处理：
+`$ARGUMENTS` = target branch name list (space-separated), processed by these rules:
 
-1. **`$ARGUMENTS` 为空** → 目标 = 所有"候选非当前分支"，定义为：
-   `git branch --format='%(refname:short)'` 列出的全部本地分支，排除当前分支
-2. **`$ARGUMENTS` 非空** → 拆 token 取每个 token 作为目标分支名；token 全部加入候选清单（不在此处校验存在 / 同步状态，留给 Step 2）
+1. **`$ARGUMENTS` empty** → targets = all "candidate non-current branches", defined as:
+   every local branch listed by `git branch --format='%(refname:short)'`, excluding the current branch
+2. **`$ARGUMENTS` non-empty** → tokenize and take each token as a target branch name; all tokens enter the candidate list (do not verify existence / sync state here, leave that to Step 2)
 
-源分支恒等于 `git branch --show-current`（**当前分支**）——`/forward` 不接受
-"源" 参数。要换源 → 用户先 `git checkout <source>` 再跑 `/forward`。
+The source branch is always `git branch --show-current` (**the current branch**) — `/forward` does not accept a "source" argument. To change source → user must `git checkout <source>` first, then run `/forward`.
 
 ## Step 0: Load skills config
 
-`Read` `ai_context/skills_config.md`。
+`Read` `ai_context/skills_config.md`.
 
-- 文件不存在 / 某节标题缺失 → fail loudly：打印缺失项 + 提示按 plugin 模板补全，停手
-- 某节内容 `(none)` 或留空 → 跳过该节相关步骤（视为本项目无此项）
-- 某节列了具体路径但路径不存在 → fail loudly：提示该节漂移到不存在路径，停手等用户修
+- File missing / some section title missing → fail loudly: print missing items + prompt to fill per plugin template, stop
+- A section's content is `(none)` or empty → skip the related steps for that section (treat as project doesn't have this item)
+- A section lists a concrete path but the path doesn't exist → fail loudly: report that the section drifted to a missing path, stop and wait for user to fix
 
-后续步骤出现 "skills_config.md `## XX`" 时引用本配置。本 skill 用到：
-`## Background processes`（Step 2 候选预检：进程检测）、
-`## Protected branch prefixes`（Step 2 候选预检：保护分支分类）、
-`## Main branch policy`（Step 2 候选预检：主分支保护提示）。
+Subsequent steps referring to "skills_config.md `## XX`" cite this config. This skill uses:
+`## Background processes` (Step 2 candidate triage: process detection),
+`## Protected branch prefixes` (Step 2 candidate triage: protected branch classification),
+`## Main branch policy` (Step 2 candidate triage: main branch protection notice).
 
-## Step 1: 前置校验
+## Step 1: Pre-check
 
-- `git branch --show-current` 取源分支；游离 HEAD（detached）→ 停手报告，让用户先 checkout
-- `git status --porcelain` 检查工作区：
-  - **dirty**（任何 staged / unstaged / untracked-not-ignored 改动）→ **停手报告**，让用户先 `/commit` 或 `git stash`；`/forward` 不接受 dirty 源
-  - clean → 进 Step 2
-- 源分支 commit 计数为 0（空仓库 / 新建分支无任何 commit）→ 停手报告
+- `git branch --show-current` to get source branch; detached HEAD → stop and report, ask user to checkout first
+- `git status --porcelain` to inspect the working tree:
+  - **dirty** (any staged / unstaged / untracked-not-ignored change) → **stop and report**, ask user to `/commit` or `git stash` first; `/forward` does not accept a dirty source
+  - clean → enter Step 2
+- Source branch commit count = 0 (empty repo / new branch with no commits) → stop and report
 
-## Step 2: 候选预检（分类）
+## Step 2: Candidate triage (classification)
 
-对 `$ARGUMENTS` 解析得到的每个目标分支，逐条分类：
+For each target branch resolved from `$ARGUMENTS`, classify one by one:
 
-| 分类标签 | 触发条件 | 后续处理 |
+| Label | Trigger | Follow-up |
 |---|---|---|
-| ❌ 不存在 | `git rev-parse --verify <branch>` 失败 | Step 3 / Step 4 全跳过；最终结果列表标注 |
-| 🔒 受保护 | 分支匹配 skills_config.md `## Protected branch prefixes` 列出的前缀（`(none)` 时本类不触发） | 进 Step 4 询问（默认建议跳过） |
-| ⚙️ 有进程 | 按 skills_config.md `## Background processes` 检测到 pgrep 模式命中（`(none)` 时本类不触发） | 进 Step 4 询问（默认建议跳过） |
-| 💾 dirty | 该分支对应 worktree 工作区有未提交改动（`git -C <worktree> status --porcelain` 非空；非 worktree 形态的分支退化为"未实际 checkout 过的分支 → 视为干净"） | 进 Step 4 询问 |
-| ✅ 已同步 | `git merge-base --is-ancestor <source> <branch>` 返回 0（即 source 是 branch 的祖先） | Step 3 / Step 4 全跳过；最终结果列表标"已同步，跳过" |
-| ⚠️ 预检冲突 | dry-run 检测 merge 会冲突——git ≥ 2.38 优先用 `git merge-tree --write-tree --no-messages <source> <branch>` 退出码非零即冲突；旧 git 退回 `git merge-tree $(git merge-base <source> <branch>) <source> <branch>` 扫描输出的 `<<<<<<<` 标记 | 进 Step 4 询问 |
-| 🟢 可直接 merge | 上述全部不触发 | 进 Step 3 批量执行 |
+| ❌ missing | `git rev-parse --verify <branch>` fails | Skip Step 3 / Step 4 entirely; annotate in final result list |
+| 🔒 protected | Branch matches a prefix listed in skills_config.md `## Protected branch prefixes` (`(none)` → this class does not trigger) | Enter Step 4 prompt (default suggestion: skip) |
+| ⚙️ has process | Per skills_config.md `## Background processes`, a pgrep pattern matches (`(none)` → this class does not trigger) | Enter Step 4 prompt (default suggestion: skip) |
+| 💾 dirty | The branch's corresponding worktree has uncommitted changes (`git -C <worktree> status --porcelain` non-empty; branches with no actual worktree degrade to "never checked out → treated as clean") | Enter Step 4 prompt |
+| ✅ already synced | `git merge-base --is-ancestor <source> <branch>` returns 0 (i.e. source is an ancestor of branch) | Skip Step 3 / Step 4 entirely; final result list marks "already synced, skipped" |
+| ⚠️ pre-check conflict | Dry-run detects a merge conflict — git ≥ 2.38 prefers `git merge-tree --write-tree --no-messages <source> <branch>` non-zero exit = conflict; older git falls back to `git merge-tree $(git merge-base <source> <branch>) <source> <branch>` and scans output for `<<<<<<<` markers | Enter Step 4 prompt |
+| 🟢 mergeable | None of the above triggers | Enter Step 3 batch execution |
 
-打印分类小表（一行一分支：`<branch> | <标签> | <一句话说明>`），让用户在 Step 3 / Step 4 前有完整视图。
+Print a small classification table (one line per branch: `<branch> | <label> | <one-sentence note>`) so the user has a complete view before Step 3 / Step 4.
 
-## Step 3: 批量无障碍 merge
+## Step 3: Batch unobstructed merge
 
-对所有标 🟢 的目标分支**逐个无询问**执行 merge：
+For every target branch marked 🟢, **merge one by one without asking**:
 
-- 若该分支 = 当前 HEAD（不可能——已在 Step 2 排除当前分支；保留这条防御性判断）→ 跳过
-- 否则 `git checkout <branch> && git merge <source>`
-  - fast-forward 通过 → 打印一行 `✅ <branch>: ff-merge OK`
-  - 形成 merge commit → 沿用 git 默认 commit message（`Merge branch '<source>'`），打印一行 `✅ <branch>: merge commit OK`
-  - 运行中**意外**冲突（与 Step 2 dry-run 不一致；可能因外部状态变化）→ `git merge --abort` 回到干净状态，把该分支标为 ⚠️ 后续询问；不停手往下走
-- 全部处理完后 `git checkout <source>` 回到源分支
+- If the branch = current HEAD (impossible — already excluded in Step 2; keep this as a defensive check) → skip
+- Otherwise `git checkout <branch> && git merge <source>`
+  - fast-forward succeeds → print one line `✅ <branch>: ff-merge OK`
+  - forms a merge commit → reuse git's default commit message (`Merge branch '<source>'`), print one line `✅ <branch>: merge commit OK`
+  - **unexpected** conflict at runtime (inconsistent with Step 2 dry-run; possibly from external state change) → `git merge --abort` to return to a clean state, mark that branch ⚠️ for later prompt; do not stop, keep going
+- After all are processed, `git checkout <source>` to return to the source branch
 
-## Step 4: 障碍分支逐条询问（仅 ⚠️ 类才问）
+## Step 4: Prompt per obstructed branch (only ⚠️ classes prompt)
 
-按分类标签处理：
+Handle per classification label:
 
-- **❌ 不存在 / ✅ 已同步** → **不问**，直接归入最终结果列表
-- **🔒 受保护 / ⚙️ 有进程 / 💾 dirty / ⚠️ 预检冲突 / Step 3 意外冲突** → 逐条用 **<问询工具>** 问，每题 3 选项：
-  1. **跳过此分支（推荐）** — 不动该分支，列入最终结果"已跳过：<原因>"
-  2. **仍然合并** — 执行机制按分类分支：
-     - **🔒 受保护 / ⚙️ 有进程 / ⚠️ 预检冲突 / Step 3 意外冲突** → `git checkout <branch> && git merge <source>`；冲突则 `git merge --abort` 回原状态并标"⚠️ 冲突待人工处理"；合并完后回 `git checkout <source>`
-     - **💾 dirty**（目标 = 另一 worktree 的 dirty 工作区，目标分支已 checked out 在该 worktree，源端 `git checkout <branch>` 会被 git 拒绝）→ **不**做 source 端 checkout，改用 `git -C <worktree-path> merge <source>` 直接在目标 worktree 里合并；目标的 dirty 改动保持原样（git 自身会因合并涉及未提交改动而拒绝，此时回到询问让用户先在目标 worktree commit / stash 后重试）；冲突则 `git -C <worktree-path> merge --abort` 回原状态并标"⚠️ 冲突待人工处理"
-  3. **停手让我手动处理** — 终止 `/forward`，打印当前已完成 / 待处理状态，**整个 skill 结束**
+- **❌ missing / ✅ already synced** → **do not prompt**, fold directly into the final result list
+- **🔒 protected / ⚙️ has process / 💾 dirty / ⚠️ pre-check conflict / Step 3 unexpected conflict** → ask one by one via **<ask tool>**, 3 options each:
+  1. **Skip this branch (recommended)** — do not touch this branch, record "skipped: <reason>" in the final result
+  2. **Merge anyway** — execution mechanism per class:
+     - **🔒 protected / ⚙️ has process / ⚠️ pre-check conflict / Step 3 unexpected conflict** → `git checkout <branch> && git merge <source>`; on conflict `git merge --abort` to revert and mark "⚠️ conflict, manual fix needed"; after merge return via `git checkout <source>`
+     - **💾 dirty** (target = another worktree's dirty working tree, target branch already checked out there, source-side `git checkout <branch>` will be rejected by git) → **do not** checkout on the source side; instead `git -C <worktree-path> merge <source>` to merge directly inside the target worktree; the target's dirty changes stay intact (git itself will reject the merge because it involves uncommitted changes, in which case return to the prompt and ask the user to commit / stash in the target worktree first); on conflict `git -C <worktree-path> merge --abort` to revert and mark "⚠️ conflict, manual fix needed"
+  3. **Stop, I'll handle it manually** — terminate `/forward`, print current done / pending status, **end the whole skill**
 
-问完所有 ⚠️ 分类后，无论用户怎么选，都进 Step 5。
+After asking through all ⚠️ classes, regardless of the user's choices, enter Step 5.
 
-## Step 5: 最终结果列表
+## Step 5: Final result list
 
-打印一张结果表（**始终打印，不要省略**）：
+Print a result table (**always print, do not omit**):
 
 ```
-源分支：<source>
+Source branch: <source>
 
-目标分支 | 状态
---------|-----
-<b1>    | ✅ 已合并（ff）
-<b2>    | ✅ 已合并（merge commit）
-<b3>    | ✅ 已同步，跳过
-<b4>    | ⏭ 用户选择跳过（原因：<标签>）
-<b5>    | ⚠️ 冲突待人工处理
-<b6>    | ❌ 分支不存在
+Target branch | Status
+--------------|-------
+<b1>          | ✅ merged (ff)
+<b2>          | ✅ merged (merge commit)
+<b3>          | ✅ already synced, skipped
+<b4>          | ⏭ user chose to skip (reason: <label>)
+<b5>          | ⚠️ conflict, manual fix needed
+<b6>          | ❌ branch missing
 ```
 
-末尾打印 `当前 HEAD：<source>` 确认 `/forward` 没把用户留在别的分支。**不 push**（`/push` 是独立操作）。
+At the end print `Current HEAD: <source>` to confirm `/forward` did not leave the user on another branch. **No push** (`/push` is a separate operation).
 
-## 约束
+## Constraints
 
-- **纯 merge**：不 `git push`、不 `--force` / `--force-with-lease`、不 `--amend`、不 `git rebase`、不 `git reset`（除冲突时 `git merge --abort` 外不动 git ref）
-- **源恒等于当前分支**：换源由用户先 `git checkout`，`/forward` 不接受 source 参数
-- **dirty 源 = 停手**：不"先 stash 再 forward"，由用户自己决定 stash / commit
-- **冲突 = 停手询问**：不自动解决冲突；用户选"仍然合并"遇真实冲突也只是 abort，不留半合并状态
+- **Pure merge**: no `git push`, no `--force` / `--force-with-lease`, no `--amend`, no `git rebase`, no `git reset` (do not touch git refs outside `git merge --abort` on conflict)
+- **Source is always the current branch**: source change is the user's responsibility via prior `git checkout`; `/forward` does not accept a source argument
+- **Dirty source = stop**: do not "stash then forward"; the user decides stash / commit
+- **Conflict = stop and ask**: do not auto-resolve conflicts; even if user picks "merge anyway" and hits a real conflict, only abort — never leave a half-merged state

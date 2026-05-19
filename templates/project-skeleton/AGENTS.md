@@ -1,7 +1,15 @@
 # <project-name> — Agent Entry Point
 
-This file is auto-loaded by coding agents at session start. Keep it
-short — detailed context lives in `ai_context/`, not here.
+This file is auto-loaded by coding agents at session start. Keep it short —
+detailed context lives in `ai_context/`, not here.
+
+## Language
+
+`ai_context/skills_config.md §Language` carries two axes —
+`content_language` (disk-bound output: docs / logs / commits / skill
+output / new code comments) and `conversation_language` (AI ↔ user
+turns). Read at session start; apply through the session. Code
+identifiers and field names stay English regardless.
 
 ## Session Start: Read ai_context/ Once
 

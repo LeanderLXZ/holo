@@ -1,0 +1,36 @@
+# Editor / IDE
+.history/
+.idea/
+.vscode/
+*.swp
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+.venv/
+venv/
+
+# Node
+node_modules/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Local config
+*.local.toml
+*.local.json
+.env
+.env.local
+
+# Build outputs / caches
+dist/
+build/
+.cache/
+
+# Project-specific (extend as needed; mirror `ai_context/skills_config.md`
+# §Do-not-commit paths so the two stay in sync)

@@ -1,50 +1,52 @@
 ---
 name: todo
-description: 读 docs/todo_list.md 顶部 `## Index` 段并原样渲染给用户，末尾问"想看哪条？" — 信任索引（由 /todo-add 维护），不重新解析、不重新分档、不生成建议。$ARGUMENTS = ID 关键字过滤（可选）。只读不改 todo_list / 代码 / 不 commit。触发：todo / 接下来做啥 / todo list 上有啥 / 现在该干嘛。
+description: Read the `## Index` section at the top of docs/todo_list.md and render it verbatim to the user; end with "which entry do you want to see?" — trust the index (maintained by /todo-add); do not re-parse, re-bucket, or generate recommendations. $ARGUMENTS = ID keyword filter (optional). Read-only on todo_list / code; no commit. Triggers: todo / what is next / what's on the todo list / what should I do now.
 ---
 
-# /todo — todo_list 索引展示
+> **Language**: per `ai_context/skills_config.md §Language` — disk-bound output (logs / docs / commit messages / code comments / files written) uses `content_language`; user-facing surface (chat prose / `AskUserQuestion` prompts and option labels / progress-tool entry `content` / status lines / strategy declarations / findings rendered in chat) uses `conversation_language`. Code identifiers, file paths, field names, frontmatter keys, and structural prefixes (`Step N:`, `LOG:`, etc.) stay English regardless.
 
-直接读 `docs/todo_list.md` 顶部 `## Index (auto-generated; do not hand-edit)` 段并原样渲染给用户，末尾问一句"想看哪条？"。**只读**——不解析正文、不重新分档、不生成建议、不改 todo_list、不改代码、不 commit。`$ARGUMENTS` 可选作为 ID 关键字过滤（如 `schema` 只显示 ID 含 schema 的条目）；不传则全展示。
+# /todo — todo_list index display
 
-索引段是确定性缓存，由维护 `docs/todo_list.md` 的人在改条目时同步刷新（规则在 todo_list.md 顶部的 "Index maintenance" 段）。`/todo` 信任索引、不重新解析。
+Read the `## Index (auto-generated; do not hand-edit)` section at the top of `docs/todo_list.md` and render it verbatim to the user, ending with "which entry do you want to see?". **Read-only** — do not parse the body, re-bucket, generate recommendations, change todo_list, change code, or commit. `$ARGUMENTS` is an optional ID keyword filter (e.g. `schema` shows only entries whose ID contains schema); without it, show everything.
 
-## 步骤
+The index section is a deterministic cache, refreshed in sync by whoever maintains `docs/todo_list.md` whenever entries change (rules live in the "Index maintenance" section at the top of todo_list.md). `/todo` trusts the index and does not re-parse.
 
-### 1. 读索引
+## Steps
 
-`Read` `docs/todo_list.md` **必须带 `limit=100`**——索引段在文件顶部，整文 ~700 行全读会大幅拖慢响应、浪费 context。从读到的内容里提取 `## Index (auto-generated; do not hand-edit)` 段——从该标题起到下一个二级标题（`## File guide`）之前的全部内容。
+### 1. Read the index
 
-文件不存在 → 打印"⚠️ docs/todo_list.md 缺失"并停手。
-索引段缺失（找不到该标题） → 打印"⚠️ docs/todo_list.md 顶部缺索引段；请先按 todo_list.md 「Index maintenance」段补齐再调 /todo"并停手。
-读到 100 行仍未见 `## File guide`（说明索引段已涨过 100 行截断） → 重新 `Read` `docs/todo_list.md` **不带 `limit`** 取全文，再从全文中提取该段；不要停手。
-索引段存在但三张子表都标 "_(none)_" → 仍正常渲染，只是显示"暂无任何任务"。
+`Read` `docs/todo_list.md` **with `limit=100` required** — the index section is at the top of the file, and reading the whole ~700-line file slows the response significantly and wastes context. From what is read, extract the `## Index (auto-generated; do not hand-edit)` section — everything from that heading up to the next H2 heading (`## File guide`).
 
-### 2. 过滤（可选）
+File missing → print "⚠️ docs/todo_list.md missing" and stop.
+Index section missing (heading not found) → print "⚠️ docs/todo_list.md top is missing the index section; first backfill per the «Index maintenance» section of todo_list.md before calling /todo" and stop.
+After 100 lines `## File guide` is still not seen (meaning the index section has grown past 100 lines and got truncated) → re-`Read` `docs/todo_list.md` **without `limit`** to get the full text, then extract the section from the full text; do not stop.
+Index section is present but all three subtables are tagged "_(none)_" → still render normally, simply showing "no tasks yet".
 
-若 `$ARGUMENTS` 传入：在三张子表中保留 ID 含该关键字（不区分大小写）的行；其他行删除。过滤后某段为空时保留段标题但写 "_(no matching entries)_"。
+### 2. Filter (optional)
 
-不传 `$ARGUMENTS` → 全展示。
+If `$ARGUMENTS` is provided: in all three subtables keep rows whose ID contains the keyword (case-insensitive); drop others. If a section becomes empty after filtering, keep its heading but write "_(no matching entries)_".
 
-### 3. 渲染
+No `$ARGUMENTS` → show everything.
 
-把索引段内容直接打印给用户。markdown 表格保留原样，不重排、不重判、不补建议。
+### 3. Render
 
-**跳过紧跟 `## Index ...` 标题的那段 blockquote**（连续以 `>` 开头的行——那是写给 todo_list 维护者的元说明，对 `/todo` 用户是噪声）。blockquote 之后的子表 / 汇总行正常渲染。
+Print the index section to the user as-is. Preserve markdown tables unchanged; do not reorder, re-judge, or append recommendations.
 
-`$ARGUMENTS` 过滤过的话，在汇总行末尾加一行 `(filtered by keyword "<keyword>")`。
+**Skip the blockquote that immediately follows the `## Index ...` heading** (consecutive lines starting with `>` — that is meta guidance for the todo_list maintainer and is noise to `/todo` users). Subtables / summary rows after the blockquote render normally.
 
-### 4. 提问 + 停手
+If filtered by `$ARGUMENTS`, append a `(filtered by keyword "<keyword>")` line at the end of the summary row.
 
-末尾打印一行：
+### 4. Ask + stop
+
+Print one final line:
 
 ```
-想看哪条？告诉我 ID（如 `T-XXX`），或者说点别的。
+Which entry do you want to see? Tell me the ID (e.g. `T-XXX`), or say something else.
 ```
 
-打完即**停手**——不进入 `/go`、不改代码、不改 todo_list、不 commit；等用户响应。
+After printing, **stop** — do not enter `/go`, do not change code, do not change todo_list, do not commit; wait for the user's response.
 
-## 约束
+## Constraints
 
-- **只读**：不改任何文件、不 commit、不 push
-- **信任索引段**：不解析正文、不重新分档、不补建议；索引规则单源指向 `docs/todo_list.md` "Index maintenance" 段
+- **Read-only**: no file changes, no commit, no push
+- **Trust the index section**: do not parse the body, re-bucket, or append recommendations; index rules have a single source of truth in the "Index maintenance" section of `docs/todo_list.md`

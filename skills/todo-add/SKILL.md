@@ -1,172 +1,203 @@
 ---
 name: todo-add
-description: 把会话刚拍板 / 讨论的事项加进 docs/todo_list.md — 先语义匹配判定 UPDATE vs CREATE（能匹配已有条目即更新，否则新建 T-XXX）。$ARGUMENTS = 段位（next / discuss / executing；缺省：UPDATE 沿用已有 / CREATE 进 Next）。CREATE 时与 todo_list.md + todo_list_archived.md 全量去重；UPDATE 时 ID 不变；预览（CREATE 看全文 / UPDATE 看字段 diff + 段位变化）→ 等确认 → 写入 → 刷新顶部 Index 段。不 commit / 不 push（→ /commit 或 /go）。触发：加到 todo / 登记 todo / todo-add / 加进待办 / 放到下一步 / 放到讨论中 / 更新 todo。
+description: Add an item just decided / discussed in the session to docs/todo_list.md — first semantic-match to decide UPDATE vs CREATE (if an existing entry matches, update; otherwise create a new T-XXX). $ARGUMENTS = segment (next / discuss / executing; default: UPDATE keeps the existing segment / CREATE goes to Next). On CREATE, deduplicate against the full set of todo_list.md + todo_list_archived.md; on UPDATE the ID stays unchanged; preview (CREATE shows full text / UPDATE shows field diff + segment change) → wait for confirmation → write → refresh the top-of-file Index section. No commit / no push (→ /commit or /go). Triggers: add to todo / register todo / todo-add / add to backlog / put it in next / put it in discussing / update todo.
 ---
 
-# /todo-add — 把会话讨论结果加进 todo_list
+> **Language**: per `ai_context/skills_config.md §Language` — disk-bound output (the todo entry inserted into `docs/todo_list.md`, the `## Index` refresh, the `**Updated**` field, any change-log lines) uses `content_language`; user-facing surface (chat prose / `AskUserQuestion` prompts and option labels / progress-tool entry `content` / preview wrappers / wrap-up status line) uses `conversation_language`. Code identifiers, file paths, field names, frontmatter keys, and structural prefixes (`Step N:`, `T-XXX`, `### [T-XXX]`, segment headings like `## Next`) stay English regardless.
 
-把当前会话中刚刚讨论 / 拍板的事项加进 `docs/todo_list.md`：**已存在
-对应条目则更新**（必要时换段），**不存在则新建**。可通过 `$ARGUMENTS`
-指定目标段位。**不 commit**——持久化交给 `/commit` 或 `/go`。
+# /todo-add — Add session discussion result to todo_list
+
+Add an item just discussed / decided in the current session to `docs/todo_list.md`: **if a
+corresponding entry exists, update it** (switch segment if needed); **if it does not exist, create
+a new one**. The target segment can be specified via `$ARGUMENTS`. **No commit** — persistence is
+delegated to `/commit` or `/go`.
 
 ## Progress reporting
 
-下方流程分为 `## Step 1:` ~ `## Step 7:`。
+> **Language**: progress-tool entries (`content` field) are user-facing — write them in `conversation_language` per `ai_context/skills_config.md §Language`. The `Step N:` prefix stays English (structural label); subtitle text after the colon translates to `conversation_language`.
 
-**进入 Step 1 之前**：调用 **<进度工具>** 把 Step 1 ~ Step 7 全部预登记（每个 step 一条，`content` 用 `Step N: <子段标题>`，`status` 全为 `pending`）。这是硬性要求，**不调 <进度工具> 不许往下走**。
+The flow below is split into `## Step 1:` ~ `## Step 7:`.
 
-每进入一个 step：调 **<进度工具>** 把当前 step 改 `in_progress`（同一次调用里把上一个 step 标 `completed`），然后做实际工作。**step 跨越时不要漏调**。进度由 <进度工具> 的 UI 直接显示，**对话里不再打 `[/todo-add] Step N: ...` 之类的进度行**。
+**Before entering Step 1**: call **<progress tool>** to pre-register all of Step 1 ~ Step 7 (one entry per step, `content` = `Step N: <sub-section title>`, `status` = `pending` for all). This is a hard requirement — **do not proceed without calling <progress tool>**.
 
-跳过某 step：调 **<进度工具>** 把对应条目直接标 `completed`，并在对话里打一行 `Step N 跳过（理由：…）`——"理由"是 UI 缺失的信息，保留这一行；不要静默略过。
+Each time you enter a step: call **<progress tool>** to flip the current step to `in_progress` (mark the previous step `completed` in the same call), then do the real work. **Do not skip the call across step boundaries**. Progress is rendered directly by the <progress tool> UI — **do not print `[/todo-add] Step N: ...` style progress lines in the conversation**.
 
-最后一步完成：调 **<进度工具>** 把最后一条标 `completed`。
+Skipping a step: call **<progress tool>** to mark the entry directly `completed`, and print one line `Step N skipped (reason: …)` in the conversation — "reason" is information the UI lacks, keep that line; do not silently skip.
 
-**<进度工具> 解析**：Claude → `TodoWrite`（界面显示为 "Update Todos"）；Codex → `update_plan`；其他 runtime（无结构化进度工具，如 Copilot agent mode）→ 在 response 文本里维护一份 markdown checkbox 列表当 step 状态，每次状态切换前整段重写一遍。语义对齐：预登记 + 切状态 + 标完成。
+Final step completion: call **<progress tool>** to mark the last entry `completed`.
 
-## Step 1: 解析 $ARGUMENTS（目标段位）
+**<progress tool> resolution**: Claude → `TodoWrite` (rendered as "Update Todos"); Codex → `update_plan`; other runtimes (no structured progress tool, e.g. Copilot agent mode) → maintain a markdown checkbox list in the response text as step state, rewriting the whole block on every state change. Semantic alignment: pre-register + flip state + mark complete.
 
-| 取值 | 目标段 |
+**<ask tool> resolution**: Claude → `AskUserQuestion` (max 4 questions per call, batch beyond); other runtimes (no structured ask tool, e.g. Codex / Copilot agent mode) → enumerate questions + options per question in the response text and let the user answer in one pass (still max 4 per batch, batch beyond).
+
+## Step 1: Parse $ARGUMENTS (target segment)
+
+| Value | Target segment |
 |---|---|
-| 不传 / `next` / `下一步` | `## Next` |
-| `discuss` / `讨论中` | `## Discussing (Undecided)` |
-| `executing` / `正在执行` | `## In Progress`（单槽，限制见 Step 6） |
+| Not passed / `next` / `next-step` / `下一步` | `## Next` |
+| `discuss` / `discussing` / `讨论中` | `## Discussing (Undecided)` |
+| `executing` / `in-progress` / `正在执行` | `## In Progress` (single slot, see Step 6 for limit) |
 
-非法值 → 打印"段位 `<val>` 未识别，可选: Next / Discussing / In Progress" 并停手。
+Illegal value → print "segment `<val>` not recognized, allowed: Next / Discussing / In Progress" and stop.
 
-`$ARGUMENTS` 不传时：UPDATE 模式默认沿用已有段位；CREATE 模式默认进
-"Next"。
+When `$ARGUMENTS` is not passed: UPDATE mode defaults to the existing segment; CREATE mode defaults to
+"Next".
 
-## Step 2: 锁定要登记的事项
+## Step 2: Lock the item to register
 
-从当前会话最近若干轮抓取本次要登记的"事项"——通常是用户刚拍板 /
-讨论的具体问题 + 结论 + 触发点。
+> **Language**: user-facing — render the gap-filling question to the user in `conversation_language` per `ai_context/skills_config.md §Language`. Structural label `T-XXX` stays English; only the question prose translates.
 
-信息不足（缺动机 / 缺现状 / 缺触发链 / 缺改动指向）时**主动问用户补**——
-"要登记的是哪段讨论？补一两句关键背景 / 触发点 / 期望结果。" 不靠猜，
-不替用户拼接。
+From the last few turns of the current session, grab the "item" to register — typically the specific
+problem + conclusion + trigger that the user just decided / discussed.
 
-## Step 3: 判定 UPDATE vs CREATE
+When information is insufficient (missing motivation / status / trigger chain / change-direction) **actively
+ask the user to fill the gap** — "Which discussion is being registered? Add a sentence or two of key
+background / trigger / desired outcome." Do not guess, do not stitch on the user's behalf.
 
-抓全量已有条目（`docs/todo_list.md` + `docs/todo_list_archived.md`）：
-`grep -hoE 'T-[A-Z0-9-]+' docs/todo_list.md docs/todo_list_archived.md | sort -u`
-取 ID 集合；并读已有条目的标题 + 上下文，做**语义匹配**判断本次要登记的
-事项是否对应一个已有条目（按内容意图，不只是字面 ID）。
+## Step 3: Decide UPDATE vs CREATE
 
-判定结果：
+> **Language**: user-facing — render the disambiguation `<ask tool>` prompt and option labels in `conversation_language` per `ai_context/skills_config.md §Language`. ID prefixes (`T-AAA`, `T-BBB`) stay English as file-side labels; only the question prose and option label prose translate.
 
-- **UPDATE 模式**：找到对应条目 → 记录已有 `T-XXX` + 已有所在段位
-  + 已有条目内容快照（用于 Step 4/5 diff）。如多于一条疑似命中，**主动
-  问用户**："看到 T-AAA / T-BBB 都可能对应，要更新哪一条？还是新建？"
-  不替用户决定。
-- **CREATE 模式**：未找到匹配 → 从内容意图凝练新 `T-XXX` slug（英文短
-  代号，全大写 + 连字符），与已有 ID 集合不冲突；冲突就改名。
+Grab the full set of existing entries from the two paths declared at `ai_context/skills_config.md ## Activity sources.TODO list.Path` (live) and `## Activity sources.Archived TODO list.Path` (archive):
+`grep -hoE 'T-[A-Z0-9-]+' <todo_list_path> <archived_todo_list_path> | sort -u`
+to get the ID set; and read the titles + context of existing entries, do a **semantic match** to
+judge whether the item to register corresponds to an existing entry (by content intent, not just
+literal ID).
 
-UPDATE 模式下的段位决议：
+Decision:
 
-- `$ARGUMENTS` 显式传段位 → 服从（哪怕跨段移动）
-- `$ARGUMENTS` 未传 → 默认沿用已有段位；但如本次讨论的语境**显著暗示**
-  应换段（典型场景：Discussing 条目刚被拍板 → 应进 Next / Next 条目 `/go`
-  启动 → 应进 In Progress），则在 Step 5 预览里建议换段并问用户。
+- **UPDATE mode**: a matching entry found → record the existing `T-XXX` + existing segment
+  + existing entry content snapshot (for Step 4/5 diff). If more than one suspected match, ask via
+  **<ask tool>** — one question with each suspected match as one option (label: `Update T-AAA: <title>` / `Update T-BBB: <title>`, max 3 matches) plus a final `Create new entry instead` option.
+  Do not decide for the user.
+- **CREATE mode**: no match found → distill a new `T-XXX` slug from content intent (short English
+  code, all uppercase + hyphens), non-colliding with the existing ID set; rename on collision.
 
-## Step 4: 合成条目草稿 / 变更 diff
+Segment decision in UPDATE mode:
 
-**CREATE 模式**：按目标段位字段要求合成全条。所有段位共有：
+- `$ARGUMENTS` explicitly passes a segment → obey (even on cross-segment move)
+- `$ARGUMENTS` not passed → default to the existing segment; but if this round's discussion
+  **strongly implies** a segment change (typical: Discussing entry just decided → should move to Next / Next entry
+  has `/go` started → should move to In Progress), then suggest the move in Step 5 preview and ask the user.
 
-- T-XXX ID + 中文短标题
-- **上下文**：动机 + 现状 + 触发链
-- **完成标准**
-- **依赖**
-- **更新时间**：YYYY-MM-DD HH:MM 时区缩写（按 skills_config.md `## Timezone`），
-  CREATE 时 = 当下时刻
+## Step 4: Compose entry draft / change diff
 
-段位差异：
+> **Language**: disk-bound — the entry draft / change diff being composed here will land in `docs/todo_list.md` at Step 6 and is therefore disk-bound from the moment of composition. Write the draft text (title, **Context**, **Done criteria**, **Dependencies**, **Updated**, segment-specific fields) in `content_language` per `ai_context/skills_config.md §Language`. Code identifiers, file paths, field names, segment headings (`### [T-XXX]`, `**Updated**`) stay English regardless. The Step 5 preview wraps this draft in user-facing prose — wrapper prose translates to `conversation_language`, draft content stays in `content_language`.
 
-- **Next**：必须含 **改动清单**（文件路径 / 行号 / 改动要点），单源不缺
-- **Discussing**：必须含 **待决策项**（编号列表，每条 1–2 句）；改动清单可暂缺
-- **In Progress**：要求 **开始时间**（YYYY-MM-DD HH:MM 时区缩写——按
-  skills_config.md `## Timezone`）+ **当前状态**（进行中 / 等用户决策 / 暂停）
+**CREATE mode**: compose the full entry per the target segment's field requirements. Shared by all segments:
 
-视情况补：**预估** / **未落地原因** / **暂不做的事**。
+- T-XXX ID + short title (in this project's `content_language`)
+- **Context**: motivation + status + trigger chain
+- **Done criteria**
+- **Dependencies**
+- Updated-time field (label per `ai_context/skills_config.md ## Activity sources.TODO list.Per-entry updated-time field`, typically `**Updated**`): YYYY-MM-DD HH:MM timezone abbreviation (per skills_config.md `## Timezone`), on CREATE = current moment
 
-格式参照 `docs/todo_list.md` 既有条目（"### \[T-XXX\] 中文标题" 起头，
-字段标题用 `**字段名**`）。
+Per-segment differences:
 
-**UPDATE 模式**：取已有条目作为基线，把本次讨论的新信息合并进去。
-未变更的字段**原样保留**，不复述；变更的字段明确标注。如果换段，按
-**目标段**的字段要求补齐缺字段（如 Discussing → Next，需补 **改动清单**）。
-**`**更新时间**` 字段始终刷新 = 当下时刻**（按 skills_config.md `## Timezone`）；
-若已有条目缺该字段（旧格式），趁此一并补齐。
+- **Next**: must include **change list** (file paths / line numbers / change points), single source, no gaps
+- **Discussing**: must include **open decisions** (numbered list, 1–2 sentences each); change list may be deferred
+- **In Progress**: requires **start time** (YYYY-MM-DD HH:MM timezone abbreviation — per
+  skills_config.md `## Timezone`) + **current status** (in progress / awaiting user decision / paused)
 
-## Step 5: 给用户预览 + 等确认
+Add as appropriate: **estimate** / **why not landed** / **not doing for now**.
 
-**CREATE 模式**：打印合成的条目全文 + 目标段位，问一句：
+Follow the format of existing entries in `docs/todo_list.md` ("### \[T-XXX\] short title" header,
+field titles as `**field name**`).
 
-```
-这样登记到 "<目标段>"？补字段 / 改字段 / 改 ID / 改段位 都行。
-```
+**UPDATE mode**: take the existing entry as baseline and merge the new info from this round in.
+Unchanged fields **stay verbatim**, do not restate; changed fields are explicitly marked. On
+segment change, fill in any missing fields per **target segment** field requirements (e.g. Discussing → Next must add **change list**).
+**The updated-time field (label per `ai_context/skills_config.md ## Activity sources.TODO list.Per-entry updated-time field`, typically `**Updated**`) is always refreshed = current moment** (per skills_config.md `## Timezone`); if the existing entry lacks the field (legacy format), backfill it in the same pass.
 
-**UPDATE 模式**：打印**变更摘要**——明确说"将更新已有条目 `T-XXX`"，
-列出：
+## Step 5: Preview to user + wait for confirmation
 
-- **字段级 diff**：哪些字段变了，简明 before/after（不复述未变字段全文，
-  一句话带过即可）
-- **段位变化**（如换段）：显式 `from <原段> → to <目标段>`
-- **ID 不变**（除非用户明确要求改 ID）
+> **Language**: user-facing — render the preview wrapper (the "will register / will update" lead-in prose, the field-level diff narration, the segment-change narration) in `conversation_language` per `ai_context/skills_config.md §Language`. The draft entry text **shown inside** the wrapper is disk-bound — it stays in `content_language` (the language it will land in at Step 6); do not retranslate the draft to match the wrapper.
 
-问一句：
+> **Language**: user-facing — render the `<ask tool>` prompt and option labels in `conversation_language` per `ai_context/skills_config.md §Language`. Segment names and entry IDs quoted inside the prompt / labels (`"In Progress"` / `T-XXX`) stay English as file-side labels; only the surrounding prose translates.
 
-```
-这样更新 `T-XXX`？字段微调 / 取消换段 / 变成新建（强制 CREATE）都行。
-```
+First print the preview, then ask via **<ask tool>** — one question, options differ per mode. The "Other" fallback that the ask tool auto-appends covers any free-form tweak the structured options don't enumerate (field add / field rename / ID rewrite / segment override etc.) — option labels stay concise rather than enumerating every possible edit.
 
-**两种模式都不确认前不写文件**。
+**CREATE mode**: print the full composed entry + target segment, then ask via **<ask tool>**:
 
-## Step 6: 写入 todo_list.md
+Question: `Register to "<target segment>" like this?`
 
-确认后：
+1. **Confirm — write entry as previewed (recommended)** — proceed to Step 6 and write to the target segment
+2. **Tweak first — fields / ID / segment** — wait for user's tweak instruction, recompose draft, re-enter Step 5
+3. **Cancel — drop the draft** — abort the skill, no write
 
-**CREATE 模式**：
+**UPDATE mode**: print **change summary** — explicitly say "will update existing entry `T-XXX`",
+listing:
 
-a. 找到目标段（`## In Progress` / `## Next` / `## Discussing (Undecided)`），把
-   条目按 `### [T-XXX] 中文标题` 起头追加到该段**末尾**（同段内按用户优先级；
-   新条默认尾部，除非用户说"插到最前"）。条目之间用 `---` 分隔（与既有约定一致）
+- **Field-level diff**: which fields changed, concise before/after (do not restate the full text
+  of unchanged fields, one-liner is enough)
+- **Segment change** (if any): explicit `from <original segment> → to <target segment>`
+- **ID unchanged** (unless user explicitly asks to change the ID)
 
-b. **In Progress** 段单槽位：写入前 grep 该段已有 `### \[T-` 数；非 0 则**拒绝写入**，
-   提示 "In Progress 段已被占用，请先把当前那条 commit 完成或退回 Next 再启动新任务"
+Then ask via **<ask tool>**:
 
-**UPDATE 模式**：
+Question: `Update T-XXX like this?`
 
-a. **同段内更新**：定位 `### [T-XXX]` 块（含其下所有字段，到下一个
-   `### [T-` 或段末为止），整块替换为新版本。其他段位完全不动。
+1. **Confirm — apply update as previewed (recommended)** — proceed to Step 6 and write the merged entry
+2. **Tweak first — fields / cancel segment change / change ID** — wait for user's tweak instruction, recompose, re-enter Step 5
+3. **Force CREATE instead — register as new T-YYY** — flip to CREATE mode, re-enter Step 4 then Step 5
+4. **Cancel — drop the update** — abort the skill, no write
 
-b. **跨段移动**：从原段删除整个 `### [T-XXX]` 块（连带其前后多余的
-   `---` 分隔），按 CREATE 模式 a 的方式追加到目标段末尾。**In Progress**
-   段单槽限制同样适用——目标段非空时拒移入，提示同上。
+**Neither mode writes the file before confirmation**.
 
-**统一刷新**：动过的段（CREATE 的目标段 / UPDATE 的同段或源+目标段）
-+ 顶部 `## Index (auto-generated; do not hand-edit)` 段——按 `docs/todo_list.md`
-"## File guide → Index maintenance"段定义的列规则与字段推断规则刷新对应
-子表行 + 汇总行；本 skill **不复述规则**，以那段为唯一权威。
+## Step 6: Write to todo_list.md
 
-## Step 7: 收尾报告
+> **Language**: disk-bound — write this entry inserted into `docs/todo_list.md` segment + the `## Index` section refresh in `content_language` per `ai_context/skills_config.md §Language`. Segment headings (`## Next`, `## Discussing (Undecided)`, `## In Progress`, `## Index (auto-generated; do not hand-edit)`), the `### [T-XXX]` entry heading, the `**field name**` labels, and the `T-XXX` ID stay English regardless. Code identifiers, file paths, field names stay English regardless.
 
-打印（按本次模式选一）：
+After confirmation:
 
-- **CREATE**：✓ 已登记 `T-XXX` 到 "<段位>"
-- **UPDATE 同段**：✓ 已更新 `T-XXX`（"<段位>"）
-- **UPDATE 跨段**：✓ 已更新 `T-XXX` 并移段（<原段> → <新段>）
+**CREATE mode**:
 
-后接：
+a. Locate the target segment (`## In Progress` / `## Next` / `## Discussing (Undecided)`), append
+   the entry under `### [T-XXX] short title` heading to the **end** of that segment (within-segment
+   priority is user-driven; new entries default to the tail unless the user says "insert at the front").
+   Entries are separated by `---` (consistent with existing convention)
 
-- 索引刷新：动过的子表 行数 X → Y，汇总 N → N'（CREATE 时 N+1；UPDATE 同段时不变；UPDATE 跨段时两子表各 ±1）
-- 提示："本 skill 不 commit。要持久化请 /commit 或 /go。"
+b. **In Progress** segment single slot: before writing, grep the segment's existing `### \[T-` count;
+   if non-zero, **refuse to write** and prompt "In Progress segment is occupied, finish committing the
+   current one or move it back to Next before starting a new task"
 
-不进入 /go、不 commit、不 push。
+**UPDATE mode**:
 
-## 约束
+a. **Same-segment update**: locate the `### [T-XXX]` block (including all its fields, up to the next
+   `### [T-` or segment end), replace the whole block with the new version. Other segments untouched.
 
-- **不 commit / 不 push**（持久化交给 `/commit` 或 `/go`）
-- **UPDATE 优先于 CREATE**：能匹配到已有条目就更新；多条疑似命中、CREATE
-  缺关键字段时**主动问用户**，不替用户决定
-- **In Progress 单槽**：段非空就拒写（CREATE）/ 拒移入（UPDATE 跨段）
-- **索引规则单源**：见 `docs/todo_list.md` "Index maintenance" 段
+b. **Cross-segment move**: delete the whole `### [T-XXX]` block from the original segment (along with
+   any redundant surrounding `---` separator), append to the end of the target segment per CREATE
+   mode a. The **In Progress** single-slot limit applies equally — refuse the move if the target
+   segment is non-empty, with the same prompt as above.
+
+**Unified refresh**: segments that changed (CREATE target segment / UPDATE same segment or source+target segments)
++ the top-of-file `## Index (auto-generated; do not hand-edit)` segment — refresh the relevant
+sub-table rows + summary row per the column rules and field-inference rules defined in
+`docs/todo_list.md` "## File guide → Index maintenance" section; this skill **does not restate the rules**,
+that section is the single source of truth.
+
+## Step 7: Wrap-up report
+
+> **Language**: user-facing — render the wrap-up status line (✓ registered / ✓ updated / ✓ moved), the Index-refresh delta line, and the "no commit; run /commit or /go" reminder in `conversation_language` per `ai_context/skills_config.md §Language`. Structural prefixes (`✓`, `T-XXX`, segment headings quoted from the file like `"In Progress"`) stay English; only surrounding prose translates.
+
+Print (pick one based on this round's mode):
+
+- **CREATE**: ✓ registered `T-XXX` into "<segment>"
+- **UPDATE same-segment**: ✓ updated `T-XXX` ("<segment>")
+- **UPDATE cross-segment**: ✓ updated `T-XXX` and moved (<original segment> → <new segment>)
+
+Followed by:
+
+- Index refresh: changed sub-table row count X → Y, summary N → N' (CREATE: N+1; UPDATE same-segment: unchanged; UPDATE cross-segment: each sub-table ±1)
+- Reminder: "This skill does not commit. To persist, run /commit or /go."
+
+Do not enter /go, do not commit, do not push.
+
+## Constraints
+
+- **No commit / no push** (persistence delegated to `/commit` or `/go`)
+- **UPDATE takes priority over CREATE**: if an existing entry can be matched, update; on multiple suspected matches or CREATE
+  missing key fields, **actively ask the user**, do not decide for them
+- **In Progress single slot**: refuse to write (CREATE) / refuse the move (UPDATE cross-segment) if the segment is non-empty
+- **Index rules single source**: see `docs/todo_list.md` "Index maintenance" section

@@ -1,42 +1,35 @@
-# holo
+# HOLO
 
-A Claude Code plugin for AI-paired engineering workflow. Provides
-plugin-meta commands, workflow + query skills, and a project-skeleton
-scaffold designed around a small, project-side config file
-(`ai_context/skills_config.md`) that lets every skill adapt to the
-repo it's running in.
+<p align="center">
+  <img src="assets/banner.png" alt="HOLO — Claude Code Plugin: a disciplined four-step loop (discuss, land, review, ship) for AI-paired work" width="820">
+</p>
 
-## Contents
+<p align="center">
+  <img src="https://img.shields.io/badge/Claude%20Code-plugin-7857ED" alt="Claude Code Plugin">
+  <a href="LICENSE"><img src="https://img.shields.io/github/license/LeanderLXZ/holo?color=blue" alt="License: MIT"></a>
+</p>
 
-```
-holo/
-├── .claude-plugin/plugin.json          # plugin manifest
-├── commands/                           # plugin-meta commands (/holo: prefix)
-│   ├── holo-init.md                    # materialize the project skeleton
-│   └── holo-update.md                  # post-plugin-update sync check
-├── skills/                             # workflow + query skills (bare-name invocation)
-│   ├── plan/                           # discussion-only mode (one turn)
-│   ├── go/                             # plan → land flow with branch-strategy prompts
-│   ├── commit/                         # commit current working-tree changes
-│   ├── push/                           # fast-forward-only push (current branch by default)
-│   ├── forward/                        # merge current branch into target branches
-│   ├── post-check/                     # two-track audit after /go
-│   ├── full-review/                    # whole-repo alignment audit
-│   ├── check-review/                   # re-validate a stored review report
-│   ├── todo-add/                       # add/update docs/todo_list.md
-│   ├── todo/                           # todo_list index view (read-only)
-│   ├── branch-inventory/               # branch grouping & health (read-only)
-│   ├── recent-activity/                # unified reverse-chrono timeline (read-only)
-│   ├── monitor/                        # background process inventory (read-only)
-│   └── run-prompt/                     # load & run a prompt file (read-only)
-├── templates/
-│   └── project-skeleton/               # files copied by /holo:init
-├── hooks/
-│   └── hooks.json                      # SessionStart registration
-└── scripts/
-    ├── holo_update_check.py            # drift detection SSOT
-    └── session_branch_check.sh         # one-line branch banner
-```
+HOLO is a Claude Code plugin that pairs an on-disk AI
+working-memory framework with a workflow skill suite — the two
+together make AI-paired sessions resumable across days, weeks, and
+maintainers.
+
+HOLO turns Claude Code into a structured engineering loop. Every
+change moves through **discuss → land → review → ship**, with each
+stage leaving its own trail on disk — so the next session, whether
+tomorrow or a month from now, resumes from exactly where the last one
+stopped.
+
+<p align="center">
+  <a href="#install">Install</a> ·
+  <a href="#update">Update</a> ·
+  <a href="#initialize-a-project">Initialize</a> ·
+  <a href="#skills--commands">Skills &amp; Commands</a> ·
+  <a href="#engineering-loop">Engineering loop</a> ·
+  <a href="#configuration">Configuration</a>
+</p>
+
+---
 
 ## Install
 
@@ -47,112 +40,281 @@ In Claude Code:
 /plugin install holo
 ```
 
-## /holo:init — project skeleton scaffolding
+---
 
-Run `/holo:init` from inside a new or existing project. The command:
+## Update
 
-1. **Detects state** — current dir, git status, conflicting template
-   files, project-name / description / main-branch candidates from
-   manifests (`package.json` / `pyproject.toml` / `Cargo.toml` / `go.mod`).
-2. **Copies template** — silent for new files; interactive for
-   conflicts (`keep` / `overwrite` / `merge`).
-3. **Asks + fills** — project name, one-line description, main branch,
-   timezone, top-level directory classification (source /
-   data-contract / example-artifact / do-not-commit). Each answer is
-   written immediately so a mid-run interruption preserves progress.
-4. **Verifies** — leftover `<...>` placeholders, all required
-   `skills_config.md` headers intact, `CLAUDE.md` ↔ `AGENTS.md`
-   synced; prints next-step suggestions.
+In Claude Code:
 
-No arguments — repository state is auto-detected.
+```
+/plugin marketplace update holo
+/reload-plugins
+```
 
-### Optional `.agents/skills/` mirror
+Then, in each project that uses holo, run `/holo:update` to sync any
+template / `.agents/skills/` drift introduced by the new plugin
+version.
 
-Step 0 asks whether to generate `.agents/skills/<name>/SKILL.md` in the
-user's project (every SKILL.md under `skills/` copied verbatim — count
-follows whatever the plugin currently ships). Choose **Yes**
-when you cross-validate via Codex / Copilot / other non-Claude runtimes
-that don't load Claude Code plugins, or want the project to carry its
-own command/skill definitions without depending on the plugin being
-installed. Default is **No**.
+---
 
-## Project-side config
+## Initialize a project
 
-Most skills read `ai_context/skills_config.md` in the consuming project
-for project-specific anchors. Missing required section → loud fail;
-`(none)` body → graceful skip of that anchor's logic.
+From inside a new or existing project:
 
-The required `## <name>` headers (each at top level of
-`ai_context/skills_config.md`):
+```
+/holo:init
+```
 
-| Section | Used by |
-|---|---|
-| `## Background processes` | `/commit`, `/go`, `/monitor` (in-flight job detection) |
-| `## Protected branch prefixes` | `/commit`, `/go` (branch sync gating) |
-| `## Main branch policy` | `/commit`, `/go` (main-branch enforcement) |
-| `## Do-not-commit paths` | `/commit`, `/go` (pre-commit safety net) |
-| `## Source directories` | `/full-review`, `/post-check` (code scan scope) |
-| `## Data contract directories` | `/full-review`, `/post-check` (spec scan scope) |
-| `## Example artifact directories` | `/full-review`, `/post-check` (sample scan scope) |
-| `## Core component keywords` | `/full-review` (component-alignment audit) |
-| `## Sensitive content placeholder rules` | `/go`, `/post-check` (residual scan) |
-| `## Timezone` | every skill that writes a timestamp |
-| `## Activity sources` | `/recent-activity` |
+The command detects current state, copies the template (silent for
+new files, interactive `keep` / `overwrite` / `merge` for conflicts),
+asks three rounds of questions, and verifies that no `<...>`
+placeholders remain.
 
-`scripts/session_branch_check.sh` is the only piece that degrades
-gracefully when the config is absent (defaults: main branch = `main`,
-no process detection performed).
+### What it asks
 
-`/holo:init` materialises a starter `ai_context/skills_config.md` with
-all required headers present and `(none)` bodies, ready to fill in.
-
-## commands/ vs skills/
-
-`commands/` and `skills/` are **two distinct source kinds** with
-different user-facing slash semantics:
-
-- `commands/<name>.md` — **plugin-meta operations**. Operate on the
-  plugin itself. Claude Code's plugin runtime requires the `/holo:`
-  prefix for these entries (e.g. `/holo:init`, `/holo:update`). YAML
-  frontmatter carries `description:` only; Claude Code derives
-  `name:` from the filename. List the current entries with
-  `ls commands/`.
-- `skills/<name>/SKILL.md` — **workflow + query entries**. Daily
-  plan→land loop plus read-only inventory. Invoked by **bare name** —
-  Claude Code resolves plugin skills into the top-level slash
-  namespace. YAML frontmatter must carry both `name:` and
-  `description:`. List the current entries with `ls skills/`.
-
-Each entry lives in exactly one directory. The mutation contract is
-declared per skill — workflow skills may mutate under explicit
-user-confirmation gates; query skills are pure-read.
-
-### `.agents/skills/` for non-Claude runtimes
-
-`/holo:init` (when user opts in) generates `.agents/skills/<name>/SKILL.md`
-in the consuming project from **both** source kinds, so runtimes that
-don't understand slash commands (Codex / Cursor / etc.) see everything
-as skills:
-
-| Source | Path | Conversion |
+| Round | Questions | Skippable? |
 |---|---|---|
-| commands | `${CLAUDE_PLUGIN_ROOT}/commands/<name>.md` | inject `name: <name>` into frontmatter; body unchanged |
-| skills | `${CLAUDE_PLUGIN_ROOT}/skills/<name>/SKILL.md` | byte-for-byte copy |
+| 1 — Project basics | project name · one-line description · main branch · timezone | No — required for skill bookkeeping |
+| 2 — Top-level directory classification | which directories are **source** / **data-contract** / **example-artifact** / **do-not-commit** | No — required for review-skill scoping (pick `(none)` if a class doesn't apply) |
+| 3 — Project context | project background · current status · next steps · handoff note | **Yes** — each question may be skipped; skipped fields are marked `_(TODO)_` in the file so you can fill them later |
 
-After a plugin update, run `/holo:update` to detect and fix
-`.agents/skills/` drift, plus new template files / sections.
+`/holo:init` never silently overwrites and does not `git add` or
+commit. Persistence stays your choice via `/commit` or `/go`.
 
-## Design notes
+### What you get
 
-- **Runtime-agnostic with graceful degrade** — every skill's
-  `<进度工具> 解析` / `<问询工具> 解析` line maps the placeholder to
-  the runtime's structured tool (`TodoWrite` / `update_plan` /
-  `AskUserQuestion`) and falls back to plain-markdown when none is
-  available, so the same skill body works in Claude Code, Codex,
-  and Copilot agent mode.
-- **No automatic git ops** — `/holo:init` does not `git add` or
-  commit; persistence is the user's choice via `/commit` or `/go`.
-- **`${CLAUDE_PLUGIN_ROOT}`** — skill bodies reference `templates/`
-  and sibling skills via this variable; falls back to path-relative
-  discovery if the env var is unset (e.g. when copy-pasting a skill
-  body into a non-plugin chat session).
+```text
+your-project/
+├── CLAUDE.md                    # Claude Code entry point (auto-loaded each session)
+├── AGENTS.md                    # Mirror of CLAUDE.md for Codex / Cursor / other runtimes
+├── README.md                    # Starter README for your project (placeholders filled in by /holo:init)
+├── .gitignore                   # Sensible defaults for this scaffold
+├── ai_context/                  # Cross-session memory — read at every session start
+│   ├── README.md                  # Index of ai_context/ (fast project follow-up reference)
+│   ├── instructions.md            # Read-order for ai_context/ at session start
+│   ├── conventions.md             # Cross-file alignment table + writing rules
+│   ├── project_background.md      # Why this project exists — goals, scope, stakeholders
+│   ├── requirements.md            # Mirrors docs/requirements.md (lockstep)
+│   ├── read_scope.md              # What NOT to load by default
+│   ├── current_status.md          # Snapshot of current state — what's done, what's in flight
+│   ├── architecture.md            # How the system is built — modules, boundaries, key design
+│   ├── decisions.md               # Durable architecture-level decisions log ("why")
+│   ├── next_steps.md              # Roadmap — planned directions and priorities
+│   ├── handoff.md                 # Quick context for the next session — mental model + what user cares about
+│   └── skills_config.md           ★ Per-project anchors read by skills — see §Configuration
+├── docs/
+│   ├── requirements.md            # User-facing functional spec
+│   ├── todo_list.md               # Planned-but-unfinished engineering tasks
+│   ├── todo_list_archived.md      # Completed / abandoned (slim)
+│   └── architecture/              # Formal architecture documents
+└── logs/
+    ├── change_logs/               # PRE/POST logs from every /go run
+    └── review_reports/            # /full-review outputs (one file per run)
+```
+
+Files marked ★ are the active surfaces every skill touches every day;
+the rest of `ai_context/` is read-once-per-session memory the AI relies
+on for cross-session continuity.
+
+---
+
+## Skills & Commands
+
+holo ships two distinct entry kinds. **Commands** use the `/holo:`
+prefix and operate on the plugin itself. **Skills** are invoked by
+bare name and run inside your project. Full documentation for each
+entry lives in its source file under [commands/](commands/) or
+[skills/](skills/).
+
+### Skills
+
+**Workflow — the daily plan-to-ship loop:**
+
+| Skill | Purpose |
+|---|---|
+| [`/plan`](skills/plan/SKILL.md) | Lock the current message into discuss-only mode — no writes, no commits, no scratch files. |
+| [`/go`](skills/go/SKILL.md) | Land the discussed plan via an 11-step flow: PRE log → doc authoring → implementation → smoke test → cross-file alignment → multi-line review → POST log → single commit. |
+| [`/commit`](skills/commit/SKILL.md) | Drive-by commit of the current working tree, with forbidden-path / large-file safety net — skips the `/go` ceremony. |
+| [`/push`](skills/push/SKILL.md) | Fast-forward push the current branch to its remote. Defaults to current branch, not `main`. |
+| [`/forward`](skills/forward/SKILL.md) | Merge the current branch into one or more sibling branches, with conflict / dirty-target prechecks. |
+| [`/todo-add`](skills/todo-add/SKILL.md) | Register a just-decided item into `docs/todo_list.md` — semantic match decides UPDATE vs CREATE, with confirmation preview. |
+
+**Review — audit your work:**
+
+| Skill | Purpose |
+|---|---|
+| [`/post-check`](skills/post-check/SKILL.md) | Re-validate the last `/go` against its PRE log; expand to surrounding files for drift. |
+| [`/full-review`](skills/full-review/SKILL.md) | Whole-repo alignment audit (multi-agent). Findings saved to `logs/review_reports/`. |
+| [`/check-review`](skills/check-review/SKILL.md) | Re-validate a stored review report against current state, line by line. |
+
+**Inventory — read-only views:**
+
+| Skill | Purpose |
+|---|---|
+| [`/todo`](skills/todo/SKILL.md) | Render the `docs/todo_list.md` index (cached top-of-file table; trusts the cache, does not re-parse). |
+| [`/branch-inventory`](skills/branch-inventory/SKILL.md) | Group all local + remote branches by lifecycle bucket, each tagged with age / ahead-behind / worktree / process. |
+| [`/recent-activity`](skills/recent-activity/SKILL.md) | Reverse-chronological timeline merging commits + change logs + todo updates. |
+| [`/monitor`](skills/monitor/SKILL.md) | Periodic progress report for declared background processes, with a 7-aspect diagnostic framework. |
+| [`/run-prompt`](skills/run-prompt/SKILL.md) | Load a prompt file and execute its body as the current task (fuzzy stem matching against `prompts/`). |
+
+### Commands
+
+| Command | Purpose |
+|---|---|
+| [`/holo:init`](commands/init.md) | Materialize the project skeleton (see above) into the current directory. Idempotent. Never silently overwrites. |
+| [`/holo:update`](commands/update.md) | Compare your project against the installed plugin and surface drift introduced by the plugin upgrade (template additions, `.agents/skills/` mirror, `.gitignore` patterns). Single aggregated fix-or-skip prompt. |
+
+---
+
+## Engineering loop
+
+Three interlocking loops drive the daily cadence — **planning** what
+to do next, **implementing** a single change, and **reviewing** after
+a batch lands.
+
+### (a) Planning loop
+
+Decide what to do next, or retire ideas that won't make the cut:
+
+```mermaid
+%%{init: {'theme':'dark', 'flowchart': {'defaultRenderer': 'elk'}}}%%
+flowchart LR
+  TodoList[("todo_list")] --> Todo(["/todo"])
+  Todo --> Plan(["/plan"])
+  Plan --> TodoAdd(["/todo-add"])
+  TodoAdd -- iterate --> Plan
+  TodoAdd --> TodoList
+  Plan -- abandoned --> Archived[("todo_list_archived")]
+  TodoAdd -. finalized .-> Go(["/go"])
+
+  classDef workflow fill:#24283b,stroke:#7aa2f7,color:#c0caf5,stroke-width:1.5px
+  classDef inventory fill:#1a1b26,stroke:#565f89,color:#a9b1d6,stroke-width:1.5px
+  classDef data fill:#1a1b26,stroke:#565f89,color:#a9b1d6,stroke-width:1.5px
+  class Plan,TodoAdd,Go workflow
+  class Todo inventory
+  class TodoList,Archived data
+```
+
+`/todo` pulls existing entries out of `todo_list` to feed discussion.
+`/plan` and `/todo-add` form a tight loop — every round of `/plan`
+records its decision via `/todo-add`, which can either iterate (feed
+back into another round of `/plan`) or finalize (hand off to `/go`).
+Abandoned ideas go straight to `todo_list_archived`.
+
+### (b) Implementation loop
+
+Land a single change from queue to remote:
+
+```mermaid
+%%{init: {'theme':'dark', 'flowchart': {'defaultRenderer': 'elk'}}}%%
+flowchart LR
+  TodoList[("todo_list")] --> Todo(["/todo"])
+  Todo --> Go(["/go"])
+  Go --> Logs[("logs/change_logs")]
+  Go --> Archived[("todo_list_archived")]
+  Go --> Check(["/post-check"])
+  Check -- finding --> Go
+  Check --> Forward(["/forward"])
+  Check --> Push(["/push"])
+  Forward --> Push
+
+  classDef workflow fill:#24283b,stroke:#7aa2f7,color:#c0caf5,stroke-width:1.5px
+  classDef review fill:#24283b,stroke:#bb9af7,color:#c0caf5,stroke-width:1.5px
+  classDef inventory fill:#1a1b26,stroke:#565f89,color:#a9b1d6,stroke-width:1.5px
+  classDef data fill:#1a1b26,stroke:#565f89,color:#a9b1d6,stroke-width:1.5px
+  class Go,Forward,Push workflow
+  class Check review
+  class Todo inventory
+  class TodoList,Logs,Archived data
+```
+
+`/todo` pulls a finalized entry from `todo_list`. `/go` implements it
+— writing to `logs/change_logs/` and archiving the entry on
+completion. `/post-check` then verifies the result; findings loop
+back into `/go` for a fix. Once clean, `/forward` is the optional
+sibling-branch sync before `/push` ships.
+
+### (c) Review loop
+
+After several commits accumulate, audit the whole repo at once:
+
+```mermaid
+%%{init: {'theme':'dark', 'flowchart': {'defaultRenderer': 'elk'}}}%%
+flowchart LR
+  Claude(claude) --> Review(["/full-review"])
+  Codex(codex) --> Review
+  Review --> Report[("review_reports")]
+  Report --> Check(["/check-review"])
+  Check -- still real --> Fix(["/go"]) --> Commit(["/commit"])
+  Check -. stale .-> Pass((pass))
+
+  classDef workflow fill:#24283b,stroke:#7aa2f7,color:#c0caf5,stroke-width:1.5px
+  classDef review fill:#24283b,stroke:#bb9af7,color:#c0caf5,stroke-width:1.5px
+  classDef agent fill:#1a1b26,stroke:#bb9af7,color:#a9b1d6,stroke-width:1.5px
+  classDef state fill:#1a1b26,stroke:#565f89,color:#a9b1d6,stroke-width:1.5px
+  class Fix,Commit workflow
+  class Review,Check review
+  class Claude,Codex agent
+  class Report,Pass state
+```
+
+`/full-review` dispatches scans across multiple agent runtimes
+(claude, codex, etc.) and consolidates findings into
+`review_reports/`. `/check-review` re-validates each finding against
+the current tree — anything still real loops through `/go` →
+`/commit` to fix; anything stale passes. Trigger this before pushing
+major work or releasing.
+
+### Walkthrough
+
+A minimal sequence following the implementation loop:
+
+```text
+1. /plan                            # discuss the change, no writes
+2. /todo-add                        # record the decision into todo_list
+3. /go add cache layer to fetcher   # land: edits + cross-file review + commit;
+                                    #       finding → /go again to fix
+4. /post-check                      # verify; on finding, back to /go
+5. /push                            # fast-forward push current branch
+```
+
+For small drive-by edits, skip `/plan` and `/go` — edit, then
+`/commit && /push`. `/commit` verifies tracking state and writes a
+properly-formatted commit, but without the full land ceremony.
+
+---
+
+## Configuration
+
+Most skills read `ai_context/skills_config.md` in your project for
+per-project anchors. Missing required header → loud fail. `(none)`
+body → graceful skip of the related step. `/holo:init` materializes a
+starter `skills_config.md` with every header present and `(none)`
+bodies, ready to fill in.
+
+| Section | Used by | Purpose |
+|---|---|---|
+| `## Background processes` | `/commit`, `/go`, `/monitor`, `/branch-inventory` | pgrep patterns + artifact / log paths so skills detect in-flight long-running jobs on this branch / worktree. |
+| `## Protected branch prefixes` | `/commit`, `/go`, `/forward`, `/branch-inventory` | Branch-name prefixes that must not be auto-forwarded or auto-merged. |
+| `## Main branch policy` | `/commit`, `/go`, `/branch-inventory` | Main branch name + invariants on what may live there. |
+| `## Do-not-commit paths` | `/commit`, `/go` | Project-specific paths that must never be committed, on top of `.gitignore`. |
+| `## Source directories` | `/full-review`, `/post-check` | Directories holding code — scope for review scans. |
+| `## Data contract directories` | `/full-review`, `/post-check`, `/go` | Schema / Protobuf / OpenAPI / Pydantic / SQL DDL directories — scope for contract validation. |
+| `## Example artifact directories` | `/full-review`, `/post-check` | Sample-output / fixture directories — scope for example-vs-spec scans. |
+| `## Core component keywords` | `/full-review` | Architectural keywords used in component-alignment audits. |
+| `## Sensitive content placeholder rules` | `/go`, `/post-check` | Real-world content that must be replaced by structural placeholders in written artifacts. |
+| `## Timezone` | every skill that writes a timestamp | Command template producing `YYYY-MM-DD_HHMMSS`. The section body documents a system-tz `date` fallback (declared once so skills do not encode bespoke try/except). |
+| `## Language` | every skill that writes output or asks the user a question | Two independent axes: `content_language` (disk-bound output) and `conversation_language` (AI ↔ user turns). |
+| `## Activity sources` | `/recent-activity`, `/todo-add`, `/go`, `/post-check`, `/full-review`, `/check-review`, `/run-prompt` | Paths + filename patterns + per-entry field names for change logs / todo list / archived todo / review reports / prompt sources. |
+
+Each section's body in the generated `skills_config.md` carries inline
+documentation of the contract for that section — including the
+exceptions to the fail-loud rule (`## Timezone` declares a system-tz
+fallback; `scripts/session_branch_check.sh` degrades gracefully when
+the section is missing, since it runs before any `/holo:init`).
+
+---
+
+## License
+
+See [LICENSE](LICENSE).

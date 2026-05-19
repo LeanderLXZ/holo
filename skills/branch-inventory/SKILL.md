@@ -1,76 +1,78 @@
 ---
 name: branch-inventory
-description: 全分支盘点 — 列所有本地 + remote 分支按 Main / Resting / Protected (active) / Protected (abandoned) / Other local / Remote-only 6 组分组，每分支标 last commit + age + ahead/behind + 关联 worktree + 活跃后台进程。末尾给"建议动作"摘要（如 abandoned 分支可 git branch -d、ahead 多 commit 提醒 /push）但**不执行**。$ARGUMENTS = 分支名子串过滤 / "all"（可选）。只读：不 checkout / 不 merge / 不 push / 不 fetch / 不删分支。触发：分支盘点 / 还有哪些分支 / 看下分支状况 / branch-inventory / 清一下分支。
+description: Full-branch inventory — list every local + remote branch grouped into 6 buckets (Main / Resting / Protected (active) / Protected (abandoned) / Other local / Remote-only), each branch tagged with last commit + age + ahead/behind + associated worktree + active background process. End with a "suggested actions" summary (e.g. abandoned branches may `git branch -d`, branches ahead by several commits get a `/push` reminder) but **do not execute**. $ARGUMENTS = branch-name substring filter / "all" (optional). Read-only: no checkout / no merge / no push / no fetch / no branch deletion. Triggers: branch inventory / what other branches exist / look at branch status / branch-inventory / clean up branches.
 ---
 
-# /branch-inventory — 全分支盘点
+> **Language**: per `ai_context/skills_config.md §Language` — disk-bound output (logs / docs / commit messages / code comments / files written) uses `content_language`; user-facing surface (chat prose / `AskUserQuestion` prompts and option labels / progress-tool entry `content` / status lines / strategy declarations / findings rendered in chat) uses `conversation_language`. Code identifiers, file paths, field names, frontmatter keys, and structural prefixes (`Step N:`, `LOG:`, etc.) stay English regardless.
 
-列出所有本地 + remote 分支并按角色分组，标注每个分支的 git 状态 + 进程绑定。**只读，不动任何 git / 进程**。
+# /branch-inventory — Full-branch inventory
 
-## Step 0: 加载 skills 配置
+List every local + remote branch grouped by role, and annotate each branch with git state + process binding. **Read-only, touches no git / no process**.
 
-`Read` `ai_context/skills_config.md`，取：
+## Step 0: Load skills config
 
-- `## Main branch policy` → main branch 名（典型：`main`）
-- `## Protected branch prefixes` → 受保护前缀清单（典型：`extraction/`）
-- `## Background processes` → pgrep patterns + Process artifacts（用于关联保护前缀分支与活跃进程）
+`Read` `ai_context/skills_config.md` and pull:
 
-任一段缺失或全为 `(none)` → 用 git 默认值兜底（main = `main`、protected = ∅、pgrep = ∅），并在输出顶部显式打印**配置降级**说明。
+- `## Main branch policy` → main branch name (typical: `main`)
+- `## Protected branch prefixes` → list of protected prefixes (typical: `extraction/`)
+- `## Background processes` → pgrep patterns + Process artifacts (used to link protected-prefix branches with active processes)
 
-## Step 1: 解析 $ARGUMENTS
+Any section missing or entirely `(none)` → fall back to git defaults (main = `main`, protected = ∅, pgrep = ∅), and explicitly print a **config degraded** notice at the top of the output.
 
-- 缺省 / `all` → 列全部
-- 字符串 → 作为分支名子串过滤（仅展示名字含此子串的分支）
+## Step 1: Parse $ARGUMENTS
 
-## Step 2: 收集本地分支
+- Empty / `all` → list everything
+- String → treat as a branch-name substring filter (show only branches whose name contains the substring)
 
-- `git branch -vv` → 解析出每条：分支名、HEAD short sha、tracking branch、ahead/behind 计数
-- 对每条 `git log -1 --format='%cI %s' {branch}` → 拿最后 commit ISO 时间 + 标题
-- 计算 age：`now - last_commit`（用 skills_config `## Timezone` 命令模板取 now，输出"3d 4h"形式）
+## Step 2: Collect local branches
 
-## Step 3: 收集 remote 分支
+- `git branch -vv` → parse each row: branch name, HEAD short sha, tracking branch, ahead/behind counts
+- For each row run `git log -1 --format='%cI %s' {branch}` → get the last commit ISO time + subject
+- Compute age: `now - last_commit` (use the skills_config `## Timezone` command template to get now, output in "3d 4h" form)
 
-- `git branch -r` → 列所有 remote 分支（去除 `HEAD ->` 行）
-- 对没有对应本地分支的 remote 分支：标注 **remote-only**
+## Step 3: Collect remote branches
 
-## Step 4: 收集 worktree 绑定
+- `git branch -r` → list every remote branch (drop `HEAD ->` rows)
+- For remote branches with no matching local branch: tag as **remote-only**
 
-- `git worktree list --porcelain` → 解析每个 worktree 的 path / branch
-- 建立 branch → worktree 反向映射
+## Step 4: Collect worktree bindings
 
-## Step 5: 关联活跃进程（仅保护前缀分支）
+- `git worktree list --porcelain` → parse each worktree's path / branch
+- Build a branch → worktree reverse mapping
 
-对每个匹配 `## Protected branch prefixes` 的分支（典型 `extraction/*`）：
+## Step 5: Link active processes (protected-prefix branches only)
 
-- 该分支是否对应活跃 worktree（Step 4 映射）
-- 若对应 worktree：在该 worktree 路径下 `pgrep -f '{pgrep_pattern}'` 检查
-- 也可通过 `## Background processes` 的 pid 文件路径（如 `works/{work_id}/analysis/progress/*.pid`）反推：分支名是否含 work_id ∧ pid 文件对应进程是否存活
+For each branch matching `## Protected branch prefixes` (typical `extraction/*`):
 
-得到每个保护前缀分支的"活跃进程绑定"标志（true / false / unknown）。
+- Does the branch correspond to an active worktree (Step 4 mapping)?
+- If it has a worktree: run `pgrep -f '{pgrep_pattern}'` inside that worktree path to check
+- Or derive from `## Background processes` pid-file paths (e.g. `works/{work_id}/analysis/progress/*.pid`): does the branch name contain work_id ∧ is the pid-file process alive?
 
-## Step 6: 分组 + 输出
+Produce an "active process binding" flag per protected-prefix branch (true / false / unknown).
 
-按以下顺序输出（每组一张表，**空组也列出"（无）"** 以便一眼看全）：
+## Step 6: Group + output
 
-1. **Main**：`{main_branch}` 单行
-2. **Resting branches**：默认包括 `library`、`master` 等常见休息分支（如本仓有）
-3. **Protected (active)**：保护前缀分支 ∧ 有活跃进程绑定
-4. **Protected (abandoned)**：保护前缀分支 ∧ 无活跃进程（疑似废弃）
-5. **Other local**：其余本地分支
-6. **Remote-only**：仅 remote 存在的分支
+Output in the following order (one table per group; **list empty groups as "(none)"** so the full picture is visible at a glance):
 
-每行表：
+1. **Main**: single row for `{main_branch}`
+2. **Resting branches**: by default includes `library`, `master`, and similar common resting branches (if present in this repo)
+3. **Protected (active)**: protected-prefix branches ∧ have an active process binding
+4. **Protected (abandoned)**: protected-prefix branches ∧ no active process (likely abandoned)
+5. **Other local**: all remaining local branches
+6. **Remote-only**: branches that exist only on remote
+
+Per-row table:
 
 | branch | last commit (ISO + age) | ahead/behind | tracking | worktree | process | note |
 
-末尾**建议动作**摘要（**不执行**，只列）：
+End with a **suggested actions** summary (**do not execute**, list only):
 
-- `Protected (abandoned)` → 建议核对是否可 `git branch -d`（用户自决；可能仍保留有未合并的 extraction 中间产物）
-- 本地 ahead 多 commit 未推 → 提醒可能要 `/push`
-- 本地 behind tracking → 提醒可能要 `git fetch` / `git pull`
-- worktree 指向已删除分支 → 提醒可能要 `git worktree prune`
+- `Protected (abandoned)` → suggest checking whether `git branch -d` is safe (user decides; may still hold unmerged extraction intermediates)
+- Local branches ahead by several unpushed commits → remind that `/push` may be needed
+- Local behind tracking → remind that `git fetch` / `git pull` may be needed
+- Worktree pointing at a deleted branch → remind that `git worktree prune` may be needed
 
-## 限制
+## Constraints
 
-- 只读：不 `git checkout` / `merge` / `push` / `fetch` / `pull` / `branch -d` / `worktree prune` / `remote update` / `commit`
-- 分支数 > 50 时按分组各只展示前 20 行 + "（… 还有 N 条已折叠）"提示，避免对话刷屏
+- Read-only: no `git checkout` / `merge` / `push` / `fetch` / `pull` / `branch -d` / `worktree prune` / `remote update` / `commit`
+- When branch count > 50, show only the first 20 rows per group + "(… N more folded)" notice to avoid flooding the chat
