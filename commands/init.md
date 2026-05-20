@@ -446,7 +446,13 @@ Use **<ask tool>** to ask 4 questions at once (values probed in Step 1.3 act as 
 
 After receiving answers, **immediately** use `Edit` to write into the corresponding files (do not batch then write — interruptions still preserve progress). Q2's answer is written to all three sinks in the same pass.
 
-**Additionally — language config write-back from Step 0**: at this same point, use `Edit` to write the `<content_language>` and `<conversation_language>` values chosen in Step 0 into `ai_context/skills_config.md §Language`, replacing the template defaults (`content_language: en` / `conversation_language: auto`) with the user's chosen values. If the user's choices match the template defaults, this is a no-op (still verify the lines exist and have the chosen values). This makes Step 0's answers persistent in the landed project.
+**Additionally — language config write-back from Step 0**: at this same point, use `Edit` to write the `<content_language>` and `<conversation_language>` values chosen in Step 0 into **three sinks simultaneously**:
+
+1. `ai_context/skills_config.md §Language` (canonical source per `ai_context/decisions.md` §Language Configuration #17)
+2. `CLAUDE.md §Language` (hardcoded `- \`content_language: <value>\`` + `- \`conversation_language: <value>\`` bullets — read-cache for the AI's session-start awareness)
+3. `AGENTS.md §Language` (byte-identical to CLAUDE.md §Language except the Sync-section title direction)
+
+All three carry the same two values, replacing the template defaults (`content_language: en` / `conversation_language: auto`) with the user's chosen values. If the user's choices match the template defaults, this is a no-op (still verify the lines exist and have the chosen values). The three-way write keeps the read-cache in sync with canonical at init time — `/holo:update` finding category `claude_agents_lang_drift` (per `scripts/holo_update_check.py`) catches drift introduced after init.
 
 **4.3 Top-level directory classification questions (Round 2)**
 

@@ -1,5 +1,5 @@
 ---
-description: Project sync check after plugin upgrade — compare the current project against the installed plugin (`.agents/skills/` mirror, template new files / section headers, `CLAUDE.md` / `AGENTS.md` headers) and find structural drift introduced by the plugin upgrade. **All detection logic lives in the single script `${CLAUDE_PLUGIN_ROOT}/scripts/holo_update_check.py`**; the skill body does not re-implement rules. ≥ 1 drift → single aggregated question asking Auto-fix all / Skip all; 0 drift passes silently. CLAUDE/AGENTS findings are always display-only, never auto-merged. No arguments; whether the current directory is empty or already initialized, both are handled. Does not touch user-filled content, does not git add, does not commit. Triggers: /holo:update / plugin upgraded / sync holo update / check whether holo is up to date.
+description: Project sync check after plugin upgrade — compare the current project against the installed plugin (`.agents/skills/` mirror, template new files / section headers, `CLAUDE.md` / `AGENTS.md` headers + §Language hardcoded values) and find structural drift introduced by the plugin upgrade. **All detection logic lives in the single script `${CLAUDE_PLUGIN_ROOT}/scripts/holo_update_check.py`**; the skill body does not re-implement rules. ≥ 1 drift → single aggregated question asking Auto-fix all / Skip all; 0 drift passes silently. CLAUDE/AGENTS `unexpected_diffs` findings are always display-only, never auto-merged; CLAUDE/AGENTS §Language hardcoded-value drift IS auto-fixable (sync skills_config → CLAUDE/AGENTS, per decisions.md §Language Configuration #17). No arguments; whether the current directory is empty or already initialized, both are handled. Does not touch user-filled content, does not git add, does not commit. Triggers: /holo:update / plugin upgraded / sync holo update / check whether holo is up to date.
 ---
 
 > **Language**: per `ai_context/skills_config.md §Language` — disk-bound output (regenerated `.agents/skills/` mirror files, `_(TODO — added by /holo:update)_` markers appended to `skills_config.md`, any in-place file edits) uses `content_language`; user-facing surface (chat prose / `AskUserQuestion` prompts and option labels / progress-tool entry `content` / drift-category report / final summary / `Auto-fix all` / `Skip all` confirmations) uses `conversation_language`. Code identifiers, file paths, field names, frontmatter keys, JSON keys returned by `holo_update_check.py` (`missing_section`, `lang_mirror_drift`, `agents_sync.stale`, `legacy_skip_marker`, etc.), and structural prefixes (`Step N:`, `DRIFT:`, `OK:`) stay English regardless.
@@ -92,6 +92,10 @@ The script outputs a JSON structure (**interface contract**; the skill body pars
     "unexpected_diffs": [{"line": N, "CLAUDE": "...", "AGENTS": "..."}],
     "unexpected_diffs_truncated": 0
   },
+  "claude_agents_lang_drift": [{"rel": "CLAUDE.md|AGENTS.md",
+                                "axis": "content_language|conversation_language",
+                                "expected": "<skills_config value>",
+                                "actual": "<file value or null>"}],
   "missing_l1_directive": [{"rel": "commands/<name>.md|skills/<name>/SKILL.md", "reason": "..."}],
   "l1_directive_drift":   [{"rel": "commands/<name>.md|skills/<name>/SKILL.md", "missing_substrings": ["..."]}],
   "lang_mirror_drift":    [{"variant": "project-skeleton.<lang>", "rel": "...", "kind": "MISSING|ORPHAN"}],
@@ -108,6 +112,8 @@ The script outputs a JSON structure (**interface contract**; the skill body pars
 **`missing_field`** is `missing_section`'s within-section counterpart, **scoped to `ai_context/skills_config.md` only** (per `ai_context/decisions.md` §Skill Implementation #13). It parses the baseline skills_config and the consumer's skills_config for top-level `<key>: <value>` bullets — both backticked form (`- \`content_language: en\`` under `## Language`) and plain form (`- Main branch: \`main\`` under `## Main branch policy`) — and reports any field key present in the baseline section but missing from the consumer's same section. Catches the upgrade case where a plugin release adds a new field inside an existing section (motivating example: `## Language` gaining `conversation_language` after T-LANG-CONFIG-SYSTEM), which `missing_section`'s `^## ` header scan cannot see. Auto-fix appends `<key>: _(TODO — added by /holo:update; fill via /go or direct edit)_` at the tail of the section's bullet list and **never modifies the value of an existing field** — stale-but-syntactically-valid values stay out of scope (semantic value validation is `/full-review`'s job). Other bullet shapes in skills_config.md (trailing-colon sub-block labels like `- pgrep patterns:` and their indented children, freestanding value-only bullets like `- \`(none)\`` under `## Source directories`) are intentionally not parsed as fields and cannot trigger findings.
 
 **`gitignore_missing_lines`** (per `ai_context/decisions.md` §Skill Implementation #14) compares pattern lines in the active project-skeleton's `.gitignore` (canonical or `.<lang>` variant) against the consumer's `.gitignore`. One finding per missing pattern (mirrors `missing_section`'s one-finding-per-header shape so `total_drift` counts patterns, not files). Comments / section headers in the template are NOT parsed — only patterns; canonical form strips surrounding whitespace and preserves the leading `\#` escape verbatim so the pattern round-trips through `--fix` (a decoded `#foo` would re-parse as a comment on the next check, looping `--fix`; see `gitignore_pattern_lines` docstring in `scripts/holo_update_check.py`). Inline `#` mid-pattern is NOT a comment (git treats the whole line as the pattern). Orphan lines (in consumer but not in template) are intentionally NOT detected: extending `.gitignore` is normal consumer behaviour and reporting it would generate noise. **Auto-fix is append-only Phase 1** — the script invokes `gitignore_compute_union` and writes target verbatim + banner sentinel + missing patterns at the tail. The three-phase smart-merge pipeline's LLM-reorganize and gate stages (Phases 2 + 3) live in `/holo:init` Step 3.1 only; `/holo:update --fix` deliberately stays deterministic to respect the "does not touch user-filled content" philosophy (the LLM step is opt-in via re-running `/holo:init` on a CONFLICT).
+
+**`claude_agents_lang_drift`** (per `ai_context/decisions.md` §Language Configuration #17) compares the hardcoded `content_language` + `conversation_language` bullets in the consumer's `CLAUDE.md` / `AGENTS.md` §Language block against the canonical values in `ai_context/skills_config.md §Language`. One finding per (file, axis) pair: value mismatch (`actual` is the file's hardcoded value) or missing bullet (`actual` is `null`). Source-of-truth model: skills_config canonical, CLAUDE/AGENTS read-cache. **Auto-fix** rewrites the bullet value (when `actual` is not `null`) or inserts a canonical bullet next to the sibling axis bullet (when `actual` is `null` and the sibling bullet exists). If neither axis bullet is present, the §Language block is structurally pre-#17 (pointer-prose format) — fix skips silently and the post-`--check` will keep surfacing the drift, prompting manual upgrade or re-init. Findings counted in `total_drift`. Distinct from `claude_agents.unexpected_diffs` (CLAUDE↔AGENTS line-diff vs the expected `_EN_EXPECTED_PAIRS` / variant-derived pairs — report-only, never auto-fixable); the two checks share the entry-file pair as scope but answer different questions (cross-sync vs canonical-sync).
 
 **`missing_l1_directive`** (per Phase 5 of T-LANG-CONFIG-SYSTEM) scans every `commands/*.md` and `skills/*/SKILL.md` under `plugin_root` for the L1 language directive blockquote pattern `> **Language**:` within 12 lines after the frontmatter close. Missing files surface here. **Report-only — no auto-fix**: inserting prose into a skill body without the maintainer's review is risky enough that the maintainer fixes the file via `/go`.
 
@@ -147,9 +153,12 @@ Templates:
 Gitignore:
   GITIGNORE_MISSING_LINES (Y): <"<rel>: <pattern>" list>
 
-CLAUDE.md / AGENTS.md (report-only — not counted in total_drift):
+CLAUDE.md / AGENTS.md cross-sync (report-only — not counted in total_drift):
   first_line_placeholder: <true/false>
   unexpected_diffs:       <up to 10 line summaries> (+<unexpected_diffs_truncated> more truncated)
+
+CLAUDE.md / AGENTS.md §Language hardcoded-value drift:
+  CLAUDE_AGENTS_LANG_DRIFT (U): <"<rel>: <axis> expected=<v> actual=<v>" list>
 
 L1 language directive presence:
   MISSING_L1_DIRECTIVE (V): <rel-path list with reason>
@@ -161,7 +170,7 @@ Legacy short-TODO marker (report-only — not counted in total_drift):
   LEGACY_SKIP_MARKER (Z): <"<rel>:<line>: <snippet>" list>
 ```
 
-`total_drift = P + Q + R + S + T + X + Y + V + W`. CLAUDE/AGENTS
+`total_drift = P + Q + R + S + T + X + Y + U + V + W`. CLAUDE/AGENTS
 `unexpected_diffs` and `legacy_skip_marker` are intentionally NOT in
 this sum — both buckets are report-only (never auto-fixable) and a
 consumer with legitimate asymmetric guidance / pre-three-bucket-schema
@@ -169,6 +178,9 @@ legacy markers would drown actionable findings (STALE / MISSING) if
 counted. Each bucket is still printed separately so the user sees the
 count; the script caps `unexpected_diffs` at 10 entries and reports
 the truncated count via `claude_agents.unexpected_diffs_truncated`.
+`claude_agents_lang_drift` (U) IS counted because it is auto-fixable
+(canonical sync from skills_config → CLAUDE/AGENTS hardcoded values
+per decisions.md §Language Configuration #17).
 
 `total_drift == 0` → print `✅ Project is in sync with <name> v<version>; nothing to do.` and exit.
 
@@ -192,8 +204,12 @@ Templates:
 Gitignore:
   GITIGNORE_MISSING_LINES (Y): <list>   → script will append the missing pattern lines at the file tail with a banner separator (append-only Phase 1; no LLM, no orphan-line deletion — three-phase smart-merge pipeline runs only at /holo:init CONFLICT)
 
-CLAUDE.md / AGENTS.md:
+CLAUDE.md / AGENTS.md cross-sync:
   <findings>   → never auto-merged (display only, manual handling required)
+
+CLAUDE.md / AGENTS.md §Language hardcoded-value drift:
+  CLAUDE_AGENTS_LANG_DRIFT (U): <list>   → script overwrites the bullet value (or inserts the missing axis bullet next to its sibling); structurally pre-#17 §Language blocks (no axis bullets at all) are skipped silently — user re-runs /holo:init or manually upgrades
+  ⚠️ source-of-truth model A: Auto-fix overwrites any direct CLAUDE.md / AGENTS.md hardcoded-value edits to match `ai_context/skills_config.md §Language`. To change project language, edit skills_config.md first then run Auto-fix.
 
 L1 language directive presence:
   <findings>   → report-only (display only, fix via /go on the affected skill body)
@@ -225,6 +241,7 @@ Pick `Auto-fix all` → invoke the script in `--fix --json` mode (note `--fix` i
 - `missing_section` should be 0
 - `missing_field` should be 0
 - `gitignore_missing_lines` should be 0
+- `claude_agents_lang_drift` should be 0 when fixable (value mismatch with sibling-bullet anchor available); may remain > 0 for structurally pre-#17 §Language blocks that the script skipped on purpose
 - `claude_agents.unexpected_diffs` may still be > 0 (out of `--fix` scope)
 - `legacy_skip_marker` may still be > 0 (report-only; out of `--fix` scope per T-INIT-SKIP-SEMANTICS)
 
@@ -243,7 +260,7 @@ Plugin: <name> v<version>
 .agents/skills/:    regenerated=A | created=B | deleted=C
 Templates:          template_copied=D | section_appended=E | field_appended=F
 Gitignore:          gitignore_appended=G
-CLAUDE/AGENTS:      <OK / U warnings (manual fix needed)>
+CLAUDE/AGENTS:      lang_fixed=H | <OK / U cross-sync warnings (manual fix needed)>
 
 Suggested next steps (only when there are _(TODO)_ appends or manual sync):
   1. Review `_(TODO — added by /holo:update)_` markers and fill in actual content as needed
@@ -256,5 +273,5 @@ Suggested next steps (only when there are _(TODO)_ appends or manual sync):
 - **Single source of truth for detection / fix rules** = `scripts/holo_update_check.py`; the skill body does not re-implement
 - **Only touches structural drift introduced by the plugin upgrade** (missing files / missing section headers / stale mirror / orphan mirror); does not touch user-filled content
 - **Does not `git add` / does not commit**: consistent with `/holo:init`, the user commits via `/commit`
-- **CLAUDE/AGENTS not auto-merged**: the script `--fix` is designed not to touch these two files; it only reports them in check output
+- **CLAUDE/AGENTS cross-sync not auto-merged**: the script `--fix` is designed not to touch CLAUDE↔AGENTS asymmetric guidance lines (`claude_agents.unexpected_diffs`); it only reports them in check output. Distinct from §Language hardcoded-value sync (`claude_agents_lang_drift`), which IS auto-fixable — the two checks scope the same file pair but answer different questions (cross-sync vs canonical-sync)
 - To adjust detection rules → edit `scripts/holo_update_check.py`, then sync the Step 2 JSON contract description in this file + `commands/init.md` Step 3.2 per `ai_context/conventions.md` §Cross-File Alignment (e.g. if `expected_mirror_content` signature changes)

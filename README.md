@@ -88,29 +88,6 @@ The two language axes shape every later skill invocation:
   Default `auto` (per-turn match the user's last message); accepts
   `auto` or any ISO 639-1 code.
 
-#### Template placeholder conventions
-
-The skeleton uses two visible marker forms to distinguish "must fill at
-init" from "fill as the project evolves":
-
-- **`<...>` (REQUIRED)** — appears in `<project-name>`, the
-  one-or-two-sentence project goal, `architecture.md §Top-Level
-  Structure`, etc. `/holo:init` Round 1 + Step 4.4 + Round 4 paths
-  fill these before exit; residue ≥ 1 at the end is treated as a bug
-  (Step 5.1(a) gate).
-- **`_(none yet — delete this marker once content is added)_` (PROGRESSIVE)** —
-  appears in `project_background.md §Guiding Principles` /
-  `current_status.md` / `next_steps.md` / `handoff.md` /
-  `decisions.md` / and similar sections that are intentionally empty
-  at init time. Delete the marker line when you add first content;
-  `/holo:update` does not report these as drift.
-
-There is **no Round 3** — sections that were previously asked at init
-(project background details / current status / next steps / handoff
-narrative) are now PROGRESSIVE markers by default. Use the
-`/update-docs` skill after `/plan`-style discussion to fill them in,
-or edit by hand.
-
 ### What you get
 
 ```text
@@ -162,39 +139,39 @@ entry lives in its source file under [commands/](commands/) or
 
 | Skill | Purpose |
 |---|---|
-| [`/plan`](skills/plan/SKILL.md) | Lock the current message into discuss-only mode — no writes, no commits, no scratch files. |
-| [`/go`](skills/go/SKILL.md) | **Full-flow** plan-to-ship: 11-step ceremony — PRE log → doc authoring → implementation → smoke test → cross-file alignment → multi-line review → POST log → single commit. For ≥ 3-file changes and anything touching cross-file alignment or docs/ai_context. |
-| [`/do`](skills/do/SKILL.md) | **Lightweight** counterpart to `/go` for simple in-place edits — 4-step flow: load config → plan + modify (≥ 3 files triggers an upgrade-to-`/go` fork) → single-segment LOG (`Type: DO`) → ask whether to commit (commit / skip). No PRE log gating, no smoke, no review, no cross-file fan-out, no worktree / stash. Default does NOT touch `docs/` or `ai_context/`. |
-| [`/commit`](skills/commit/SKILL.md) | Drive-by commit of the current working tree, with forbidden-path / large-file safety net — skips both `/go` ceremony and `/do`'s LOG step. |
-| [`/push`](skills/push/SKILL.md) | Fast-forward push the current branch to its remote. Defaults to current branch, not `main`. |
-| [`/forward`](skills/forward/SKILL.md) | Merge the current branch into one or more sibling branches, with conflict / dirty-target prechecks. |
-| [`/todo-add`](skills/todo-add/SKILL.md) | Register a just-decided item into `docs/todo_list.md` — semantic match decides UPDATE vs CREATE, with confirmation preview. |
-| [`/update-docs`](skills/update-docs/SKILL.md) | Land conversation narrative into `ai_context/` + `docs/` files — 3-step preview-and-confirm flow, PROGRESSIVE-marker aware, no commit / no review / no fan-out. |
+| [`/plan`](skills/plan/SKILL.md) | Lock the current message into discuss-only mode. |
+| [`/do`](skills/do/SKILL.md) | **Lightweight** in-place edits for simple, small-scope changes. |
+| [`/go`](skills/go/SKILL.md) | **Full-flow** plan-to-ship ceremony for multi-file changes or anything touching `docs/` / `ai_context/`. |
+| [`/commit`](skills/commit/SKILL.md) | Drive-by commit of the current working tree, with safety-net checks. |
+| [`/push`](skills/push/SKILL.md) | Fast-forward push the current branch to its remote. |
+| [`/forward`](skills/forward/SKILL.md) | Merge the current branch into one or more sibling branches. |
+| [`/todo-add`](skills/todo-add/SKILL.md) | Register a just-decided item into `docs/todo_list.md`. |
+| [`/update-docs`](skills/update-docs/SKILL.md) | Land conversation narrative into `ai_context/` + `docs/` files. |
 
 **Review — audit your work:**
 
 | Skill | Purpose |
 |---|---|
-| [`/post-check`](skills/post-check/SKILL.md) | Re-validate the last `/go` against its PRE log; expand to surrounding files for drift. |
-| [`/full-review`](skills/full-review/SKILL.md) | Whole-repo alignment audit (multi-agent). Findings saved to `logs/review_reports/`. |
-| [`/check-review`](skills/check-review/SKILL.md) | Re-validate a stored review report against current state, line by line. |
+| [`/post-check`](skills/post-check/SKILL.md) | Re-validate the last `/go` against its PRE log. |
+| [`/full-review`](skills/full-review/SKILL.md) | Whole-repo alignment audit (multi-agent). |
+| [`/check-review`](skills/check-review/SKILL.md) | Re-validate a stored review report against current state. |
 
 **Inventory — read-only views:**
 
 | Skill | Purpose |
 |---|---|
-| [`/todo`](skills/todo/SKILL.md) | Render the `docs/todo_list.md` index (cached top-of-file table; trusts the cache, does not re-parse). |
-| [`/branch-inventory`](skills/branch-inventory/SKILL.md) | Group all local + remote branches by lifecycle bucket, each tagged with age / ahead-behind / worktree / process. |
-| [`/recent-activity`](skills/recent-activity/SKILL.md) | Reverse-chronological timeline merging commits + change logs + todo updates. |
-| [`/monitor`](skills/monitor/SKILL.md) | Periodic progress report for declared background processes, with a 7-aspect diagnostic framework. |
-| [`/run-prompt`](skills/run-prompt/SKILL.md) | Load a prompt file and execute its body as the current task (fuzzy stem matching against `prompts/`). |
+| [`/todo`](skills/todo/SKILL.md) | Render the `docs/todo_list.md` index. |
+| [`/branch-inventory`](skills/branch-inventory/SKILL.md) | Group all local + remote branches by lifecycle bucket. |
+| [`/recent-activity`](skills/recent-activity/SKILL.md) | Reverse-chronological timeline of recent project activity. |
+| [`/monitor`](skills/monitor/SKILL.md) | Periodic progress report for declared background processes. |
+| [`/run-prompt`](skills/run-prompt/SKILL.md) | Load a prompt file and execute its body as the current task. |
 
 ### Commands
 
 | Command | Purpose |
 |---|---|
-| [`/holo:init`](commands/init.md) | Materialize the project skeleton (see above) into the current directory. Idempotent. Never silently overwrites. |
-| [`/holo:update`](commands/update.md) | Compare your project against the installed plugin and surface drift introduced by the plugin upgrade (template additions, `.agents/skills/` mirror, `.gitignore` patterns). Single aggregated fix-or-skip prompt. |
+| [`/holo:init`](commands/init.md) | Materialize the project skeleton into the current directory. |
+| [`/holo:update`](commands/update.md) | Surface structural drift introduced by a plugin upgrade. |
 
 ---
 

@@ -146,7 +146,7 @@ Markdown / file structure vocabulary.
 | 阅读范围 | Read Scope | `ai_context/read_scope.md` H1 — default-load / default-skip / when-to-escalate scope contract. |
 | AI 上下文 | AI Context | `ai_context/README.md` H1 — compressed handoff index for future AI sessions. |
 | 给后续 AI 智能体的指引 | Instructions For Future AI Agents | `ai_context/instructions.md` H1 — index header for AI-agent-facing instructions. |
-| 语言 | Language | CLAUDE.md / AGENTS.md H2 — pointer paragraph to `skills_config.md §Language`. **Distinct from `skills_config.md §Language` anchor**: that one stays English (§-referenced protocol anchor); this CLAUDE/AGENTS H2 is display-only. |
+| 语言 | Language | CLAUDE.md / AGENTS.md H2 — block with hardcoded `content_language` + `conversation_language` literal bullets (read-cache per `ai_context/decisions.md` §Language Configuration #17; no longer a pointer paragraph). **Distinct from `skills_config.md §Language` anchor**: that one stays English (§-referenced protocol anchor); this CLAUDE/AGENTS H2 is display-only. |
 | 会话开始：通读 ai_context/ 一次 | Session Start: Read ai_context/ Once | CLAUDE.md / AGENTS.md H2 — session-start reading routine. |
 | 默认不加载的内容 | What Not To Load By Default | CLAUDE.md / AGENTS.md H2 — pointer to `read_scope.md`. |
 | 与 AGENTS.md 保持同步 | Sync with AGENTS.md | CLAUDE.md H2 — pair-doc sync rule. Pair literal — the `AGENTS.md` token stays English (filename). |

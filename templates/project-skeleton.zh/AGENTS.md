@@ -5,11 +5,11 @@
 
 ## 语言
 
-`ai_context/skills_config.md §Language` 携带两条轴 ——
-`content_language`（落盘类输出：docs / logs / commits / skill
-输出 / 新增代码注释）与 `conversation_language`（AI ↔ 用户对话）。
-会话开始时读取，本次会话内一律按此应用。代码标识符与字段名
-保持英文。
+- `content_language: en` —— 落盘类输出（docs / logs / commits /
+  skill 输出 / 新增代码注释）
+- `conversation_language: auto` —— AI ↔ 用户对话
+
+对**每一次**对话生效，不只是首轮。代码标识符与字段名保持英文。
 
 ## 会话开始：通读 ai_context/ 一次
 

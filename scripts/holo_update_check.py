@@ -164,6 +164,15 @@ _CONTENT_LANG_RE = re.compile(
     r"^\s*-\s*`content_language:\s*([A-Za-z0-9-]+)`", re.MULTILINE
 )
 
+# Sibling regex for `conversation_language`. Distinct from
+# `_CONTENT_LANG_RE` because the accepted value set differs (`auto`
+# additionally permitted) — `_consumer_conversation_lang` handles
+# that branch. Used by `claude_agents_lang_drift_check` and by
+# `_consumer_conversation_lang`.
+_CONVERSATION_LANG_RE = re.compile(
+    r"^\s*-\s*`conversation_language:\s*([A-Za-z0-9-]+)`", re.MULTILINE
+)
+
 
 def _consumer_content_lang(target_root: str) -> str:
     """Read `content_language` from consumer's skills_config.md §Language.
@@ -208,6 +217,51 @@ def _consumer_content_lang(target_root: str) -> str:
             f"ai_context/skills_config.md §Language: content_language="
             f"'{value}' is not a valid ISO 639-1 code (expected 2 "
             "lowercase letters per docs/requirements.md §15)."
+        )
+    return value
+
+
+def _consumer_conversation_lang(target_root: str) -> str:
+    """Read `conversation_language` from consumer's skills_config.md §Language.
+
+    Returns the value (lowercase). Accepts `auto` (per-turn mode) plus
+    any 2-letter ISO 639-1 code; same invalid-value gates as
+    `_consumer_content_lang` for parity (no `cn`, no locale variants,
+    no uppercase). Missing file / section / field returns `'auto'` —
+    the template-default fallback per decisions.md §Language
+    Configuration #17.
+    """
+    cfg = os.path.join(target_root, "ai_context", "skills_config.md")
+    if not os.path.isfile(cfg):
+        return "auto"
+    try:
+        with open(cfg, "r", encoding="utf-8") as f:
+            text = f.read()
+    except OSError:
+        return "auto"
+    m = _CONVERSATION_LANG_RE.search(text)
+    if not m:
+        return "auto"
+    value = m.group(1)
+    if value == "auto":
+        return "auto"
+    if value == "cn":
+        sys.exit(
+            "ai_context/skills_config.md §Language: conversation_language='cn' "
+            "is not ISO 639-1; use 'zh' per docs/requirements.md §15."
+        )
+    if "-" in value:
+        sys.exit(
+            f"ai_context/skills_config.md §Language: conversation_language="
+            f"'{value}' is a locale variant; locale variants are "
+            "reserved for future regional splits per "
+            "docs/requirements.md §15. Use a bare ISO 639-1 code or 'auto'."
+        )
+    if not re.fullmatch(r"[a-z]{2}", value):
+        sys.exit(
+            f"ai_context/skills_config.md §Language: conversation_language="
+            f"'{value}' is not a valid ISO 639-1 code (expected 2 "
+            "lowercase letters or 'auto' per docs/requirements.md §15)."
         )
     return value
 
@@ -658,6 +712,149 @@ def claude_agents_check(target_root: str, plugin_root: str | None = None) -> dic
         )
         result["unexpected_diffs"] = result["unexpected_diffs"][:_UNEXPECTED_DIFFS_CAP]
     return result
+
+
+# ---------------------------------------------------------------------------
+# CLAUDE.md / AGENTS.md §Language hardcoded-values drift (per decisions.md
+# §Language Configuration #17)
+# ---------------------------------------------------------------------------
+#
+# `CLAUDE.md` / `AGENTS.md` §Language carries `content_language` +
+# `conversation_language` as hardcoded literal bullets, acting as a
+# read-cache for the AI's session-start awareness (no
+# `ai_context/skills_config.md` read needed). The canonical source is
+# skills_config.md; this check enforces sync from canonical → cache.
+
+def claude_agents_lang_drift_check(target_root: str) -> list[dict]:
+    """Compare CLAUDE.md / AGENTS.md §Language hardcoded values against
+    `ai_context/skills_config.md §Language`.
+
+    One finding per (file, axis) pair where the file's hardcoded value
+    differs from skills_config, OR where the axis bullet is missing from
+    the file's §Language block.
+
+    Findings shape::
+
+        {
+          "rel":      "CLAUDE.md" | "AGENTS.md",
+          "axis":     "content_language" | "conversation_language",
+          "expected": "<skills_config value>",   # canonical
+          "actual":   "<file value>" | None,     # None = bullet absent
+        }
+
+    When `CLAUDE.md` / `AGENTS.md` don't exist (consumer not yet
+    initialized) the relevant file is skipped silently. When
+    skills_config.md is missing / has no §Language values the helpers
+    fall back to template defaults (`en` / `auto`) — drift findings
+    under that fallback reflect "you should set skills_config
+    explicitly" rather than auto-tuning.
+    """
+    findings: list[dict] = []
+    expected_content = _consumer_content_lang(target_root)
+    expected_conv = _consumer_conversation_lang(target_root)
+    for rel in ("CLAUDE.md", "AGENTS.md"):
+        path = os.path.join(target_root, rel)
+        if not os.path.isfile(path):
+            continue
+        try:
+            with open(path, encoding="utf-8") as f:
+                text = f.read()
+        except OSError:
+            continue
+        cm = _CONTENT_LANG_RE.search(text)
+        cvm = _CONVERSATION_LANG_RE.search(text)
+        actual_content = cm.group(1) if cm else None
+        actual_conv = cvm.group(1) if cvm else None
+        if actual_content != expected_content:
+            findings.append({
+                "rel": rel,
+                "axis": "content_language",
+                "expected": expected_content,
+                "actual": actual_content,
+            })
+        if actual_conv != expected_conv:
+            findings.append({
+                "rel": rel,
+                "axis": "conversation_language",
+                "expected": expected_conv,
+                "actual": actual_conv,
+            })
+    return findings
+
+
+def fix_claude_agents_lang_drift(target_root: str, findings: list[dict]) -> int:
+    """Sync CLAUDE.md / AGENTS.md §Language axis bullets toward
+    skills_config.md per the findings returned by
+    `claude_agents_lang_drift_check`.
+
+    Per-finding behaviour:
+
+    - `actual is not None and actual != expected` → overwrite the value
+      portion of the existing backticked bullet (``- `<axis>: …` ``) in
+      place. Surrounding prose (em-dash + description) is preserved
+      verbatim.
+    - `actual is None` → the axis bullet is absent from the §Language
+      block. If the sibling axis bullet is present, insert a canonical
+      bullet (``- `<axis>: <expected>` ``) immediately before it,
+      matching the sibling's indentation. If neither bullet is
+      present, the §Language block is structurally pre-#17
+      (pointer-prose format) — skip; the user re-runs `/holo:init` or
+      manually upgrades the block.
+
+    Returns the count of (file, axis) pairs successfully fixed.
+    Skipped findings (no sibling anchor) are NOT counted; the next
+    `--check` pass will still surface them as drift, prompting the user
+    toward a manual upgrade.
+    """
+    by_file: dict[str, list[dict]] = {}
+    for f in findings:
+        by_file.setdefault(f["rel"], []).append(f)
+
+    fixed = 0
+    for rel, items in by_file.items():
+        path = os.path.join(target_root, rel)
+        if not os.path.isfile(path):
+            continue
+        with open(path, encoding="utf-8") as f:
+            text = f.read()
+
+        for item in items:
+            axis = item["axis"]
+            expected = item["expected"]
+            actual = item["actual"]
+            if actual is not None:
+                pattern = re.compile(
+                    rf"(^\s*-\s*`{axis}:\s*)([A-Za-z0-9-]+)(`)", re.MULTILINE
+                )
+                new_text, n = pattern.subn(
+                    rf"\g<1>{expected}\g<3>", text, count=1
+                )
+                if n == 1:
+                    text = new_text
+                    fixed += 1
+                continue
+            # actual is None — try to insert before the sibling axis bullet
+            anchor_axis = (
+                "conversation_language" if axis == "content_language"
+                else "content_language"
+            )
+            anchor_re = re.compile(
+                rf"^([ \t]*-)\s*`{anchor_axis}:", re.MULTILINE
+            )
+            am = anchor_re.search(text)
+            if am is None:
+                continue
+            anchor_line_start = text.rfind("\n", 0, am.start()) + 1
+            indent_prefix = am.group(1)
+            insertion = f"{indent_prefix} `{axis}: {expected}`\n"
+            text = (
+                text[:anchor_line_start] + insertion + text[anchor_line_start:]
+            )
+            fixed += 1
+
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(text)
+    return fixed
 
 
 # ---------------------------------------------------------------------------
@@ -1175,6 +1372,7 @@ def run_check(plugin_root: str, target_root: str) -> dict:
         "missing_field": missing_field_check(plugin_root, target_root),
         "gitignore_missing_lines": gitignore_missing_lines_check(plugin_root, target_root),
         "claude_agents": claude_agents_check(target_root, plugin_root),
+        "claude_agents_lang_drift": claude_agents_lang_drift_check(target_root),
         "missing_l1_directive": l1_directive_check(plugin_root),
         "l1_directive_drift": l1_directive_drift_check(plugin_root),
         "lang_mirror_drift": lang_mirror_check(plugin_root),
@@ -1201,6 +1399,7 @@ def total_drift(findings: dict) -> int:
         + len(findings.get("missing_l1_directive", []))
         + len(findings.get("l1_directive_drift", []))
         + len(findings.get("lang_mirror_drift", []))
+        + len(findings.get("claude_agents_lang_drift", []))
     )
     if a.get("skipped"):
         return base
@@ -1230,6 +1429,7 @@ def run_fix(findings: dict, target_root: str) -> dict:
         "template_copied": 0, "section_appended": 0,
         "field_appended": 0,
         "gitignore_appended": 0,
+        "claude_agents_lang_fixed": 0,
         "orphan_siblings_left": [],
     }
 
@@ -1309,6 +1509,10 @@ def run_fix(findings: dict, target_root: str) -> dict:
                 f.write(merged)
             counts["gitignore_appended"] += len(appended)
 
+    counts["claude_agents_lang_fixed"] = fix_claude_agents_lang_drift(
+        target_root, findings.get("claude_agents_lang_drift", [])
+    )
+
     return counts
 
 
@@ -1368,6 +1572,14 @@ def _print_human(findings: dict, fix_counts: dict | None) -> None:
             f"claude_agents: first_line_placeholder={ca['first_line_placeholder']} "
             f"unexpected_diffs={len(ca['unexpected_diffs'])}{suffix}"
         )
+    cald = findings.get("claude_agents_lang_drift", [])
+    print(f"claude_agents_lang_drift: {len(cald)}")
+    for item in cald:
+        actual = item["actual"] if item["actual"] is not None else "<missing>"
+        print(
+            f"  {item['rel']}: {item['axis']} expected={item['expected']} "
+            f"actual={actual}"
+        )
     l1 = findings.get("missing_l1_directive", [])
     print(f"missing_l1_directive: {len(l1)}")
     for item in l1:
@@ -1394,7 +1606,8 @@ def _print_human(findings: dict, fix_counts: dict | None) -> None:
             f"template_copied={fix_counts.get('template_copied', 0)} "
             f"section_appended={fix_counts.get('section_appended', 0)} "
             f"field_appended={fix_counts.get('field_appended', 0)} "
-            f"gitignore_appended={fix_counts.get('gitignore_appended', 0)}"
+            f"gitignore_appended={fix_counts.get('gitignore_appended', 0)} "
+            f"claude_agents_lang_fixed={fix_counts.get('claude_agents_lang_fixed', 0)}"
         )
         for entry in fix_counts.get("orphan_siblings_left", []):
             print(

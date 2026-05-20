@@ -5,11 +5,12 @@ detailed context lives in `ai_context/`, not here.
 
 ## Language
 
-`ai_context/skills_config.md §Language` carries two axes —
-`content_language` (disk-bound output: docs / logs / commits / skill
-output / new code comments) and `conversation_language` (AI ↔ user
-turns). Read at session start; apply through the session. Code
-identifiers and field names stay English regardless.
+- `content_language: en` — disk-bound output (docs / logs / commits /
+  skill output / new code comments)
+- `conversation_language: auto` — AI ↔ user turns
+
+Applies to **every** turn, not just the first. Code identifiers and
+field names stay English regardless.
 
 ## Session Start: Read ai_context/ Once
 
