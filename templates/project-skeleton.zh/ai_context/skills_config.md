@@ -38,9 +38,7 @@ push 默认值等）。skill 不再跨分支自动合并 —
 跨分支同步是用户通过 `/forward` 显式发起的动作。
 
 - Main branch: `main`
-- Rule: <一句话 — 例如 "对代码 / 文档 / 配置的改动先落到
-  `main`；当其他分支需要更新时通过 `/forward` 显式执行
-  跨分支同步。">
+- Rule: _(none yet — delete this marker once content is added)_
 
 ## Do-not-commit paths
 

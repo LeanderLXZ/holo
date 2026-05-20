@@ -21,22 +21,16 @@ or work-local progress files (per `skills_config.md`
 
 ## Project Stage
 
-<one or two lines naming the current high-level phase>
+_(none yet — delete this marker once content is added)_
 
 ## What Exists
 
-<bulleted list of what is in place — directories, schemas, services,
-docs. Each bullet links to the authoritative source.>
+_(none yet — delete this marker once content is added)_
 
 ## Current Gaps
 
-<bulleted list of what is missing or incomplete. This is the gap
-inventory, not a task plan — task detail belongs in `next_steps.md`
-or `docs/todo_list.md`.>
+_(none yet — delete this marker once content is added)_
 
 ## Rules In Effect
 
-<short list of rules currently active — e.g. "content language = X",
-"real customer packages stay local", "no large artifacts in git".
-These overlap with `conventions.md` but are restated here for the
-session-start reader who needs a one-stop snapshot.>
+_(none yet — delete this marker once content is added)_

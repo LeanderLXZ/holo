@@ -27,12 +27,12 @@ MAINTENANCE — 编辑本文件前请先阅读。
 
 ## 高优先级
 
-<编号列表>
+_(none yet — delete this marker once content is added)_
 
 ## 中优先级
 
-<编号列表>
+_(none yet — delete this marker once content is added)_
 
 ## 后续
 
-<编号列表>
+_(none yet — delete this marker once content is added)_

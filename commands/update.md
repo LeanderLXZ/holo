@@ -2,7 +2,7 @@
 description: Project sync check after plugin upgrade — compare the current project against the installed plugin (`.agents/skills/` mirror, template new files / section headers, `CLAUDE.md` / `AGENTS.md` headers) and find structural drift introduced by the plugin upgrade. **All detection logic lives in the single script `${CLAUDE_PLUGIN_ROOT}/scripts/holo_update_check.py`**; the skill body does not re-implement rules. ≥ 1 drift → single aggregated question asking Auto-fix all / Skip all; 0 drift passes silently. CLAUDE/AGENTS findings are always display-only, never auto-merged. No arguments; whether the current directory is empty or already initialized, both are handled. Does not touch user-filled content, does not git add, does not commit. Triggers: /holo:update / plugin upgraded / sync holo update / check whether holo is up to date.
 ---
 
-> **Language**: per `ai_context/skills_config.md §Language` — disk-bound output (regenerated `.agents/skills/` mirror files, `_(TODO — added by /holo:update)_` markers appended to `skills_config.md`, any in-place file edits) uses `content_language`; user-facing surface (chat prose / `AskUserQuestion` prompts and option labels / progress-tool entry `content` / drift-category report / final summary / `Auto-fix all` / `Skip all` confirmations) uses `conversation_language`. Code identifiers, file paths, field names, frontmatter keys, JSON keys returned by `holo_update_check.py` (`missing_section`, `lang_mirror_drift`, `agents_sync.stale`, etc.), and structural prefixes (`Step N:`, `DRIFT:`, `OK:`) stay English regardless.
+> **Language**: per `ai_context/skills_config.md §Language` — disk-bound output (regenerated `.agents/skills/` mirror files, `_(TODO — added by /holo:update)_` markers appended to `skills_config.md`, any in-place file edits) uses `content_language`; user-facing surface (chat prose / `AskUserQuestion` prompts and option labels / progress-tool entry `content` / drift-category report / final summary / `Auto-fix all` / `Skip all` confirmations) uses `conversation_language`. Code identifiers, file paths, field names, frontmatter keys, JSON keys returned by `holo_update_check.py` (`missing_section`, `lang_mirror_drift`, `agents_sync.stale`, `legacy_skip_marker`, etc.), and structural prefixes (`Step N:`, `DRIFT:`, `OK:`) stay English regardless.
 
 # /holo:update — project sync check after plugin upgrade
 
@@ -94,7 +94,8 @@ The script outputs a JSON structure (**interface contract**; the skill body pars
   },
   "missing_l1_directive": [{"rel": "commands/<name>.md|skills/<name>/SKILL.md", "reason": "..."}],
   "l1_directive_drift":   [{"rel": "commands/<name>.md|skills/<name>/SKILL.md", "missing_substrings": ["..."]}],
-  "lang_mirror_drift":    [{"variant": "project-skeleton.<lang>", "rel": "...", "kind": "MISSING|ORPHAN"}]
+  "lang_mirror_drift":    [{"variant": "project-skeleton.<lang>", "rel": "...", "kind": "MISSING|ORPHAN"}],
+  "legacy_skip_marker":   [{"rel": "ai_context/<...>.md", "line": N, "snippet": "..."}]
 }
 ```
 
@@ -115,6 +116,8 @@ The script outputs a JSON structure (**interface contract**; the skill body pars
 **`lang_mirror_drift`** (per Phase 5 of T-LANG-CONFIG-SYSTEM) scans `templates/project-skeleton.<lang>/` variant directories (any directory matching the pattern) and reports structural drift vs the canonical `templates/project-skeleton/`: `MISSING` (file present in canonical, absent in variant) and `ORPHAN` (file present in variant, absent in canonical). Content drift (`STALE`) is intentionally NOT detected — variant files differ in content by design (they are translations); semantic drift is the four-agent review chain's domain (`/holo:init` existing-directory translation path or a dedicated Phase 6 `/full-review` pass). **Report-only — no auto-fix**: variant content is human translation work; auto-overwrite would destroy it.
 
 When no `.<lang>/` variant exists (current plugin state through Phase 5), `lang_mirror_drift` returns `[]`. Phase 6 of T-LANG-CONFIG-SYSTEM lands the first variants.
+
+**`legacy_skip_marker`** (per T-INIT-SKIP-SEMANTICS / `ai_context/decisions.md` §Skill Implementation #15) scans consumer top-level + `ai_context/` + `docs/` `.md` files for `_(TODO — skipped at /holo:init; fill via later /go or directly edit)_` markers left over from the pre-three-bucket-schema init (the Round 3 Skip path wrote these 13-character short-TODOs; the path was deleted when the three-bucket schema landed). Findings list each marker's `rel` + `line` + `snippet`. **Excluded from `total_drift`** — same rationale as `claude_agents.unexpected_diffs`: historical / report-only items would drown actionable findings; the report surfaces the count separately. **Report-only — no auto-fix**: the correct replacement depends on the section's intent (delete + copy canonical `<...>` guidance back from the plugin template / write real content / leave the section empty via PROGRESSIVE `_(none yet — delete this marker once content is added)_`), which a deterministic script cannot decide. Surfacing it tells the user "this project is initialized under the old schema; here are the spots where template guidance was wiped — fix manually or via `/go`".
 
 **Important**: this step **does not allow the skill body to re-author detection rules** — no custom grep / Python comparison, no filter / exclusion additions. If a case is mis-detected, missed, or falsely flagged, **edit the script, not the skill body**. The constraint is operative here in this skill body; `ai_context/decisions.md` §Skill Implementation #5 carries the rationale (real incident: an LLM running `/holo:update` translated prose rules into ad-hoc filters and masked a real MISSING drift — moving detection into the executable script removes the LLM's runtime degree of freedom).
 
@@ -153,14 +156,18 @@ L1 language directive presence:
 
 Language-variant mirror drift:
   LANG_MIRROR_DRIFT (W): <"<variant>/<rel>: <kind>" list>
+
+Legacy short-TODO marker (report-only — not counted in total_drift):
+  LEGACY_SKIP_MARKER (Z): <"<rel>:<line>: <snippet>" list>
 ```
 
 `total_drift = P + Q + R + S + T + X + Y + V + W`. CLAUDE/AGENTS
-`unexpected_diffs` are intentionally NOT in this sum — that bucket is
-report-only (never auto-fixable) and a consumer with legitimate
-asymmetric guidance would drown actionable findings (STALE / MISSING)
-if it were. The bucket is still printed separately so the user sees
-the count; the script caps `unexpected_diffs` at 10 entries and reports
+`unexpected_diffs` and `legacy_skip_marker` are intentionally NOT in
+this sum — both buckets are report-only (never auto-fixable) and a
+consumer with legitimate asymmetric guidance / pre-three-bucket-schema
+legacy markers would drown actionable findings (STALE / MISSING) if
+counted. Each bucket is still printed separately so the user sees the
+count; the script caps `unexpected_diffs` at 10 entries and reports
 the truncated count via `claude_agents.unexpected_diffs_truncated`.
 
 `total_drift == 0` → print `✅ Project is in sync with <name> v<version>; nothing to do.` and exit.
@@ -194,6 +201,9 @@ L1 language directive presence:
 Language-variant mirror drift:
   <findings>   → report-only (display only, manual translation work via Phase 6 review chain)
 
+Legacy short-TODO marker:
+  <findings>   → report-only (display only; fix manually or via /go — delete + copy canonical `<...>` guidance back from plugin template, or write real content)
+
 [Auto-fix all] / [Skip all]
 ```
 
@@ -216,6 +226,7 @@ Pick `Auto-fix all` → invoke the script in `--fix --json` mode (note `--fix` i
 - `missing_field` should be 0
 - `gitignore_missing_lines` should be 0
 - `claude_agents.unexpected_diffs` may still be > 0 (out of `--fix` scope)
+- `legacy_skip_marker` may still be > 0 (report-only; out of `--fix` scope per T-INIT-SKIP-SEMANTICS)
 
 **Orphan sibling cleanup**: if `fix_counts.orphan_siblings_left` is non-empty, the script removed the `SKILL.md` of each orphan but kept other files under the parent directory (per the "no silent overwrite" rule). Print each entry to the user — e.g. `⚠️ kept sibling files under <parent>: <sibling list> (manual cleanup required)` — so the user knows to inspect and delete them.
 

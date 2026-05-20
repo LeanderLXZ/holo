@@ -44,8 +44,8 @@ Dilution self-check（何时重读哪个文件）写在 `CLAUDE.md` /
 
 `ai_context/` 之外的每次改动 → 按 `conventions.md` §Logging 的
 契约在 `logs/change_logs/` 下落一条条目。负责 logging 格式的 skill
-（`/go` 与 `/post-check`，当本项目使用它们时）直接写文件 —— 不要
-在此处重复格式。
+（`/go` / `/do` / `/post-check`，当本项目使用它们时）直接写文件 ——
+不要在此处重复格式。
 
 ## TODO 清单
 
@@ -55,6 +55,4 @@ Dilution self-check（何时重读哪个文件）写在 `CLAUDE.md` /
 
 ## 项目焦点
 
-<用一两句话点明本项目的主要工程焦点，例如 "Decision logic and
-runtime retrieval — not surface tone."。这是后续会话最高信号量的
-单一指针。保持简短。>
+_(none yet — delete this marker once content is added)_

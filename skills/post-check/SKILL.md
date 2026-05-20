@@ -53,6 +53,10 @@ Subsequent steps referencing "skills_config.md `## XX`" use this config. This sk
 ## Step 1.5: Load intent baseline (mandatory)
 
 - `$ARGUMENTS` provides a slug → exact match against `logs/change_logs/*_{slug}.md`; otherwise pick the most recent file under `logs/change_logs/` by filename timestamp
+- **Type-field gate**: read the file header for a `- **Type**:` line.
+  - `Type: DO` → this is a `/do` single-segment log; `/post-check` does not apply (no PRE phase by design). Print "log `<path>` is `Type: DO` (`/do` single-segment); `/post-check` targets `Type: GO` only — stopping. For a `/do` change review, scan the diff manually or upgrade the next round to `/go`." and **stop the skill**.
+  - `Type: GO` → continue to PRE-section read below.
+  - `Type` field missing (pre-contract log predating the Type-field rollout) → assume `GO` and continue (per `ai_context/conventions.md §Logging` "no backfill" rule, missing Type does NOT abort).
 - Read the PRE section: **Background / Trigger**, **Conclusion and decisions**, **Planned action list**, **Validation criteria**, **Execution deviations**
 - Print: "intent baseline: `logs/change_logs/{...}.md`" + a structured summary of the PRE section
 - Log missing or has no PRE section → print "⚠️ intent baseline missing; skipping track 1, running only track 2" and continue
@@ -69,7 +73,7 @@ When the table does not exist: skip the reconcile input from this step, track 1 
 
 > **Language**: disk-bound — write this track 2 findings list (folded into log writeback at Step 5) in `content_language` per `ai_context/skills_config.md §Language`. Code identifiers, file paths, field names stay English regardless.
 
-> **Language (sub-agent dispatch)**: when spawning sub-agents at this step, the parent MUST inject the language axes into each sub-agent's prompt explicitly. Include verbatim: "Reply in `conversation_language`=`<value>`; write any disk artifacts in `content_language`=`<value>`; both values from `ai_context/skills_config.md §Language`." Sub-agents do not inherit the parent's language config — they must be told. Sub-agent report-back to the parent is a USER surface; its on-disk findings folded into the log are DISK surface.
+> **Language (sub-agent dispatch)**: when spawning sub-agents at this step, the parent MUST inject the language axes into each sub-agent's prompt explicitly. Include verbatim: "Reply in `conversation_language`=`<value>`; write any disk artifacts in `content_language`=`<value>`; both values from `ai_context/skills_config.md §Language`." Sub-agents do not inherit the parent's language config — they must be told. Sub-agent report-back to the parent is a USER surface; its on-disk findings folded into the log are DISK surface. **Place this injection at the end of the sub-agent prompt** (recency-favorable position), not in the header / middle — sub-agents have just read English source files in their scan scope, so the dispatch directive needs recency advantage over the scanned content to keep the reply in `conversation_language`.
 
 > **Track vs. line**: a **track** is an audit perspective (track 1 reconcile / track 2 spread, 2 total); a **line** is the scan division (file-domain sliced sub-agents, 4 total). The two are orthogonal — each line runs both tracks simultaneously.
 
@@ -144,6 +148,8 @@ When log is missing (no writeback), skip the commit.
 ## Step 6: Print full dual-track report in conversation
 
 > **Language**: user-facing — render the full dual-track report (Scope / Track 1 / Track 2 / Findings list / Alignment Summary / Residual Risks / Open Questions / Recommendations) in `conversation_language` per `ai_context/skills_config.md §Language`. Markdown section headings, table column labels, and structural prefixes (`H1`, `M1`, `L1`, `OQ1`, `Missed Updates`, etc.) stay English; only finding descriptions / evidence / recommendation prose translate.
+
+> **Language anchor reset (render-time)**: before emitting the report below, re-echo the language axes verbatim — `conversation_language=<value>` · `content_language=<value>` from `ai_context/skills_config.md §Language`. Step 5 just wrote a substantial `content_language`-bound block to disk (log writeback + commit message); this reset refreshes recency at the entry of the USER-facing render so the dual-track report below stays in `conversation_language` even when the template's structural scaffold (Markdown headings + table column labels + ID prefixes) is largely English.
 
 **This is the primary surface for the user's decision; all Findings / Missed Updates / Open Questions print fully into the conversation**, no omissions, no summary-only. **This is the last substantive segment `/post-check` produces in the conversation** — placed after log writeback, the user reads the report and decides without scrolling back.
 

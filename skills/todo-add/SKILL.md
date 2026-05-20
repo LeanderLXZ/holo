@@ -88,6 +88,8 @@ Segment decision in UPDATE mode:
 
 - T-XXX ID + short title (in this project's `content_language`)
 - **Context**: motivation + status + trigger chain
+- **Requirements** (optional; positioned between **Context** and **Change manifest**): what the user wants done / what effect to achieve. Plain prose, no special format rules. Include when this session converged user-facing requirements worth preserving.
+- **Solution details** (optional; positioned between **Requirements** and **Change manifest**): the final converged plan — what the solution is, what parts compose it. **Only the final converged version** — do NOT include rejected alternatives or debate history. Plain prose, no special format rules. Include when this session converged a concrete plan worth preserving.
 - **Done criteria**
 - **Dependencies**
 - Updated-time field (label per `ai_context/skills_config.md ## Activity sources.TODO list.Per-entry updated-time field`, typically `**Updated**`): YYYY-MM-DD HH:MM timezone abbreviation (per skills_config.md `## Timezone`), on CREATE = current moment

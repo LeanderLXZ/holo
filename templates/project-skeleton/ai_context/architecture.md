@@ -28,12 +28,12 @@ line. New top-level directories get a row here.>
 
 ## System Layers
 
-_(none yet)_
+_(none yet — delete this marker once content is added)_
 
 ## Key Boundaries
 
-_(none yet)_
+_(none yet — delete this marker once content is added)_
 
 ## Runtime / Entry Points
 
-_(none yet)_
+_(none yet — delete this marker once content is added)_

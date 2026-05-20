@@ -17,35 +17,19 @@ shape every call.
 
 ## Mental Model
 
-<2–4 short sentences describing where the project is conceptually
-right now — design agreed, scaffold up, first feature done, etc. This
-is the human-readable version of `current_status.md`.>
+_(none yet — delete this marker once content is added)_
 
 ## Quick Start
 
-<numbered list of 3–6 steps: read which files in which order, where
-the entry-point doc lives, how to run / inspect the system. Each step
-one line.>
+_(none yet — delete this marker once content is added)_
 
 ## Operational Commands
 
-<short list of the most common commands the project uses — CLI
-invocations, build / test commands, deployment triggers. One line each.
-If the project doesn't have any yet, write `(none yet)`.>
+_(none yet — delete this marker once content is added)_
 
 ## What The User Cares About
 
-<bulleted list of preferences, taste, and "soft" rules that aren't in
-the formal requirements but reliably trigger user feedback if
-violated. Examples:
-
-- "Behavior consistency over surface tone"
-- "No raw inputs pasted into logs / docs"
-- "Incremental updates, never restart from scratch"
-- "No real product / customer names in canonical docs"
-
-Each bullet should be one line. Update these whenever the user gives
-feedback that points to a durable preference, not just a one-off fix.>
+_(none yet — delete this marker once content is added)_
 
 ## After Each Milestone
 

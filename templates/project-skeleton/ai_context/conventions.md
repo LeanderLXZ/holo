@@ -15,27 +15,50 @@ live in `CLAUDE.md` / `AGENTS.md`.
 
 ## Logging
 
-`logs/change_logs/` uses a three-timepoint contract per change:
-PRE / POST / REVIEW — one log file spans one full change lifecycle.
+`logs/change_logs/` carries per-change activity logs. Two log shapes
+coexist, distinguished by the `Type` field in the file header:
+
+- **`Type: GO`** — owned by `/go`; three-timepoint contract per change
+  (PRE / POST / REVIEW), one log file spans one full change
+  lifecycle.
+- **`Type: DO`** — owned by `/do`; single-segment log for quick edits
+  with no PRE phase, written after the modification, no REVIEW.
+
+Shared:
 
 - Filename: `YYYY-MM-DD_HHMMSS_slug.md` (HHMMSS mandatory; use the
   timezone command in `skills_config.md` §Timezone).
+- Header carries `Type` + `Status` fields (see the owner skill for
+  the exact token set).
+
+`Type: GO` rules:
+
 - **PRE** — context / decision / planned action list / verification
   criteria, written before any file change.
 - **POST** — landed changes / diff vs plan / verification results /
   DONE|BLOCKED, written before commit.
 - **REVIEW** — review summary + REVIEWED-PASS|PARTIAL|FAIL, written
   after the post-merge review pass.
-
-Rules:
-
 - No PRE log → do not start modifying files.
-- Pre-contract single-timepoint logs that pre-date this convention
-  stay as-is; don't retroactively rewrite them.
 
-When the project uses the bundled `/go` and `/post-check` skills, those
-skills own the exact log format; read their definitions for the source
-of truth.
+`Type: DO` rules:
+
+- Single segment written after the modification, before optional
+  commit. Subsections: `## Motivation` / `## Change list` /
+  `## Verification summary` / `## Execution deviations`.
+- No PRE required (this is the explicit exception to the "no PRE →
+  no modification" rule above); discipline shifts to the user
+  briefing the edit set verbally before invoking `/do`.
+- `/do` is not allowed to mid-flight escalate to `/go`; if the change
+  surface widens past `/do`'s scope (≥ 3 files / cross-file alignment
+  needed), exit and re-enter via `/go`.
+
+Pre-contract logs (single-timepoint, predating this convention) stay
+as-is; do not retroactively rewrite or backfill the `Type` field.
+
+When the project uses the bundled `/go` / `/do` / `/post-check`
+skills, those skills own the exact log format; read their definitions
+for the source of truth.
 
 ## Cross-File Alignment
 
@@ -114,24 +137,15 @@ peer, git commit messages.
 
 ## Naming and Identifiers
 
-<Project-specific. Document the ID schemes and language conventions
-the project uses — e.g. ID prefix patterns, zero-pad widths, which
-files stay in which language, JSON field language rules. Leave empty
-until a convention is actually in force.>
+_(none yet — delete this marker once content is added)_
 
 ## Data Separation
 
-<Project-specific. Document hard schema gates and data boundaries that
-must not be crossed — e.g. user-data vs canonical-data separation,
-which fields are write-once vs evolving, which directories may not
-flow data into which. Leave empty until a real boundary is set.>
+_(none yet — delete this marker once content is added)_
 
 ## Git
 
-<Project-specific. Document the branch model, push policy, and
-do-not-commit rules. If the project uses a non-trivial multi-branch
-flow, describe it here; otherwise leave a one-line "single-branch
-`main`; commit small, push often." note.>
+_(none yet — delete this marker once content is added)_
 
 ## Post-Change Checklist
 

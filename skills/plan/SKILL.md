@@ -12,8 +12,9 @@ enforces discuss-only mode: **no file writes, no mutating actions**; focus on
 in-conversation analysis, listing options, asking, weighing trade-offs.
 **Scope = one message** — if the next message does not contain `/plan`,
 default behavior resumes immediately, no lock carries over. After discussion
-converges the user separately invokes `/go` / `/commit` / `/todo-add` or
-another standalone skill to land — this skill does not trigger them.
+converges the user separately invokes `/go` / `/commit` / `/todo-add` /
+`/update-docs` or another standalone skill to land — this skill does not
+trigger them.
 
 ## Rules
 
@@ -28,8 +29,9 @@ another standalone skill to land — this skill does not trigger them.
   **forbidden** git add / commit / push / pull / merge / checkout / reset /
   rm / mv / mkdir / touch / any file writes / any mutating commands;
   network write requests (POST / PUT / DELETE) also forbidden
-- **No writing skills**: `/go` / `/commit` / `/todo-add` / `/post-check` /
-  `/full-review` and the like may touch files, do not trigger them
+- **No writing skills**: `/go` / `/commit` / `/todo-add` / `/update-docs` /
+  `/post-check` / `/full-review` and the like may touch files, do not
+  trigger them
 - **No scratch files**: plan.md / draft.md / notes.md / .scratch — none
 
 ## Discussion posture

@@ -27,12 +27,12 @@ MAINTENANCE — 编辑本文件前请先阅读。
 
 ## 系统分层
 
-_(none yet)_
+_(none yet — delete this marker once content is added)_
 
 ## 关键边界
 
-_(none yet)_
+_(none yet — delete this marker once content is added)_
 
 ## 运行时 / 入口点
 
-_(none yet)_
+_(none yet — delete this marker once content is added)_

@@ -888,6 +888,62 @@ _GITIGNORE_SECTION_WHITELIST: frozenset[str] = frozenset({
     "# Project-specific",
 })
 
+_LEGACY_SKIP_MARKER_RE = re.compile(
+    r"_\(TODO\s*[—-]\s*skipped\s*at\s*/holo:init;\s*fill\s*via\s*later\s*/go\s*or\s*directly\s*edit\)_"
+)
+
+
+def legacy_skip_marker_check(target_root: str) -> list[dict]:
+    """Scan consumer top-level + ``ai_context/`` + ``docs/`` ``.md`` files
+    for legacy ``_(TODO — skipped at /holo:init; fill via later /go or
+    directly edit)_`` markers left over from the pre-three-bucket-schema
+    init (Round 3 Skip path, deleted in T-INIT-SKIP-SEMANTICS / see
+    ``ai_context/decisions.md`` §Skill Implementation #15).
+
+    Informational only — NO ``--fix`` branch. The correct replacement
+    depends on the section's intent (delete + copy canonical ``<...>``
+    guidance back from the template / write real content / leave the
+    section empty via PROGRESSIVE ``_(none yet — ...)_`` marker), which a
+    deterministic script cannot decide. The user (or ``/go``) handles it
+    manually.
+
+    Findings shape: ``[{"rel": "...", "line": N, "snippet": "..."}, ...]``
+    where ``snippet`` is the line content truncated at 200 chars.
+
+    Excluded from ``total_drift`` for the same reason as
+    ``claude_agents.unexpected_diffs``: counting historical / report-only
+    items would drown actionable findings (STALE / MISSING / etc.).
+    """
+    findings: list[dict] = []
+    targets: list[str] = []
+    for name in ("CLAUDE.md", "AGENTS.md", "README.md"):
+        path = os.path.join(target_root, name)
+        if os.path.isfile(path):
+            targets.append(path)
+    for sub in ("ai_context", "docs"):
+        sub_root = os.path.join(target_root, sub)
+        if not os.path.isdir(sub_root):
+            continue
+        for root, _dirs, files in os.walk(sub_root):
+            for fn in files:
+                if fn.endswith(".md"):
+                    targets.append(os.path.join(root, fn))
+    for path in sorted(targets):
+        try:
+            with open(path, encoding="utf-8") as fh:
+                for i, line in enumerate(fh, 1):
+                    if _LEGACY_SKIP_MARKER_RE.search(line):
+                        rel = os.path.relpath(path, target_root)
+                        findings.append({
+                            "rel": rel,
+                            "line": i,
+                            "snippet": line.rstrip("\n")[:200],
+                        })
+        except OSError:
+            continue
+    return findings
+
+
 _GITIGNORE_BANNER = "# ↓ plugin-skeleton template additions ↓"
 
 
@@ -1122,6 +1178,7 @@ def run_check(plugin_root: str, target_root: str) -> dict:
         "missing_l1_directive": l1_directive_check(plugin_root),
         "l1_directive_drift": l1_directive_drift_check(plugin_root),
         "lang_mirror_drift": lang_mirror_check(plugin_root),
+        "legacy_skip_marker": legacy_skip_marker_check(target_root),
     }
 
 
@@ -1324,6 +1381,10 @@ def _print_human(findings: dict, fix_counts: dict | None) -> None:
     print(f"lang_mirror_drift: {len(lmd)}")
     for item in lmd:
         print(f"  {item['variant']}/{item['rel']}: {item['kind']}")
+    lsm = findings.get("legacy_skip_marker", [])
+    print(f"legacy_skip_marker (informational; not in total_drift): {len(lsm)}")
+    for item in lsm:
+        print(f"  {item['rel']}:{item['line']}: {item['snippet']}")
     if fix_counts is not None:
         print("---")
         print(

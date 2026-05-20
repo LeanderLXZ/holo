@@ -23,15 +23,11 @@ roadmap) belong in `current_status.md` and `next_steps.md`.
 
 ## Guiding Principles
 
-<3–5 short bullets — non-negotiable design principles that shape every
-decision. E.g. "Source data is highest authority", "Layered, not one
-giant prompt", "Incremental, not from scratch". Each principle should
-be one line.>
+_(none yet — delete this marker once content is added)_
 
 ## Build Order
 
-<numbered list of high-level milestones in the order they will be
-built. This is a roadmap sketch, not a task list.>
+_(none yet — delete this marker once content is added)_
 
 ## Authoritative Pointers
 

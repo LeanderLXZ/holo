@@ -110,6 +110,7 @@ The PRE section must contain:
 
 - **Started**: {YYYY-MM-DD HH:MM:SS} {timezone abbrev: per skills_config.md `## Timezone` setting}
 - **Branch**: {work branch at /go entry}
+- **Type**: GO
 - **Status**: PRE
 
 ## Background / Trigger
@@ -199,7 +200,9 @@ By here, Step 3 / 4 / 5 have written content into docs and code. **This step onl
 
 > **Language**: user-facing — render the "suggest registering to todo_list" chat list (file + line + issue summary + suggested segment) in `conversation_language` per `ai_context/skills_config.md §Language`. Structural labels (`file:`, `line:`, `suggest segment:`) stay English; only the summary prose translates.
 
-> **Language (sub-agent dispatch)**: when spawning sub-agents at this step, the parent MUST inject the language axes into each sub-agent's prompt explicitly. Include verbatim: "Reply in `conversation_language`=`<value>`; write any disk artifacts in `content_language`=`<value>`; both values from `ai_context/skills_config.md §Language`." Sub-agents do not inherit the parent's language config — they must be told. The sub-agent's report-back to the parent is a USER surface; its on-disk edits (if any) are DISK surface.
+> **Language anchor reset (render-time)**: before emitting the "suggest registering to todo_list" chat list below, re-echo the language axes verbatim — `conversation_language=<value>` · `content_language=<value>` from `ai_context/skills_config.md §Language`. Step 6 just wrote `content_language`-bound ai_context / todo_list maintenance edits; this reset refreshes recency at the entry of the USER-facing chat-list render so the listed items stay in `conversation_language` even when sub-agent reports return findings phrased in English source language.
+
+> **Language (sub-agent dispatch)**: when spawning sub-agents at this step, the parent MUST inject the language axes into each sub-agent's prompt explicitly. Include verbatim: "Reply in `conversation_language`=`<value>`; write any disk artifacts in `content_language`=`<value>`; both values from `ai_context/skills_config.md §Language`." Sub-agents do not inherit the parent's language config — they must be told. The sub-agent's report-back to the parent is a USER surface; its on-disk edits (if any) are DISK surface. **Place this injection at the end of the sub-agent prompt** (recency-favorable position), not in the header / middle — sub-agents have just read English source files in their review scope, so the dispatch directive needs recency advantage over the scanned content to keep the reply in `conversation_language`.
 
 Scan in parallel files across the repo related to / dragged along by this change, **at least four lines, sub-agents may run in parallel**; for small change surface, run a single line serially.
 
@@ -263,6 +266,8 @@ Step 1 has locked the work location (current branch in place / branch after swit
 ## Step 10: Wrap-up (stash pop + worktree follow-up)
 
 > **Language**: user-facing — render the worktree-handling `<ask tool>` prompt, the final state line, and the `stash popped and restored` confirmation in `conversation_language` per `ai_context/skills_config.md §Language`. Structural prefixes (`stash`, `worktree`, `HEAD`) stay English; only surrounding prose translates.
+
+> **Language anchor reset (render-time)**: before emitting the wrap-up prose / `<ask tool>` prompt / final state line below, re-echo the language axes verbatim — `conversation_language=<value>` · `content_language=<value>` from `ai_context/skills_config.md §Language`. Step 9 just wrote a `content_language`-bound commit message; this reset refreshes recency at the entry of the USER-facing wrap-up surface (the last conversation segment `/go` produces) so the prompt + state line + confirmation stay in `conversation_language`.
 
 `/go` **no longer fans out to other branches** — cross-branch sync is `/forward`'s job, explicitly invoked by the user after this `/go` completes. This step only handles the state left by the Step 1 choice.
 

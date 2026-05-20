@@ -73,6 +73,13 @@ any node ─────────────────(abandoned)───
   中可以是部分的）、**Done criteria**、**Deps**。
 ✓ 视情况：**Open decisions**（在 `Discussing` 中必填）、
   **Estimate**、**Why not landed yet**、**Out of scope**。
+✓ **Requirements**（可选；位置在 **Context** 与 **Change manifest**
+  之间）：用户要做什么 / 要达成什么效果。纯文字段，无特殊格式规则。
+  本会话收敛了值得保留的用户需求时填。
+✓ **Solution details**（可选；位置在 **Requirements** 与
+  **Change manifest** 之间）：最终落定的方案是什么、由哪些部分组成。
+  **只装最终落定版** —— 不写废弃方案、不写否决备选、不写讨论历史。
+  纯文字段，无特殊格式规则。本会话收敛了值得保留的具体方案时填。
 ✓ 在 `Discussing` 条目中，列出未解决的选项及其权衡。
 
 ### 不记录什么

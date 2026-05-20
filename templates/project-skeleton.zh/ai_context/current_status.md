@@ -20,22 +20,16 @@ MAINTENANCE — 编辑本文件前请先阅读。
 
 ## 项目阶段
 
-<一到两行命名当前高层阶段>
+_(none yet — delete this marker once content is added)_
 
 ## 已有内容
 
-<项目符号列表，列出已落地的内容 —— 目录、schema、服务、
-文档。每条都链接到权威来源。>
+_(none yet — delete this marker once content is added)_
 
 ## 当前缺口
 
-<项目符号列表，列出缺失或不完整的内容。这是缺口清单，
-而不是任务计划 —— 任务细节属于 `next_steps.md`
-或 `docs/todo_list.md`。>
+_(none yet — delete this marker once content is added)_
 
 ## 当前生效规则
 
-<简短列表，列出当前激活的规则 —— 例如 "content language = X"、
-"真实客户数据保留在本地"、"git 不放大产物"。
-这些与 `conventions.md` 有重叠，但在此重述，
-方便会话起点的读者一站式获取快照。>
+_(none yet — delete this marker once content is added)_

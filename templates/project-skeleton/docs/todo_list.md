@@ -78,6 +78,16 @@ Segment semantics:
   partial in `Discussing`), **Done criteria**, **Deps**.
 ✓ As appropriate: **Open decisions** (mandatory in `Discussing`),
   **Estimate**, **Why not landed yet**, **Out of scope**.
+✓ **Requirements** (optional; positioned between **Context** and
+  **Change manifest**): what the user wants done / what effect to
+  achieve. Plain prose, no special format rules. Include when this
+  session converged user-facing requirements worth preserving.
+✓ **Solution details** (optional; positioned between **Requirements**
+  and **Change manifest**): the final converged plan — what the
+  solution is, what parts compose it. **Only the final converged
+  version** — do NOT include rejected alternatives or debate
+  history. Plain prose, no special format rules. Include when this
+  session converged a concrete plan worth preserving.
 ✓ In `Discussing` entries, list the unresolved options and their
   trade-offs.
 

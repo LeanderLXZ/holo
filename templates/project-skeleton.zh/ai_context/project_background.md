@@ -23,14 +23,11 @@ MAINTENANCE — 编辑本文件前请先阅读。
 
 ## 指导原则
 
-<3–5 条短项目 —— 不可妥协、塑造每个决策的设计原则。
-例如"源数据具有最高权威"、"分层而不是一个巨型 prompt"、
-"增量而不是从头来过"。每条原则一行。>
+_(none yet — delete this marker once content is added)_
 
 ## 构建顺序
 
-<编号列表，列出按构建顺序排列的高层里程碑。这是
-路线图草稿，不是任务列表。>
+_(none yet — delete this marker once content is added)_
 
 ## 权威指针
 

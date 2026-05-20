@@ -29,9 +29,6 @@ requires them:
 
 - `logs/change_logs/` — full history
 - `logs/review_reports/` — past audit snapshots
-- <add project-specific large directories here as they emerge —
-  e.g. raw inputs, generated artifacts, databases, vector stores,
-  full conversation histories>
 
 ## When To Read Deeper
 

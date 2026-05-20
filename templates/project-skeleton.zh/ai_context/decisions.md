@@ -36,4 +36,4 @@ N. <一行决策陈述>。
 "Data Separation"、"Runtime Loading"、"Schema Bounds"。
 同一章节内的决策仍按全局（整文件）编号。
 
-<在此开始记录决策。>
+_(none yet — delete this marker once content is added)_

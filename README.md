@@ -67,17 +67,17 @@ From inside a new or existing project:
 
 The command detects current state, copies the template (silent for
 new files, interactive `keep` / `overwrite` / `merge` for conflicts),
-asks four rounds of setup questions, and verifies that no `<...>`
-placeholders remain.
+asks a Step 0 language question plus three rounds of setup questions,
+and verifies that no `<...>` placeholders remain.
 
 ### What it asks
 
-| Round | Questions | Skippable? |
+| Step / Round | Questions | Skippable? |
 |---|---|---|
-| 1 — Language axes | `content_language` (disk-bound output) · `conversation_language` (AI ↔ user turns) | No — drives every subsequent skill |
-| 2 — Project basics | project name · one-line description · main branch · timezone | No — required for skill bookkeeping |
-| 3 — Top-level directory classification | which directories are **source** / **data-contract** / **example-artifact** / **do-not-commit** | No — required for review-skill scoping (pick `(none)` if a class doesn't apply) |
-| 4 — Project context | project background · current status · next steps · handoff note | **Yes** — each question may be skipped; skipped fields are marked `_(TODO)_` in the file so you can fill them later |
+| Step 0 — Language axes (asked first) | `content_language` (disk-bound output) · `conversation_language` (AI ↔ user turns) | No — drives every subsequent skill |
+| Round 1 — Project basics | project name · 1–2 sentence project goal · main branch · timezone (Q2's answer fans out to README description + `plugin.json` description + `ai_context/project_background.md §Goal`) | No — required for skill bookkeeping |
+| Round 2 — Top-level directory classification | which directories are **source** / **data-contract** / **example-artifact** / **do-not-commit** | Conditional — only asked when extra directories exist (empty / standard skeleton → round skipped automatically) |
+| Round 4 — Doc bootstrap (`architecture.md` + `requirements.md`) | per file: **Auto-scan project** / **Manual input** / **Skip for now** | Yes via "Skip for now" — leaves `_(none yet — ...)_` markers in those files for progressive fill later |
 
 The two language axes shape every later skill invocation:
 
@@ -87,6 +87,29 @@ The two language axes shape every later skill invocation:
 - **`conversation_language`** — what language AI ↔ user turns use.
   Default `auto` (per-turn match the user's last message); accepts
   `auto` or any ISO 639-1 code.
+
+#### Template placeholder conventions
+
+The skeleton uses two visible marker forms to distinguish "must fill at
+init" from "fill as the project evolves":
+
+- **`<...>` (REQUIRED)** — appears in `<project-name>`, the
+  one-or-two-sentence project goal, `architecture.md §Top-Level
+  Structure`, etc. `/holo:init` Round 1 + Step 4.4 + Round 4 paths
+  fill these before exit; residue ≥ 1 at the end is treated as a bug
+  (Step 5.1(a) gate).
+- **`_(none yet — delete this marker once content is added)_` (PROGRESSIVE)** —
+  appears in `project_background.md §Guiding Principles` /
+  `current_status.md` / `next_steps.md` / `handoff.md` /
+  `decisions.md` / and similar sections that are intentionally empty
+  at init time. Delete the marker line when you add first content;
+  `/holo:update` does not report these as drift.
+
+There is **no Round 3** — sections that were previously asked at init
+(project background details / current status / next steps / handoff
+narrative) are now PROGRESSIVE markers by default. Use the
+`/update-docs` skill after `/plan`-style discussion to fill them in,
+or edit by hand.
 
 ### What you get
 
@@ -115,7 +138,7 @@ your-project/
 │   ├── todo_list_archived.md      # Completed / abandoned (slim)
 │   └── architecture/              # Formal architecture documents
 └── logs/
-    ├── change_logs/               # PRE/POST logs from every /go run
+    ├── change_logs/               # per-change activity logs (Type: GO = PRE/POST/REVIEW from /go; Type: DO = single-segment from /do)
     └── review_reports/            # /full-review outputs (one file per run)
 ```
 
@@ -140,11 +163,13 @@ entry lives in its source file under [commands/](commands/) or
 | Skill | Purpose |
 |---|---|
 | [`/plan`](skills/plan/SKILL.md) | Lock the current message into discuss-only mode — no writes, no commits, no scratch files. |
-| [`/go`](skills/go/SKILL.md) | Land the discussed plan via an 11-step flow: PRE log → doc authoring → implementation → smoke test → cross-file alignment → multi-line review → POST log → single commit. |
-| [`/commit`](skills/commit/SKILL.md) | Drive-by commit of the current working tree, with forbidden-path / large-file safety net — skips the `/go` ceremony. |
+| [`/go`](skills/go/SKILL.md) | **Full-flow** plan-to-ship: 11-step ceremony — PRE log → doc authoring → implementation → smoke test → cross-file alignment → multi-line review → POST log → single commit. For ≥ 3-file changes and anything touching cross-file alignment or docs/ai_context. |
+| [`/do`](skills/do/SKILL.md) | **Lightweight** counterpart to `/go` for simple in-place edits — 4-step flow: load config → plan + modify (≥ 3 files triggers an upgrade-to-`/go` fork) → single-segment LOG (`Type: DO`) → ask whether to commit (commit / skip). No PRE log gating, no smoke, no review, no cross-file fan-out, no worktree / stash. Default does NOT touch `docs/` or `ai_context/`. |
+| [`/commit`](skills/commit/SKILL.md) | Drive-by commit of the current working tree, with forbidden-path / large-file safety net — skips both `/go` ceremony and `/do`'s LOG step. |
 | [`/push`](skills/push/SKILL.md) | Fast-forward push the current branch to its remote. Defaults to current branch, not `main`. |
 | [`/forward`](skills/forward/SKILL.md) | Merge the current branch into one or more sibling branches, with conflict / dirty-target prechecks. |
 | [`/todo-add`](skills/todo-add/SKILL.md) | Register a just-decided item into `docs/todo_list.md` — semantic match decides UPDATE vs CREATE, with confirmation preview. |
+| [`/update-docs`](skills/update-docs/SKILL.md) | Land conversation narrative into `ai_context/` + `docs/` files — 3-step preview-and-confirm flow, PROGRESSIVE-marker aware, no commit / no review / no fan-out. |
 
 **Review — audit your work:**
 
@@ -193,20 +218,27 @@ flowchart LR
   TodoAdd --> TodoList
   Plan -- abandoned --> Archived[("todo_list_archived")]
   TodoAdd -. finalized .-> Go(["/go"])
+  Plan -- narrative --> UpdateDocs(["/update-docs"])
+  UpdateDocs --> AiContextDocs[("ai_context + docs")]
 
   classDef workflow fill:#24283b,stroke:#7aa2f7,color:#c0caf5,stroke-width:1.5px
   classDef inventory fill:#1a1b26,stroke:#565f89,color:#a9b1d6,stroke-width:1.5px
   classDef data fill:#1a1b26,stroke:#565f89,color:#a9b1d6,stroke-width:1.5px
-  class Plan,TodoAdd,Go workflow
+  class Plan,TodoAdd,Go,UpdateDocs workflow
   class Todo inventory
-  class TodoList,Archived data
+  class TodoList,Archived,AiContextDocs data
 ```
 
 `/todo` pulls existing entries out of `todo_list` to feed discussion.
 `/plan` and `/todo-add` form a tight loop — every round of `/plan`
 records its decision via `/todo-add`, which can either iterate (feed
 back into another round of `/plan`) or finalize (hand off to `/go`).
-Abandoned ideas go straight to `todo_list_archived`.
+Abandoned ideas go straight to `todo_list_archived`. `/update-docs` is
+the prose-narrative sibling of `/todo-add` on the same `/plan`
+branch — when a `/plan` round converges into project blueprint /
+mental model / architecture / decision narrative that belongs in
+`ai_context/` or `docs/` (not a queue entry), `/update-docs` lands it
+with the same preview-and-single-confirm UX.
 
 ### (b) Implementation loop
 

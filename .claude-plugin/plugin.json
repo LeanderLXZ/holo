@@ -1,7 +1,7 @@
 {
   "name": "holo",
-  "version": "1.0.1",
-  "description": "Disciplined AI-pair-programming workflow for Claude Code: plan-execute-verify cycle, cross-file alignment audits, branch-aware git operations, and a structured task/log ledger.",
+  "version": "1.1.0",
+  "description": "Disciplined AI-pair-programming workflow for Claude Code: plan-execute-verify cycle with both full-flow and lightweight execution paths, cross-file alignment audits, branch-aware git operations, and a structured task/log ledger.",
   "author": {
     "name": "LeanderLXZ",
     "email": "leander.lxz@gmail.com"

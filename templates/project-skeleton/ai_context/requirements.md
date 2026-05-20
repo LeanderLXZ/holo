@@ -23,4 +23,4 @@ requirement changes; that pairing is one row of
 
 ## Sections
 
-_(no requirement clusters indexed yet)_
+_(none yet — delete this marker once content is added)_

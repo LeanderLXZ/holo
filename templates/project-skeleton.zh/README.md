@@ -1,6 +1,6 @@
 # <project-name>
 
-<one-line project description>
+<one or two sentences naming the project's primary goal>
 
 从这里开始：
 

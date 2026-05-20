@@ -44,9 +44,7 @@ push defaults, etc.). Skills no longer auto-merge across branches —
 cross-branch synchronisation is an explicit user action via `/forward`.
 
 - Main branch: `main`
-- Rule: <one sentence — e.g. "changes to code / docs / config land
-  first on `main`; cross-branch sync is performed explicitly via
-  `/forward` when other branches need to be updated.">
+- Rule: _(none yet — delete this marker once content is added)_
 
 ## Do-not-commit paths
 

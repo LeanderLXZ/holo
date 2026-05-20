@@ -37,4 +37,4 @@ Pick stable thematic headers as the decision log grows — e.g.
 "Data Separation", "Runtime Loading", "Schema Bounds". Decisions
 within a section stay numbered globally (across the whole file).
 
-<Start writing decisions here as they happen.>
+_(none yet — delete this marker once content is added)_

@@ -16,31 +16,19 @@ MAINTENANCE — 编辑本文件前请先阅读。
 
 ## 思维模型
 
-<2–4 句简短描述当前项目在概念层面的位置 —— 设计已对齐、骨架已搭、
-首个 feature 已完成等。这是 `current_status.md` 的人类可读版本。>
+_(none yet — delete this marker once content is added)_
 
 ## 快速上手
 
-<3–6 步编号列表：按什么顺序读哪些文件、入口文档在哪、如何运行 /
-查看系统。每步一行。>
+_(none yet — delete this marker once content is added)_
 
 ## 常用操作命令
 
-<本项目最常用命令的简短列表 —— CLI 调用、构建 / 测试命令、部署
-触发。每条一行。如果项目还没有，写 `(none yet)`。>
+_(none yet — delete this marker once content is added)_
 
 ## 用户在意的事
 
-<偏好、品味与"软"规则的项目列表 —— 这些不在正式 requirement 里，
-但一旦违反必定触发用户反馈。示例：
-
-- "Behavior consistency over surface tone"
-- "No raw inputs pasted into logs / docs"
-- "Incremental updates, never restart from scratch"
-- "No real product / customer names in canonical docs"
-
-每条一行。每当用户给出指向持久偏好（而非一次性修复）的反馈时，
-更新此处。>
+_(none yet — delete this marker once content is added)_
 
 ## 每个里程碑之后
 

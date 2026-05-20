@@ -28,12 +28,12 @@ direction it serves.
 
 ## High Priority
 
-<numbered list>
+_(none yet — delete this marker once content is added)_
 
 ## Medium Priority
 
-<numbered list>
+_(none yet — delete this marker once content is added)_
 
 ## Later
 
-<numbered list>
+_(none yet — delete this marker once content is added)_

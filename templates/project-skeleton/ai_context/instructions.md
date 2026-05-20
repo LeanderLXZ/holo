@@ -47,9 +47,9 @@ TODO list, not here.
 
 Every change outside `ai_context/` → one log entry under
 `logs/change_logs/` per the contract in `conventions.md` §Logging.
-The skills that own logging format (`/go` and `/post-check`, when this
-project uses them) write the file directly — do not duplicate the
-format here.
+The skills that own logging format (`/go` / `/do` / `/post-check`,
+when this project uses them) write the file directly — do not
+duplicate the format here.
 
 ## TODO List
 
@@ -59,6 +59,4 @@ rules live inside the file's own `## File guide` section.
 
 ## Project Focus
 
-<one or two sentences naming the project's primary engineering focus,
-e.g. "Decision logic and runtime retrieval — not surface tone." This
-is the single highest-signal pointer for future sessions. Keep it short.>
+_(none yet — delete this marker once content is added)_

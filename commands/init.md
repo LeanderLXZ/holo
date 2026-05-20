@@ -1,18 +1,18 @@
 ---
-description: Project skeleton initialization — drop the standard skeleton from the plugin's templates/project-skeleton/ (CLAUDE.md / AGENTS.md / ai_context/ / docs/todo_list.md / logs/) into the current working directory, then based on repo probing + user questioning fill `<...>` placeholders with the project's actual values. Three rounds of questioning: Round 1 (project name / description / main branch / timezone) / Round 2 (top-level directory classification) / Round 3 (project background / current status / next steps / handoff; each question may Skip → marked `_(TODO)_`, no `<...>` residue). Optional generation of `.agents/skills/` mirror. No arguments; whether the current directory is empty or already initialized, both are handled. Never silently overwrites — conflicts ask file-type-dispatched options (`.gitignore` → keep / overwrite / smart-merge with three-phase LLM-reorganize pipeline; markdown → keep / overwrite / merge mechanical append; other non-markdown → keep / overwrite). Does not touch non-template files, does not git add, does not commit. Triggers: /holo:init / initialize project / install skeleton / create an empty project.
+description: Project skeleton initialization — drop the standard skeleton from the plugin's templates/project-skeleton/ (CLAUDE.md / AGENTS.md / ai_context/ / docs/todo_list.md / logs/) into the current working directory, then based on repo probing + user questioning fill placeholders with the project's actual values. Step 0 asks language axes first (content_language / conversation_language); then three rounds of questioning: Round 1 (project name / one-or-two-sentence goal / main branch / timezone — Q2 answer fans out to README description + plugin.json description + ai_context/project_background.md §Goal) / Round 2 (top-level directory classification, conditional) / Round 4 (doc bootstrap for architecture.md + requirements.md — each: auto-scan / manual / skip). Template uses a three-bucket schema: REQUIRED `<...>` (always filled by Round 1 / Step 0) / PROGRESSIVE `_(none yet — delete this marker once content is added)_` (template starts empty, fill as evolves) / INFERRED (Step 4.4 deterministic AI-infer). Optional generation of `.agents/skills/` mirror. No arguments; empty directory or already initialized both handled. Never silently overwrites — conflicts ask file-type-dispatched options (`.gitignore` → keep / overwrite / smart-merge with three-phase LLM-reorganize pipeline; markdown → keep / overwrite / merge mechanical append; other non-markdown → keep / overwrite). Does not touch non-template files, does not git add, does not commit. Triggers: /holo:init / initialize project / install skeleton / create an empty project.
 ---
 
-> **Language**: per `ai_context/skills_config.md §Language` — disk-bound output (template files landed in the project, the filled-in placeholder values, the `skills_config.md §Language` values written by Step 1.5, any in-place translation result) uses `content_language`; user-facing surface (chat prose / `AskUserQuestion` prompts and option labels / progress-tool entry `content` / `[lang-translate]` progress lines / planned-actions print / `Step N skipped` lines) uses `conversation_language`. Code identifiers, file paths, field names, frontmatter keys, ISO 639-1 codes (`zh`, `en`, etc.), and structural prefixes (`Step N:`, `NEW`, `SAME`, `CONFLICT`, `SAME-after-translate`, `CONFLICT-after-translate`) stay English regardless. **Note on the bootstrap edge case**: until Step 1.5 settles `<conversation_language>` (Steps 0, 1, 1.1-1.4 precede it), the AI follows `auto` semantics (per-turn match the user's most recent message language); from Step 1.5 onward the chosen value governs all subsequent user-facing output in this init run.
+> **Language**: per `ai_context/skills_config.md §Language` — disk-bound output (template files landed in the project, the filled-in placeholder values, the `skills_config.md §Language` values written by Step 4.2, any in-place translation result) uses `content_language`; user-facing surface (chat prose / `AskUserQuestion` prompts and option labels / progress-tool entry `content` / `[lang-translate]` progress lines / planned-actions print / `Step N skipped` lines) uses `conversation_language`. Code identifiers, file paths, field names, frontmatter keys, ISO 639-1 codes (`zh`, `en`, etc.), and structural prefixes (`Step N:`, `NEW`, `SAME`, `CONFLICT`, `SAME-after-translate`, `CONFLICT-after-translate`) stay English regardless. **Note on the bootstrap edge case**: until Step 0 settles `<conversation_language>` (the Step 0 question itself is asked before any settle), the AI follows `auto` semantics (per-turn match the user's most recent message language); from Step 0's answer onward the chosen value governs all subsequent user-facing output in this init run.
 
 # /holo:init — project skeleton initialization
 
-Drop the templates under `${CLAUDE_PLUGIN_ROOT}/templates/project-skeleton/` into the current working directory, then based on repo probing + user questioning fill the `<...>` placeholders in the templates with the project's actual values. **Does not touch existing non-template files**; template conflicts always stop and ask the user, no silent overwrite.
+Drop the templates under `${CLAUDE_PLUGIN_ROOT}/templates/project-skeleton/` into the current working directory, then based on repo probing + user questioning fill the `<...>` REQUIRED placeholders in the templates with the project's actual values. PROGRESSIVE sections start empty with a `_(none yet — delete this marker once content is added)_` marker and fill as the project evolves. **Does not touch existing non-template files**; template conflicts always stop and ask the user, no silent overwrite.
 
 No arguments. The repo's current state is probed automatically (empty directory / existing code / previously initialized all handled); no mode flag needed.
 
 ## Progress reporting
 
-> **Language**: progress-tool entries (`content` field) are user-facing — write them in `conversation_language` per `ai_context/skills_config.md §Language`. The `Step N:` prefix stays English (structural label); subtitle text after the colon translates to `conversation_language`. Until Step 1.5 settles `<conversation_language>` (Steps 0 + 1 + 1.1-1.4), follow `auto` semantics — match the user's most recent message language for entries written then.
+> **Language**: progress-tool entries (`content` field) are user-facing — write them in `conversation_language` per `ai_context/skills_config.md §Language`. The `Step N:` prefix stays English (structural label); subtitle text after the colon translates to `conversation_language`. Until Step 0 settles `<conversation_language>` (only the Step 0 question itself precedes it), follow `auto` semantics — match the user's most recent message language for entries written then.
 
 The flow below is split into `## Step 0:` ~ `## Step 5:`.
 
@@ -22,17 +22,22 @@ On entering each step: flip the current step to `in_progress` and mark the previ
 
 **<progress tool> resolution**: Claude → `TodoWrite` (rendered as "Update Todos"); Codex → `update_plan`; other runtimes (no structured progress tool, e.g. Copilot agent mode) → maintain a markdown checkbox list in the response text as step state, rewriting the whole block before each state change. Semantic alignment: pre-register + flip state + mark complete.
 
-## Step 0: Load skills config
+## Step 0: Language axes (asked first)
 
-`Read` `ai_context/skills_config.md`.
+> **Language**: user-facing — render both language questions and their option descriptions in `conversation_language` per `ai_context/skills_config.md §Language`. **Bootstrap edge case**: until question 2 settles `<conversation_language>`, follow `auto` semantics — match the user's most recent message language for the questions themselves; from this point on, the chosen value governs all subsequent user-facing output. ISO 639-1 codes (`en`, `zh`, etc.) and the `auto` keyword stay English in option text.
 
-- File missing / any section header missing → fail loudly: print the missing items + prompt to complete per plugin template, stop
-- Section content `(none)` or empty → skip the related steps for that section (treat as N/A in this project)
-- Section lists concrete paths but the path does not exist → fail loudly: report the section drifting to a nonexistent path, stop and wait for the user to fix
+**Hard rule**: AI MUST surface `<ask tool>` for both questions even when sensible defaults exist. Defaults appear as `Recommended` options on the rendered ask; they are NEVER AI-applied silently. The user picks (or overrides via the ask tool's `Other` path). This applies equally on fresh-init and re-init paths.
 
-Subsequent steps referencing "skills_config.md `## XX`" use this config. This command uses:
-`## Timezone` (filename timestamps for `_(TODO …)_` markers if Step 4 writes them),
-`## Language` (Step 1.5 reads it to seed the bootstrap defaults; Step 4.2 writes back the user's chosen values).
+Use **<ask tool>** to ask 2 questions covering the project-level language config (later written into `ai_context/skills_config.md §Language` by Step 4.2 — see Step 4.2's "language config write-back" paragraph):
+
+1. **Project content language?** — the language of every written artifact the AI produces or maintains in this project: `ai_context/` / `docs/` / `logs/` / commits / README / skill output / new code comments. Accepts any ISO 639-1 code. Default suggestion: `en` (or the conversation language if that is a single ISO 639-1 code).
+2. **AI conversation language?** — the language of AI ↔ user turns (`AskUserQuestion` / replies / confirmations). Accepts `auto | <ISO 639-1>`. `auto` follows the user's current-message language per turn. Any explicit value is a hard rule with a single-message escape hatch ("respond in `<other>`"). Default suggestion: `auto`.
+
+Record the user's choices as `<content_language>` and `<conversation_language>` — referenced below by Step 1.2 (template inventory baseline lookup), Step 2 (existing-directory translation detection), Step 3.1 (template variant lookup), and Step 4.2 (write back into `skills_config.md §Language`).
+
+ISO 639-1 lock: `zh`, not `cn` (country code). Locale variants (`zh-CN`, `zh-TW`) reserved for future regional split — current phase rejects them.
+
+**On re-init** (the project already has `ai_context/skills_config.md §Language` set): the existing values are SHOWN as the `Recommended` options for each question (alongside the template defaults `en` / `auto`); the user confirms or overrides. The ask is never bypassed. After answering, Step 4.2 writes back the chosen values, which may be no-ops if the user picked the existing values.
 
 ## Step 1: Probe repo state
 
@@ -81,20 +86,7 @@ Options:
 
 Record the user's choice (referenced below as `<.agents-opt>`).
 
-**1.5 Ask language axes (2 questions)**
-
-> **Language**: user-facing — render both language questions and their option descriptions in `conversation_language` per `ai_context/skills_config.md §Language`. Bootstrap edge case: until question 2 settles `<conversation_language>`, follow `auto` semantics — match the user's most recent message language for the questions themselves; from this point on, the chosen value governs all subsequent user-facing output. ISO 639-1 codes (`en`, `zh`, etc.) and the `auto` keyword stay English in option text.
-
-Use **<ask tool>** to ask 2 questions covering the project-level language config (later written into `ai_context/skills_config.md §Language`):
-
-1. **Project content language?** — the language of every written artifact the AI produces or maintains in this project: `ai_context/` / `docs/` / `logs/` / commits / README / skill output / new code comments. Accepts any ISO 639-1 code. Default suggestion: `en` (or the conversation language if that is a single ISO 639-1 code).
-2. **AI conversation language?** — the language of AI ↔ user turns (`AskUserQuestion` / replies / confirmations). Accepts `auto | <ISO 639-1>`. `auto` follows the user's current-message language per turn. Any explicit value is a hard rule with a single-message escape hatch ("respond in `<other>`"). Default suggestion: `auto`.
-
-Record the user's choices as `<content_language>` and `<conversation_language>` — referenced below by Step 2 (existing-directory translation detection), Step 3.1 (template variant lookup), and Step 4 (write into `skills_config.md §Language` replacing the template defaults).
-
-ISO 639-1 lock: `zh`, not `cn` (country code). Locale variants (`zh-CN`, `zh-TW`) reserved for future regional split — current phase rejects them.
-
-**1.6 Print plan**
+**1.5 Print plan**
 
 Aggregate the above into a "planned actions" print:
 
@@ -124,7 +116,7 @@ the placeholder Q&A and skips the conflict prompts. Continue with /holo:init
 only if you intend to re-walk the bootstrap questions.
 ```
 
-This is informational only — Step 1.6 still proceeds with the user's chosen `/holo:init` invocation. The hint surfaces the existence of `/holo:update` for users who launched `/holo:init` reflexively without realizing the upgrade path exists.
+This is informational only — Step 1.5 (this Print plan step) still proceeds with the user's chosen `/holo:init` invocation, and Step 2 onward runs normally. The hint surfaces the existence of `/holo:update` for users who launched `/holo:init` reflexively without realizing the upgrade path exists.
 
 ## Step 2: Existing-directory language detection (conditional)
 
@@ -132,7 +124,7 @@ This is informational only — Step 1.6 still proceeds with the user's chosen `/
 
 > **Language**: user-facing — render the single Yes / No translation question, the dirty-tree fail-loud line, the `[lang-translate]` progress lines, the post-translation summary, and the No-path warning block in `conversation_language` per `ai_context/skills_config.md §Language`. File paths quoted in messages stay verbatim; only surrounding prose translates.
 
-> **Language (sub-agent dispatch)**: the 2.5 two-phase four-agent review chain dispatches sub-agents in both phases (Phase 1: Semantic fidelity; Phase 2: glossary / structure / back-translation in parallel). The parent MUST inject the language axes into each sub-agent's prompt explicitly. Include verbatim: "Reply in `conversation_language`=`<value>`; write any disk artifacts in `content_language`=`<value>`; both values from `ai_context/skills_config.md §Language`." Sub-agents do not inherit the parent's language config — they must be told. Sub-agent report-back (review verdicts) to the parent is a USER surface; the translated file landed on disk is DISK surface.
+> **Language (sub-agent dispatch)**: the 2.5 two-phase four-agent review chain dispatches sub-agents in both phases (Phase 1: Semantic fidelity; Phase 2: glossary / structure / back-translation in parallel). The parent MUST inject the language axes into each sub-agent's prompt explicitly. Include verbatim: "Reply in `conversation_language`=`<value>`; write any disk artifacts in `content_language`=`<value>`; both values from `ai_context/skills_config.md §Language`." Sub-agents do not inherit the parent's language config — they must be told. Sub-agent report-back (review verdicts) to the parent is a USER surface; the translated file landed on disk is DISK surface. **Place this injection at the end of the sub-agent prompt** (recency-favorable position), not in the header / middle — sub-agents have just read canonical EN source templates in their translation / review scope, so the dispatch directive needs recency advantage over the scanned content to keep the reply (review verdicts) in `conversation_language`.
 
 **Runs only if Step 1.2 detected ≥ 1 `SAME` or `CONFLICT` file** (an "existing directory" — files already on disk that look like template-manifest content). If 1.2 returned all `NEW` (empty-directory init), skip this entire sub-step and proceed to Step 3.1.
 
@@ -246,7 +238,7 @@ Existing-dir translation: <translated N | skipped — no mismatch | skipped — 
 
 > **Language**: user-facing — render the per-`CONFLICT` keep / overwrite / merge `<ask tool>` prompt and option labels, the `Source:` line, the `Using pre-generated variant:` line, and the aborted-file aggregate retry / fallback / abort question in `conversation_language` per `ai_context/skills_config.md §Language`. File paths and ISO 639-1 codes in the prompts stay verbatim; only surrounding prose translates.
 
-> **Language (sub-agent dispatch)**: branch (c)'s on-the-fly two-phase four-agent translation chain dispatches sub-agents in both phases (Phase 1: Semantic fidelity; Phase 2: glossary / structure / back-translation in parallel). The parent MUST inject the language axes into each sub-agent's prompt explicitly. Include verbatim: "Reply in `conversation_language`=`<value>`; write any disk artifacts in `content_language`=`<value>`; both values from `ai_context/skills_config.md §Language`." Sub-agents do not inherit the parent's language config — they must be told. The translated `.md` content the sub-agents write is DISK surface; their per-file review verdicts returned to the parent are USER surface.
+> **Language (sub-agent dispatch)**: branch (c)'s on-the-fly two-phase four-agent translation chain dispatches sub-agents in both phases (Phase 1: Semantic fidelity; Phase 2: glossary / structure / back-translation in parallel). The parent MUST inject the language axes into each sub-agent's prompt explicitly. Include verbatim: "Reply in `conversation_language`=`<value>`; write any disk artifacts in `content_language`=`<value>`; both values from `ai_context/skills_config.md §Language`." Sub-agents do not inherit the parent's language config — they must be told. The translated `.md` content the sub-agents write is DISK surface; their per-file review verdicts returned to the parent are USER surface. **Place this injection at the end of the sub-agent prompt** (recency-favorable position), not in the header / middle — sub-agents have just read canonical EN source templates in their translation / review scope, so the dispatch directive needs recency advantage over the scanned content to keep the reply (review verdicts) in `conversation_language`.
 
 Purpose: land template files in the target directory.
 
@@ -404,7 +396,7 @@ Print: `.agents/skills/: Copied N | Identical M | Kept existing K | Overwritten 
 
 > **Language**: disk-bound — write the filled values into the landed template files in `content_language` per `ai_context/skills_config.md §Language`. The `_(TODO)_` Skip-marker and `<placeholder>` literal markers stay English regardless. Code identifiers, file paths, field names, and ISO 639-1 codes stay English.
 
-> **Language**: user-facing — render the Round 1 / Round 2 / Round 3 `<ask tool>` question batches, their option labels, and the Skip-acknowledgement lines in `conversation_language` per `ai_context/skills_config.md §Language`. Default-value suggestions probed in Step 1.3 (project name candidates, main branch defaults, timezone strings like `UTC` / `Asia/Shanghai`) stay verbatim.
+> **Language**: user-facing — render the Round 1 / Round 2 / Round 4 `<ask tool>` question batches, their option labels, and the Skip-acknowledgement lines in `conversation_language` per `ai_context/skills_config.md §Language`. Default-value suggestions probed in Step 1.3 (project name candidates, main branch defaults, timezone strings like `UTC` / `Asia/Shanghai`) stay verbatim.
 
 Purpose: replace `<...>` placeholders in the templates with the project's actual values.
 
@@ -443,20 +435,24 @@ Each remaining `<...>` is a real pending placeholder — excluding: (a) format e
 
 **4.2 Required questions (Round 1)**
 
+**Hard rule**: AI MUST surface `<ask tool>` for all 4 questions even when defaults from Step 1.3 are confidently inferred (project name from directory, main branch from git config, timezone from system). Defaults appear as `Recommended` options on the rendered ask; they are NEVER AI-applied silently. Skip / Other is a user choice never an AI shortcut.
+
 Use **<ask tool>** to ask 4 questions at once (values probed in Step 1.3 act as `Recommended` options; the user can pick `Other` to fill in their own):
 
 1. Project name (for `<project-name>` in CLAUDE.md / AGENTS.md / README.md)
-2. One-line project description (for `<one-line project description>` in README.md)
+2. **Project primary goal** — one or two sentences naming the project's primary goal (what it is / what problem it solves). This single answer fans out to **three sinks** simultaneously: `README.md` first-paragraph one-line description, `.claude-plugin/plugin.json` `description` field (if a plugin manifest exists in the project — most consumer projects do not, skip silently when absent), and `ai_context/project_background.md §Goal` section body
 3. Main branch name (for `ai_context/skills_config.md` §Main branch policy; default `main`)
 4. Timezone command template (for `ai_context/skills_config.md` §Timezone; default `TZ='UTC' date '+%Y-%m-%d_%H%M%S'`)
 
-After receiving answers, **immediately** use `Edit` to write into the corresponding file (do not batch then write — interruptions still preserve progress).
+After receiving answers, **immediately** use `Edit` to write into the corresponding files (do not batch then write — interruptions still preserve progress). Q2's answer is written to all three sinks in the same pass.
 
-**Additionally — language config write-back from Step 1.5**: at this same point, use `Edit` to write the `<content_language>` and `<conversation_language>` values chosen in Step 1.5 into `ai_context/skills_config.md §Language`, replacing the template defaults (`content_language: en` / `conversation_language: auto`) with the user's chosen values. If the user's choices match the template defaults, this is a no-op (still verify the lines exist and have the chosen values). This makes Step 1.5's answers persistent in the landed project.
+**Additionally — language config write-back from Step 0**: at this same point, use `Edit` to write the `<content_language>` and `<conversation_language>` values chosen in Step 0 into `ai_context/skills_config.md §Language`, replacing the template defaults (`content_language: en` / `conversation_language: auto`) with the user's chosen values. If the user's choices match the template defaults, this is a no-op (still verify the lines exist and have the chosen values). This makes Step 0's answers persistent in the landed project.
 
 **4.3 Top-level directory classification questions (Round 2)**
 
-If Step 1.3 detected top-level directories beyond `.git/` / `ai_context/` / `docs/` / `logs/`, use **<ask tool>** to ask at most 4 questions, one probed directory per question, let the user classify:
+**Hard rule** (when applicable): if Step 1.3 detected top-level directories beyond `.git/` / `ai_context/` / `docs/` / `logs/`, AI MUST surface `<ask tool>` for each detected directory; never auto-classify or auto-skip. When no such directories exist (typical empty-directory init), this round is skipped per its own conditional — that is not the AI exercising discretion, it's the round having no applicable input.
+
+If Step 1.3 detected such directories, use **<ask tool>** to ask at most 4 questions, one probed directory per question, let the user classify:
 
 - `source` → written into `skills_config.md` §Source directories
 - `data-contract` → written into `skills_config.md` §Data contract directories
@@ -468,60 +464,55 @@ More than 4 directories → batch. No such directories (empty-directory init sce
 
 **4.4 Inferred fills (no questioning, write directly)**
 
+**Hard rule exemption**: this sub-step is DETERMINISTIC AI-INFER from Step 1.3 probe results — no ask, no discretion. The must-ask rule does NOT apply here. The values are derived programmatically from the file tree.
+
 The following values can be derived directly from Step 1.3 without further questioning:
 
-- Top-Level Structure of `architecture.md`: expand the top-level directory inventory from Step 1.3 into `- \`<dir>/\` — <inferred description / leave blank for user to fill>` form (leave `<...>` for inferred description so the user can supplement)
-- Default Priority of `read_scope.md`: auto-include existing `docs/` / top-level README.md (if any)
+- Top-Level Structure of `architecture.md`: expand the top-level directory inventory from Step 1.3 into `- \`<dir>/\` — <inferred description / leave blank for user to fill>` form (leave `<...>` for inferred description so the user can supplement). **Note**: when Round 4 Q1 (Step 4.5 below) picks `Auto-scan` or `Manual input` for `architecture.md`, Step 4.4 still seeds Top-Level Structure (deterministic baseline); Round 4 then fills the other sections with AI survey or user prose on top. When Round 4 Q1 picks `Skip for now`, this Step 4.4 baseline IS the architecture.md content for the section — other sections retain their `_(none yet — ...)_` markers from the template
+- Default Priority of `read_scope.md`: auto-include existing `docs/` / top-level README.md (if any). When literally nothing is inferrable, leave the section with its template `_(none yet — ...)_` marker — do NOT replace with an empty list
 
-**4.5 Content fill questions (Round 3, each question can be Skipped)**
+**4.5 Doc bootstrap questions (Round 4 — architecture.md + requirements.md)**
 
-Purpose: clear the `<...>` placeholders in `ai_context/` body content files in one pass — either fill in real content, or explicitly mark TODO; **never let `<...>` placeholders linger**.
+Purpose: give the user explicit control over whether `ai_context/architecture.md` and `ai_context/requirements.md` get an AI-survey-based first draft, a user-provided first pass, or are left with template `_(none yet — ...)_` markers for later progressive fill.
 
-Use **<ask tool>** to ask 4 questions at once (each at most a paragraph answer; each question carries a Skip option):
+**Hard rule**: AI MUST surface `<ask tool>` for both questions even when one option (typically `Skip for now`) looks obviously correct. Default appears as `Recommended` on the rendered ask; the user picks. Skip is a user choice never an AI shortcut.
 
-1. `project_background.md` — "project goal / guiding principles / build order: describe in a few sentences or bullets"
-2. `current_status.md` — "current stage / what exists / what is missing / what rules are in use: a paragraph or bulleted description"
-3. `next_steps.md` — "high / medium / long-term next steps: list a few items per priority (high-only is fine)"
-4. `handoff.md` — "2-4 sentences mental model + a few user preferences ('what the user cares about')"
+Use **<ask tool>** to ask 2 questions at once:
 
-Options per question:
+**Q1 — `ai_context/architecture.md` how should it be filled?**
 
-- **Fill content** (user types freely, AskUserQuestion's `Other` / free text in other runtimes)
-- **`Skip — fill later`**: skip this file; all `<...>` placeholders replaced with `_(TODO — skipped at /holo:init; fill via later /go or directly edit)_`
+- **`Auto-scan project` (recommended on existing codebases)**: AI surveys file tree + top-level directories + key entry-point files + manifest files (package.json / pyproject.toml / etc.), drafts content into the file's sections (`## System Layers` / `## Key Boundaries` / `## Runtime / Entry Points` — Top-Level Structure already seeded by Step 4.4). Sections that cannot be confidently inferred remain with `_(none yet — ...)_` markers. No multi-agent review (out of scope for Round 4 — quality audit is `/full-review`'s job)
+- **`Manual input`**: user types a paragraph or bullet outline; AI distributes content into sections by section semantics + leaves the rest as `_(none yet — ...)_` markers
+- **`Skip for now` (recommended on empty / scaffold-only projects)**: no write; sections keep their template `_(none yet — ...)_` markers. `## Top-Level Structure` retains the Step 4.4 baseline
 
-After receiving answers, **immediately** use `Edit` to write to disk (interruptions still preserve progress):
+**Q2 — `ai_context/requirements.md` how should it be filled?**
 
-- **Filled**: try to split the user's answer along the file's section order into matching sections; when precise splitting is not possible, drop the whole paragraph into the most important section (the first one), and replace `<...>` in other sections with `_(TODO — see §<first section name>; or supplement later)_`
-- **Skip**: all `<...>` in that file → `_(TODO — skipped at /holo:init; fill via later /go or directly edit)_`
+- **`Auto-scan project`**: best-effort — AI looks for README's "Requirements" / "Features" / "Functional spec" sections, existing `docs/requirements.md` if any, or specification-style files in the repo, and drafts a compressed index pointer block. **Caveat**: requirements are intent not code, so auto-scan effectiveness depends heavily on whether the repo has existing requirements prose. Most fresh / code-only projects → `Skip for now` is the better default
+- **`Manual input`**: user provides text; AI lands it in `## Sections` with appropriate pointer structure
+- **`Skip for now` (recommended default)**: no write; section keeps its template `_(none yet — ...)_` marker
 
-**4.6 decisions.md auto wrap-up**
-
-`decisions.md` defaults to one placeholder line `<Start writing decisions here as they happen.>` — this is not a question field (decisions happen incrementally). Use `Edit` directly to replace it with:
-
-```
-_(no decisions logged yet — append entries per §Format above as they land)_
-```
-
-Do not ask the user. Other structure / `## Format` code block examples are filtered by the Step 4.1 grep and will not appear in the placeholder list.
+After receiving answers for both, **immediately** use `Edit` to write to disk (interruptions still preserve progress). For `Auto-scan` paths, when the survey result is too thin to populate even one section, fall back to `Skip for now` behavior with a console line `[round-4] auto-scan produced no actionable content for <file>; falling back to _(none yet)_ marker.` This Auto-scan-only fallback is explicitly exempted from the "Skip is a user choice never an AI shortcut" hard rule in `## Constraints` — the transparency console line is the safety net; without this exemption the AI would be stuck (Auto-scan is the user's chosen path but produces no content, and re-asking the same question would be a loop).
 
 ## Step 5: Wrap-up verification
 
 > **Language**: user-facing — render the wrap-up status report printed to the user (template-files landed, mirror status, language-config summary, next-steps suggestion) in `conversation_language` per `ai_context/skills_config.md §Language`. File paths and ISO 639-1 codes quoted in the report stay verbatim; only surrounding prose translates.
 
-**5.1 Placeholder / TODO residue scan**
+**5.1 Placeholder / marker residue scan**
 
-Two-category scan:
+Three-category scan (informational summary, not error gating unless category (a) is non-zero):
 
-(a) Re-run the Step 4.1 grep; list any remaining `<...>` as a list — **normally should be 0** (because Step 4.5 either fills or Skip→`_(TODO)_`, no `<...>` stays). If > 0 → warn explaining which files Step 4.5 missed.
+(a) Re-run the Step 4.1 grep; list any remaining `<...>` as a list — **MUST be 0** under the three-bucket schema (REQUIRED `<...>` blocks are filled by Step 0 + Round 1 + Step 4.4 + Round 4 `Auto-scan` / `Manual input` paths; PROGRESSIVE sections never had `<...>` to begin with — they ship with `_(none yet — ...)_` markers). If > 0 → error and stop; this indicates a Round 1 / Step 4.4 / Round 4 write missed its target file (a bug, not user discretion). See `ai_context/decisions.md` §Skill Implementation #15 for the schema rationale.
 
-(b) `grep -rn '_(TODO' CLAUDE.md AGENTS.md ai_context/ docs/ 2>/dev/null` to list all TODOs the user actively Skipped:
+(b) PROGRESSIVE marker inventory — `grep -rn '_(none yet — delete this marker once content is added)_' CLAUDE.md AGENTS.md ai_context/ docs/ 2>/dev/null` lists every PROGRESSIVE section that is still empty (template default state). This is **informational only**: PROGRESSIVE markers are by-design intentional empties; they do not gate completion. Print as a single block so the user sees the remaining onboarding surface:
 
 ```
-User chose Skip in Step 4.5 (K items; fill via later /go or directly edit):
-  ai_context/project_background.md:22  _(TODO — skipped at /holo:init; …)_
-  ai_context/next_steps.md:31          _(TODO — skipped at /holo:init; …)_
+Progressive sections still empty (M items; fill as the project evolves — delete the marker line when adding first content):
+  ai_context/project_background.md:25  _(none yet — delete this marker once content is added)_
+  ai_context/handoff.md:31             _(none yet — delete this marker once content is added)_
   ...
 ```
+
+(c) Legacy short-TODO scan — `grep -rn '_(TODO — skipped at /holo:init' CLAUDE.md AGENTS.md ai_context/ docs/ 2>/dev/null` detects markers left over from the pre-three-bucket schema (when Round 3's Skip path wrote 13-character short-TODOs). On a fresh `/holo:init` this MUST be 0. On a re-init of a project initialized under the old schema, it may report > 0; surface them so the user can manually copy the corresponding `<...>` guidance back from the plugin template (per `ai_context/decisions.md` §Skill Implementation #15) or fill with real content. `/holo:update` also surfaces these as `legacy_skip_marker` informational findings.
 
 **5.2 skills_config.md self-check**
 
@@ -576,5 +567,11 @@ Suggested next steps:
 - **Never silently overwrite**: any template conflict must ask the user
 - **Do not touch non-template files**: existing files outside template paths are not touched
 - **Do not `git add` / do not commit**: `/holo:init` only generates / modifies files; commits are done by the user via `/commit`
-- **Placeholder syntax fixed at `<...>`**: grep / Edit both rely on this convention; do not introduce other forms like `{{...}}` / `$VAR`
+- **Placeholder marker conventions (three-bucket schema)** — see `ai_context/decisions.md` §Skill Implementation #15 for rationale:
+  - **REQUIRED** `<...>` syntax: filled by Step 0 (Language) or Round 1 (Project basics) or Step 4.4 (deterministic AI-infer) or Round 4 `Auto-scan` / `Manual input` paths. Step 5.1(a) gates residue=0
+  - **PROGRESSIVE** `_(none yet — delete this marker once content is added)_` line: template ships with this marker; user deletes when adding first content. Not reported as drift / not gated
+  - **INFERRED**: same `<...>` syntax as REQUIRED, filled by Step 4.4 from probed repo state without user ask
+  - The grep / Edit logic relies on this convention; do not introduce other forms like `{{...}}` / `$VAR`
+- **AI must surface ask; never auto-apply defaults; never auto-skip** — Step 0 (Language) / Step 4.2 (Round 1) / Step 4.3 (Round 2, when applicable) / Step 4.5 (Round 4) MUST surface `<ask tool>` even when sensible defaults exist. Defaults are `Recommended` options on the rendered ask, never AI-applied silently. Skip is a user choice never an AI shortcut. Step 4.4 (Inferred fills) is the only exemption — it is designed as deterministic AI-infer with no ask
+- **Single explicit Skip exemption — Round 4 Auto-scan fallback** — when the user picks `Auto-scan` for a Round 4 question (architecture.md or requirements.md) but the AI survey produces no actionable content for even one section, the AI may fall back to `Skip for now` behavior and print a transparency console line `[round-4] auto-scan produced no actionable content for <file>; falling back to _(none yet)_ marker.` This is the **only** AI-driven Skip path permitted; it does not generalise to other rounds. Re-asking the user is not viable here because the user already picked Auto-scan; the failure is on the inference side and a re-ask would loop on the same choice. The transparency line documents the fallback so the user can manually retry / pick a different option on a re-run if desired
 - **Interruption preserves progress**: each fill value in Step 4 is written to disk immediately upon answer, not deferred to batch
