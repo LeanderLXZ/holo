@@ -48,7 +48,7 @@ Subsequent steps referencing "skills_config.md `## XX`" use this config. This sk
 - `git diff <base>..HEAD --stat` (or `git diff --stat`) to list files touched this round, as the "must review" file set
 - Print explicitly two lines in succession:
   - **Scope line**: `Review scope this round: commits {X..Y} (or working tree), N files`. Natural-language portion translates to `conversation_language`.
-  - **Language-axes anchor line**: `Language axes: conversation_language=<value> · content_language=<value> (source: ai_context/skills_config.md §Language)`. Both axis values echoed verbatim from §Language read in Step 0; the natural-language prefix translates to `conversation_language` (e.g. `语言双轴: …` under `conversation_language: zh`). This anchor is planted before the parallel sub-agent fan-out in Step 3.
+  - **Language-axes anchor line**: `Language axes: conversation_language=<value> · content_language=<value> (source: ai_context/skills_config.md §Language)`. Both axis values echoed verbatim from §Language read in Step 0; the natural-language prefix translates to `conversation_language` (rendered in the project's chosen language). This anchor is planted before the parallel sub-agent fan-out in Step 3.
 
 ## Step 1.5: Load intent baseline (mandatory)
 

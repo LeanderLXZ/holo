@@ -147,6 +147,7 @@ entry lives in its source file under [commands/](commands/) or
 | [`/forward`](skills/forward/SKILL.md) | Merge the current branch into one or more sibling branches. |
 | [`/todo-add`](skills/todo-add/SKILL.md) | Register a just-decided item into `docs/todo_list.md`. |
 | [`/update-docs`](skills/update-docs/SKILL.md) | Land conversation narrative into `ai_context/` + `docs/` files. |
+| [`/compress-ai-context`](skills/compress-ai-context/SKILL.md) | Prune stale + compress bloated entries across `ai_context/` (sentinel-aware, snapshot-on-apply). |
 
 **Review — audit your work:**
 

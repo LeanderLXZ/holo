@@ -1,5 +1,6 @@
-# 需求
+# 需求 <!-- holo:heading -->
 
+<!-- holo:section start -->
 长篇、权威的需求文档。本文件是真理来源；
 `ai_context/requirements.md` 是其压缩索引。
 
@@ -13,7 +14,10 @@
 
 这一配对是 `ai_context/conventions.md` §Cross-File
 Alignment 的其中一行 —— 改其一另一方必须同步移动。
+<!-- holo:section end -->
 
-## 段
+## 段 <!-- holo:heading -->
 
+<!-- holo:section start -->
 _(no requirements drafted yet)_
+<!-- holo:section end -->

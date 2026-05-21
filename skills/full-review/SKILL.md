@@ -25,7 +25,7 @@ Subsequent steps referring to "skills_config.md `## XX`" cite this config. This 
 `## Timezone` (timestamp on result archival),
 `## Language` (read both `content_language` and `conversation_language` here; print them once on the way out of §0 — see below).
 
-**Language-axes anchor (after skills_config load)**: print one line `Language axes: conversation_language=<value> · content_language=<value> (source: ai_context/skills_config.md §Language)`. Both axis values echoed verbatim from §Language; the natural-language prefix translates to `conversation_language` (e.g. `语言双轴: …` under `conversation_language: zh`). This anchor is planted before the four parallel audit lines fan out in "How to work" below.
+**Language-axes anchor (after skills_config load)**: print one line `Language axes: conversation_language=<value> · content_language=<value> (source: ai_context/skills_config.md §Language)`. Both axis values echoed verbatim from §Language; the natural-language prefix translates to `conversation_language` (rendered in the project's chosen language). This anchor is planted before the four parallel audit lines fan out in "How to work" below.
 
 ## Goals
 

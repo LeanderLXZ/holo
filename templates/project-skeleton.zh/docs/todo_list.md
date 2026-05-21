@@ -1,9 +1,12 @@
-# TODO 清单
+# TODO 清单 <!-- holo:heading -->
 
+<!-- holo:section start -->
 ---
+<!-- holo:section end -->
 
-## Index (auto-generated; do not hand-edit)
+## Index (auto-generated; do not hand-edit) <!-- holo:heading -->
 
+<!-- holo:section start -->
 > 本段是下方三个子表的缓存，由编辑某条目正文的人在正文段
 > 进行任何 add / edit / segment-move / completion / abandonment
 > 之后**立即**刷新。刷新规则参见 `## File guide → Index maintenance`。
@@ -28,9 +31,11 @@
 **Total**: 0 — 🟢 In Progress 0 ｜ 🟡 Next 0 ｜ ⚪ Discussing 0
 
 ---
+<!-- holo:section end -->
 
-## File guide
+## File guide <!-- holo:heading -->
 
+<!-- holo:section start -->
 ### 用途
 
 记录**已计划但尚未完成**的具体工程任务。
@@ -237,19 +242,26 @@ schema 路径 / 行号 / 决策编号 / 行话**，除非
   会话启动阅读顺序。
 
 ---
+<!-- holo:section end -->
 
-## In Progress
+## In Progress <!-- holo:heading -->
 
+<!-- holo:section start -->
 <!-- Single-slot. Filled only when a task is actually started.
      Format: see "How to update entries → Task starts". -->
+<!-- holo:section end -->
 
-## Next
+## Next <!-- holo:heading -->
 
+<!-- holo:section start -->
 <!-- Ordered by user priority. First entry is the next to start.
      Format: see "What to record". -->
+<!-- holo:section end -->
 
-## Discussing (Undecided)
+## Discussing (Undecided) <!-- holo:heading -->
 
+<!-- holo:section start -->
 <!-- Tasks with open decisions / external deps / unsettled design.
      Don't start; converge the decision first.
      Format: see "What to record" + "Open decisions" section mandatory. -->
+<!-- holo:section end -->

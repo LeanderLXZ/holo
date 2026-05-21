@@ -1,11 +1,11 @@
 ---
 name: go
-description: Land the discussed plan to disk — 11-step flow: load config → ask work location → PRE log → doc authoring → implementation → smoke → cross-file alignment + todo → multi-line review → POST log → commit → stash/worktree wrap-up. Step 1 always asks the work location (clean 3 options / dirty 4 options); Steps 2-9 are silent without questioning; Step 10 only handles residue from this round, no fan-out (cross-branch sync → /forward). Step 2 PRE log is the intent baseline for /post-check; no PRE, no file changes allowed. $ARGUMENTS = focus of this change (optional). Triggers: land / execute the plan / go / land what we just discussed.
+description: Heavyweight landing path — **only pick when one of these is true**: (a) change spans schema + code + docs and needs cross-file alignment verification; (b) you want /post-check to re-validate this round against a PRE log intent baseline; (c) work tree dirty / branch switch / worktree isolation needed; (d) smoke or data-contract validation must run before commit; (e) planned set ≥ 3 files. **Otherwise prefer /do.** 11-step flow: load config → ask work location → PRE log → doc authoring → implementation → smoke → cross-file alignment + todo_list maintenance → multi-line review → POST log → commit → stash/worktree wrap-up. Step 1 always asks work location (clean 3 options / dirty 4 options); Steps 2-9 are silent without questioning; Step 10 only handles residue from this round, no fan-out (cross-branch sync → /forward). Step 2 PRE log is the intent baseline for /post-check; no PRE, no file changes allowed. $ARGUMENTS = focus of this change (optional). Triggers: go / full /go / run the full flow / this change needs review / spans multiple modules / will follow with /post-check / dirty tree handling required / heavyweight landing.
 ---
 
 > **Language**: per `ai_context/skills_config.md §Language` — disk-bound output (logs / docs / commit messages / code comments / files written) uses `content_language`; user-facing surface (chat prose / `AskUserQuestion` prompts and option labels / progress-tool entry `content` / status lines / strategy declarations / findings rendered in chat) uses `conversation_language`. Code identifiers, file paths, field names, frontmatter keys, and structural prefixes (`Step N:`, `LOG:`, etc.) stay English regardless.
 
-# /go — land the plan
+# /go — heavyweight landing path
 
 Execute per the discussion above; if a step is N/A this round, say so explicitly ("skip Step X"). If `$ARGUMENTS` is present, it is the focus of this change.
 
@@ -87,8 +87,8 @@ Same "branch name → ask base if not exists" flow, but use `git checkout` / `gi
 
 After selecting, print **two declaration lines** in succession:
 
-- **Strategy line**: `Strategy: <chosen path>`, e.g. `Strategy: current branch develop in place` / `Strategy: switch to feature/x in place` / `Strategy: ../holo-main worktree isolation (branch=main)` / `Strategy: WIP commit then stay on develop in place` / `Strategy: stash then stay on develop in place (Step 10 auto pop)`. Natural-language portion translates to `conversation_language` (e.g. `策略: 当前分支 develop 原地` under `conversation_language: zh`); the structural prefix `Strategy:` (or its `conversation_language` equivalent) leads the line.
-- **Language-axes anchor line**: `Language axes: conversation_language=<value> · content_language=<value> (source: ai_context/skills_config.md §Language)`. Both axis values are echoed **verbatim** from the §Language section read in Step 0; the bracketed source path stays English; the natural-language prefix translates to `conversation_language` (e.g. `语言双轴: conversation_language=zh · content_language=en （来源: ai_context/skills_config.md §Language）` under `conversation_language: zh`). This line is a deliberate high-salience anchor planted before Steps 2–10 accumulate context.
+- **Strategy line**: `Strategy: <chosen path>`, e.g. `Strategy: current branch develop in place` / `Strategy: switch to feature/x in place` / `Strategy: ../holo-main worktree isolation (branch=main)` / `Strategy: WIP commit then stay on develop in place` / `Strategy: stash then stay on develop in place (Step 10 auto pop)`. Natural-language portion translates to `conversation_language`; the structural prefix `Strategy:` (or its `conversation_language` equivalent) leads the line.
+- **Language-axes anchor line**: `Language axes: conversation_language=<value> · content_language=<value> (source: ai_context/skills_config.md §Language)`. Both axis values are echoed **verbatim** from the §Language section read in Step 0; the bracketed source path stays English; the natural-language prefix translates to `conversation_language` (rendered in the project's chosen language). This line is a deliberate high-salience anchor planted before Steps 2–10 accumulate context.
 
 If any of `git checkout` / `git worktree add` / WIP commit / `git stash` fails → stop and report the cause, wait for the user to decide. **No further questioning after Step 1** until the end of Step 10.
 
@@ -140,6 +140,12 @@ If the PRE log file write fails (IO error, path not writable, disk full, permiss
 ## Step 3: Land discussion conclusions into docs (content authoring)
 
 > **Language**: disk-bound — write these docs / ai_context updates in `content_language` per `ai_context/skills_config.md §Language`. Code identifiers, file paths, field names stay English regardless.
+
+> **Compactness Requirements**: writes to `ai_context/` in this step follow the universal contract —
+> - Shorter is better than longer. Each entry is a summary, not a detail dump.
+> - Compactness must not sacrifice accuracy or completeness — never drop important information just to fit the length target.
+> - Aim for ≤ 5 lines and push longer detail to the linked source (`docs/<topic>.md`, schemas, script docstrings).
+> - Do not compress or touch content unrelated to the current edit.
 
 Translate decisions from the conversation into doc language. **This step only does "writing"** — cross-file alignment verification belongs to Step 6; full-repo review belongs to Step 7. Any "I wrote file A and now feel file B needs changing too" sensation in this step **first goes into the PRE log's "Execution deviations" section**, deferred to Step 6 for systematic patching; do not stream-edit across files while writing.
 

@@ -1,3 +1,4 @@
+<!-- holo:section start -->
 <!--
 MAINTENANCE — 编辑本文件前请先阅读。
 本文件是用于快速回到项目状态的索引，不是详细手册。
@@ -5,11 +6,17 @@ MAINTENANCE — 编辑本文件前请先阅读。
 2. 优先删减而非新增；新增前先检查是否能并入已有条目。
 3. 只描述当前设计 —— 不写"legacy / deprecated / formerly / renamed from"。
 4. 不出现真实产品 / 客户 / 私有内容名称 —— 使用结构性占位符。
-越短越好；每条都是总结后的要点，不是细节堆叠 —— 细节推到链接的源里。
+5. 精简要求：
+   - 越短越好。每条都是总结，不是细节堆叠。
+   - 精简的同时也要保证信息的准确性和有效性，不要为了精简而漏掉重要信息。
+   - 目标 ≤ 5 行，更长的细节推到链接的来源里（docs/<topic>.md）。
+   - 不要压缩或改动与当前编辑无关的内容。
 -->
+<!-- holo:section end -->
 
-# 下一步
+# 下一步 <!-- holo:heading -->
 
+<!-- holo:section start -->
 架构方向工作的高层路线图，按优先级分组。
 这是**方向**层，不是任务层。
 
@@ -24,15 +31,16 @@ MAINTENANCE — 编辑本文件前请先阅读。
 如果本文件中的条目细化到能点名文件与函数，
 就把它迁到 `docs/todo_list.md`，并把这里的条目
 收缩为它服务的方向。
+<!-- holo:section end -->
 
-## 高优先级
-
-_(none yet — delete this marker once content is added)_
-
-## 中优先级
+## 高优先级 <!-- holo:heading -->
 
 _(none yet — delete this marker once content is added)_
 
-## 后续
+## 中优先级 <!-- holo:heading -->
+
+_(none yet — delete this marker once content is added)_
+
+## 后续 <!-- holo:heading -->
 
 _(none yet — delete this marker once content is added)_

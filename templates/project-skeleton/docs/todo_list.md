@@ -1,9 +1,12 @@
-# TODO List
+# TODO List <!-- holo:heading -->
 
+<!-- holo:section start -->
 ---
+<!-- holo:section end -->
 
-## Index (auto-generated; do not hand-edit)
+## Index (auto-generated; do not hand-edit) <!-- holo:heading -->
 
+<!-- holo:section start -->
 > This section is a cache of the three sub-tables below, refreshed by
 > whoever edits an entry's body **immediately after** any add / edit /
 > segment-move / completion / abandonment in the body sections below.
@@ -30,9 +33,11 @@
 **Total**: 0 — 🟢 In Progress 0 ｜ 🟡 Next 0 ｜ ⚪ Discussing 0
 
 ---
+<!-- holo:section end -->
 
-## File guide
+## File guide <!-- holo:heading -->
 
+<!-- holo:section start -->
 ### Purpose
 
 Records **planned-but-unfinished** concrete engineering tasks.
@@ -247,19 +252,26 @@ detail until "what + why" remains.
   session-start reading order.
 
 ---
+<!-- holo:section end -->
 
-## In Progress
+## In Progress <!-- holo:heading -->
 
+<!-- holo:section start -->
 <!-- Single-slot. Filled only when a task is actually started.
      Format: see "How to update entries → Task starts". -->
+<!-- holo:section end -->
 
-## Next
+## Next <!-- holo:heading -->
 
+<!-- holo:section start -->
 <!-- Ordered by user priority. First entry is the next to start.
      Format: see "What to record". -->
+<!-- holo:section end -->
 
-## Discussing (Undecided)
+## Discussing (Undecided) <!-- holo:heading -->
 
+<!-- holo:section start -->
 <!-- Tasks with open decisions / external deps / unsettled design.
      Don't start; converge the decision first.
      Format: see "What to record" + "Open decisions" section mandatory. -->
+<!-- holo:section end -->

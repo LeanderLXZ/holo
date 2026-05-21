@@ -1,3 +1,4 @@
+<!-- holo:section start -->
 <!--
 维护说明 — 编辑本文件前请先阅读。
 本文件是用于快速项目跟进的索引，不是详细手册。
@@ -5,16 +6,24 @@
 2. 优先删除而非新增；新条目加入前先检查是否能合并进已有条目。
 3. 只描述当前设计 — 不写 "legacy / deprecated / formerly / renamed from"。
 4. 不出现真实产品 / 客户 / 私有内容名称 — 使用结构性占位符。
-越短越好；每条都是总结后的要点，不是细节堆叠 — 细节推到链接的来源里。
+5. 精简要求：
+   - 越短越好。每条都是总结，不是细节堆叠。
+   - 精简的同时也要保证信息的准确性和有效性，不要为了精简而漏掉重要信息。
+   - 目标 ≤ 5 行，更长的细节推到链接的来源里（docs/<topic>.md）。
+   - 不要压缩或改动与当前编辑无关的内容。
 -->
+<!-- holo:section end -->
 
-# 操作规范
+# 操作规范 <!-- holo:heading -->
 
+<!-- holo:section start -->
 长会话中容易忘记的规则。Dilution self-check 触发条目放在
 `CLAUDE.md` / `AGENTS.md`。
+<!-- holo:section end -->
 
-## Logging
+## Logging <!-- holo:heading -->
 
+<!-- holo:section start -->
 `logs/change_logs/` 对每次改动写一条活动日志，按文件头中的 `Type`
 字段分两种形态：
 
@@ -54,20 +63,26 @@
 
 当项目使用内置的 `/go` / `/do` / `/post-check` 时，这三个 skill
 拥有确切的日志格式；以它们的定义为准。
+<!-- holo:section end -->
 
-## Cross-File Alignment
+## Cross-File Alignment <!-- holo:heading -->
 
+<!-- holo:section start -->
 当一个概念发生变化，更新其所在行的每个文件。表格初始为空；每次
-发现一个必须随上游改动同步变化的下游文件，就增加一行。
+发现一个必须随上游改动同步变化的下游文件，就增加一行。表格单元
+只列 lockstep 文件 —— 是逗号分隔的文件清单（必要时带 anchor），不
+是 inline how-to；实现细节归目标文件自己的 maintenance comment。
 
 | Changed | Also update |
 |---------|-------------|
 | <upstream artifact> | <list of downstream files> |
 
 任何改动之后，grep 旧措辞以捕获残留引用。
+<!-- holo:section end -->
 
-## Single Source of Truth
+## Single Source of Truth <!-- holo:heading -->
 
+<!-- holo:section start -->
 当同一个值（一个数值边界、一个路径前缀、一个 enum、一个 regex
 模式）出现在多个地方时，把它写在**一个权威位置**，让其余每处都
 引用或派生自该处。按项目类型常见的权威位置：
@@ -84,9 +99,11 @@
 当重复无法机械消除时（例如文档里的散文示例），把这条关联作为一行
 记录到 §Cross-File Alignment，让镜像更新成为清单项，而不是依赖
 记忆。
+<!-- holo:section end -->
 
-## Identifier Renames
+## Identifier Renames <!-- holo:heading -->
 
+<!-- holo:section start -->
 跨仓重命名标识符时，单一字面量 grep **不够** — 标识符会渗透进多
 种语法形态。声明"无残留"之前，跑完全部四种扫描：
 
@@ -107,9 +124,11 @@
 
 规划重命名时把这四种扫描编入 PRE 日志的验证标准段，便于改动后
 复审独立校验每一种。
+<!-- holo:section end -->
 
-## Generic Placeholders
+## Generic Placeholders <!-- holo:heading -->
 
+<!-- holo:section start -->
 权威文档（本目录、`docs/`、schema、prompt）在语气上保持
 项目无关：
 
@@ -121,24 +140,27 @@
 例外（历史本身就是重点）：`logs/change_logs/`、
 `logs/review_reports/`、归档 todo、本文件的 `decisions.md`
 同伴、git commit 消息。
+<!-- holo:section end -->
 
-## Naming and Identifiers
-
-_(none yet — delete this marker once content is added)_
-
-## Data Separation
+## Naming and Identifiers <!-- holo:heading -->
 
 _(none yet — delete this marker once content is added)_
 
-## Git
+## Data Separation <!-- holo:heading -->
 
 _(none yet — delete this marker once content is added)_
 
-## Post-Change Checklist
+## Git <!-- holo:heading -->
 
+_(none yet — delete this marker once content is added)_
+
+## Post-Change Checklist <!-- holo:heading -->
+
+<!-- holo:section start -->
 1. 所有对齐文件都更新了吗？（上方 Cross-File Alignment 表）
 2. 改动之前写了 PRE 日志、commit 之前写了 POST 日志吗？
 3. `ai_context/` 仅在改动具有持久性时才更新了吗？
 4. grep 过对旧名 / 旧路径 / 旧值的残留引用吗？
    （标识符重命名请使用 §Identifier Renames 的四种扫描。）
 5. 如果代码或 schema 改了，跑了 smoke test 或类型检查吗？
+<!-- holo:section end -->

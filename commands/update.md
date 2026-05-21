@@ -1,5 +1,5 @@
 ---
-description: Project sync check after plugin upgrade — compare the current project against the installed plugin (`.agents/skills/` mirror, template new files / section headers, `CLAUDE.md` / `AGENTS.md` headers + §Language hardcoded values) and find structural drift introduced by the plugin upgrade. **All detection logic lives in the single script `${CLAUDE_PLUGIN_ROOT}/scripts/holo_update_check.py`**; the skill body does not re-implement rules. ≥ 1 drift → single aggregated question asking Auto-fix all / Skip all; 0 drift passes silently. CLAUDE/AGENTS `unexpected_diffs` findings are always display-only, never auto-merged; CLAUDE/AGENTS §Language hardcoded-value drift IS auto-fixable (sync skills_config → CLAUDE/AGENTS, per decisions.md §Language Configuration #17). No arguments; whether the current directory is empty or already initialized, both are handled. Does not touch user-filled content, does not git add, does not commit. Triggers: /holo:update / plugin upgraded / sync holo update / check whether holo is up to date.
+description: Project sync check after plugin upgrade — compare the current project against the installed plugin (`.agents/skills/` mirror, template new files / section headers, `CLAUDE.md` / `AGENTS.md` headers + §Language hardcoded values, sentinel-aware drift in marker-bearing `.md` files) and apply fixes. **All detection logic lives in the single script `${CLAUDE_PLUGIN_ROOT}/scripts/holo_update_check.py`**; the skill body does not re-implement rules. Conflict-triggering findings (`heading_drift` / `section_content_drift` / `claude_agents_lang_drift` co-existing with other conflicts / file-body language mismatch) → smart-merge dispatch (4 sub-agent parallel + three-layer ask + `take_snapshot` backup, per `docs/architecture/smart-merge.md`). Other fixable findings (`missing_template` / `missing_section` / `missing_field` / `gitignore_missing_lines` / `lang_mirror_drift` / `agents_sync.stale` / standalone `claude_agents_lang_drift`) → deterministic `--fix`. Display-only by design: `claude_agents.unexpected_diffs` (CLAUDE↔AGENTS asymmetric guidance), `legacy_skip_marker`, `missing_l1_directive` / `l1_directive_drift` (skill-body prose). 0 drift passes silently. No arguments; preserves user-territory content (everything outside sentinel blocks + user-added non-marker sections); does not git add, does not commit. Triggers: /holo:update / plugin upgraded / sync holo update / check whether holo is up to date.
 ---
 
 > **Language**: per `ai_context/skills_config.md §Language` — disk-bound output (regenerated `.agents/skills/` mirror files, `_(TODO — added by /holo:update)_` markers appended to `skills_config.md`, any in-place file edits) uses `content_language`; user-facing surface (chat prose / `AskUserQuestion` prompts and option labels / progress-tool entry `content` / drift-category report / final summary / `Auto-fix all` / `Skip all` confirmations) uses `conversation_language`. Code identifiers, file paths, field names, frontmatter keys, JSON keys returned by `holo_update_check.py` (`missing_section`, `lang_mirror_drift`, `agents_sync.stale`, `legacy_skip_marker`, etc.), and structural prefixes (`Step N:`, `DRIFT:`, `OK:`) stay English regardless.
@@ -10,7 +10,7 @@ Compare plugin-linked artifacts in the current project (`.agents/skills/` mirror
 
 **Detection rules single source of truth = `${CLAUDE_PLUGIN_ROOT}/scripts/holo_update_check.py`**. The skill body **does not re-implement detection logic**; to adjust rules, edit the script and sync this file + `commands/init.md` Step 3.2 per `ai_context/conventions.md` §Cross-File Alignment. Background in `ai_context/decisions.md` §Skill Implementation #5.
 
-No arguments. **Only touches structural drift introduced by the plugin upgrade**; **does not touch user-filled content**. CLAUDE/AGENTS findings are always display-only, never auto-merged.
+No arguments. **Touches plugin-owned content** (sentinel blocks, plugin canonical sections, mirrored `.agents/skills/`); **preserves user-territory content** (everything outside `<!-- holo:section start/end -->` blocks + user-added non-marker headings — see `docs/architecture/section-version-sentinel.md`). For conflict-triggering findings (sentinel-aware drift or file-body language mismatch) `/holo:update` invokes the smart-merge dispatch flow (`docs/architecture/smart-merge.md`); for deterministic fixable findings it runs `holo_update_check.py --fix`; for display-only findings (`unexpected_diffs` / `legacy_skip_marker` / L1 directives) it surfaces the count without touching the file.
 
 ## Progress reporting
 
@@ -99,7 +99,13 @@ The script outputs a JSON structure (**interface contract**; the skill body pars
   "missing_l1_directive": [{"rel": "commands/<name>.md|skills/<name>/SKILL.md", "reason": "..."}],
   "l1_directive_drift":   [{"rel": "commands/<name>.md|skills/<name>/SKILL.md", "missing_substrings": ["..."]}],
   "lang_mirror_drift":    [{"variant": "project-skeleton.<lang>", "rel": "...", "kind": "MISSING|ORPHAN"}],
-  "legacy_skip_marker":   [{"rel": "ai_context/<...>.md", "line": N, "snippet": "..."}]
+  "legacy_skip_marker":   [{"rel": "ai_context/<...>.md", "line": N, "snippet": "..."}],
+  "heading_drift":        [{"rel": "...", "kind": "consumer_orphan_heading",
+                            "header": "## ...", "source_path": "..."}],
+  "section_content_drift": [{"rel": "...", "section": "## ... | preamble",
+                             "block_index": N,
+                             "plugin_excerpt": "...", "consumer_excerpt": "...",
+                             "diff_summary": "..."}]
 }
 ```
 
@@ -124,6 +130,10 @@ The script outputs a JSON structure (**interface contract**; the skill body pars
 When no `.<lang>/` variant exists (current plugin state through Phase 5), `lang_mirror_drift` returns `[]`. Phase 6 of T-LANG-CONFIG-SYSTEM lands the first variants.
 
 **`legacy_skip_marker`** (per T-INIT-SKIP-SEMANTICS / `ai_context/decisions.md` §Skill Implementation #15) scans consumer top-level + `ai_context/` + `docs/` `.md` files for `_(TODO — skipped at /holo:init; fill via later /go or directly edit)_` markers left over from the pre-three-bucket-schema init (the Round 3 Skip path wrote these 13-character short-TODOs; the path was deleted when the three-bucket schema landed). Findings list each marker's `rel` + `line` + `snippet`. **Excluded from `total_drift`** — same rationale as `claude_agents.unexpected_diffs`: historical / report-only items would drown actionable findings; the report surfaces the count separately. **Report-only — no auto-fix**: the correct replacement depends on the section's intent (delete + copy canonical `<...>` guidance back from the plugin template / write real content / leave the section empty via PROGRESSIVE `_(none yet — delete this marker once content is added)_`), which a deterministic script cannot decide. Surfacing it tells the user "this project is initialized under the old schema; here are the spots where template guidance was wiped — fix manually or via `/go`".
+
+**`heading_drift`** (per `ai_context/decisions.md` §Skill Implementation #18) is sentinel-aware: for each plugin template `.md` whose consumer counterpart has at least one `<!-- holo:heading -->` marker, the script compares the consumer's marker-bearing heading list (H1 + H2) against the plugin template's marker-bearing heading list and reports `consumer_orphan_heading` findings (each finding carries `level: 1` for H1 or `level: 2` for H2). The reverse direction (plugin has heading, consumer doesn't) is covered by `missing_section` (for H2) — the two paths intentionally do not double-flag. Pre-sentinel consumers (no markers anywhere) skip silently and `missing_section` handles plugin→consumer alone, preserving backward compatibility. **Report-only — NOT in `total_drift`, NOT auto-fixed by `--fix`.** The script cannot disambiguate rename vs deletion vs stale-marker deterministically; the correct fix path is [T-INIT-UPDATE-SMART-MERGE]'s extract-and-reformat smart-merge, which takes the new plugin template's heading list as authoritative and refills user content from the old consumer file by semantic match. Earlier `apply_heading_rename` helper + Step 3.1.5 LLM rename correlation flow were reverted as over-engineering — that "piecemeal rename + body sync" approach duplicated what smart-merge does correctly in a single pass.
+
+**`section_content_drift`** (per `ai_context/decisions.md` §Skill Implementation #18) is sentinel-aware byte-diff of plugin canonical block bodies. Fires only when BOTH plugin template and consumer carry at least one `<!-- holo:section start -->` marker. For each H2 section + preamble region present in both files, position-aligned blocks are byte-compared after light normalization (trailing whitespace + PROGRESSIVE-marker stripping as defense-in-depth; PROGRESSIVE markers should not appear inside sentinel blocks after the sentinel-design-refinement bootstrap, but the strip stays as a fallback). Plugin blocks that normalize to **empty** skip drift comparison (no canonical content to enforce). Plugin blocks with real prose that differs from the consumer block produce a finding carrying a 3-line excerpt of each side + a 6-line unified-diff summary so the user can eyeball the change without opening the files. **Report-only — NOT in `total_drift`, NOT auto-fixed by `--fix`**: the correct fix path is [T-INIT-UPDATE-SMART-MERGE]'s extract-and-reformat smart-merge (extract user info from old consumer file, refill into new plugin sentinel structure). The earlier "snapshot + overwrite consumer block with plugin canonical" auto-fix wiring was reverted as over-engineering — it loses user-added content inside sentinel blocks; the smart-merge handles this correctly by treating the new plugin template's sentinel structure as authoritative while preserving user values via extract-and-reformat.
 
 **Important**: this step **does not allow the skill body to re-author detection rules** — no custom grep / Python comparison, no filter / exclusion additions. If a case is mis-detected, missed, or falsely flagged, **edit the script, not the skill body**. The constraint is operative here in this skill body; `ai_context/decisions.md` §Skill Implementation #5 carries the rationale (real incident: an LLM running `/holo:update` translated prose rules into ad-hoc filters and masked a real MISSING drift — moving detection into the executable script removes the LLM's runtime degree of freedom).
 
@@ -168,82 +178,116 @@ Language-variant mirror drift:
 
 Legacy short-TODO marker (report-only — not counted in total_drift):
   LEGACY_SKIP_MARKER (Z): <"<rel>:<line>: <snippet>" list>
+
+Sentinel-aware drift (smart-merge trigger — enters Step 3.2 conflict ask):
+  HEADING_DRIFT (HD): <"<rel>: <header> (consumer_orphan_heading, level=N)" list>
+  SECTION_CONTENT_DRIFT (SCD): <"<rel>: <section> [block N]" list, with 6-line diff snippet per entry>
 ```
 
 `total_drift = P + Q + R + S + T + X + Y + U + V + W`. CLAUDE/AGENTS
-`unexpected_diffs` and `legacy_skip_marker` are intentionally NOT in
-this sum — both buckets are report-only (never auto-fixable) and a
-consumer with legitimate asymmetric guidance / pre-three-bucket-schema
-legacy markers would drown actionable findings (STALE / MISSING) if
-counted. Each bucket is still printed separately so the user sees the
-count; the script caps `unexpected_diffs` at 10 entries and reports
-the truncated count via `claude_agents.unexpected_diffs_truncated`.
-`claude_agents_lang_drift` (U) IS counted because it is auto-fixable
-(canonical sync from skills_config → CLAUDE/AGENTS hardcoded values
-per decisions.md §Language Configuration #17).
+`unexpected_diffs`, `legacy_skip_marker`, `heading_drift`, and
+`section_content_drift` are intentionally NOT in this sum.
+CLAUDE/AGENTS cross-sync + legacy markers are by-design report-only
+(no script-side fix exists). `heading_drift` + `section_content_drift`
+are excluded from `total_drift` because their fix path is the
+smart-merge ask flow (`docs/architecture/smart-merge.md`), not the
+deterministic `--fix` path that `total_drift` tracks — Step 3.2
+classifies each file carrying these findings as a conflict-triggering
+file and runs the smart-merge dispatch on it (Agent 1 generates a
+full-file rewrite that preserves user content under the new plugin
+sentinel structure; Agent 2/3/4 verify; one retry on FAIL then user
+surface). Each bucket is still printed separately so the user sees
+the count; the script caps `unexpected_diffs` at 10 entries and
+reports the truncated count via
+`claude_agents.unexpected_diffs_truncated`. `claude_agents_lang_drift`
+(U) IS counted in `total_drift` because the lightweight
+`fix_claude_agents_lang_drift` auto-fix (field-level bullet sync per
+decisions.md §Language Configuration #17) handles it deterministically
+when the affected file has NO other conflict-triggering finding;
+when `claude_agents_lang_drift` co-exists with `heading_drift` /
+`section_content_drift` / file-body language mismatch on the same
+file, Step 3.2 routes the file to smart-merge instead and the
+lightweight auto-fix is skipped for that file (the merger sub-agent
+rewrites the §Language block per skills_config canonical values as
+part of the full-file rewrite).
 
 `total_drift == 0` → print `✅ Project is in sync with <name> v<version>; nothing to do.` and exit.
 
-**3.2 Ask (single aggregated question)**
+**3.2 Conflict triage**
 
-`total_drift ≥ 1` → use **<ask tool>** to ask **one** question, showing all findings + the action for each category:
+Before asking the user, classify each finding into one of three buckets so Step 3.3 can route them to the right handler:
+
+1. **Conflict-triggering** (route to smart-merge dispatch) — per file:
+   - `heading_drift` finding for that file (consumer-orphan marker-bearing H1 / H2), OR
+   - `section_content_drift` finding for that file (plugin canonical block body differs from consumer's at same sentinel position), OR
+   - **file-body language mismatch** for that file: run a CJK heuristic pass on each consumer `.md` file in the template manifest (sample first ~200 non-whitespace chars; ≥30% CJK chars → `zh`, else `en`); a file whose detected language ≠ `consumer_content_lang` (from skills_config.md §Language) counts as language-mismatch. Cache the per-file detection result for Step 3.3.
+2. **Deterministic auto-fix** (route to `holo_update_check.py --fix`):
+   - `agents_sync.stale` / `agents_sync.missing` / `agents_sync.orphan`, `missing_template`, `missing_section`, `missing_field`, `gitignore_missing_lines`, `lang_mirror_drift`, AND
+   - `claude_agents_lang_drift` **for files that have NO conflict-triggering finding** (standalone §Language drift goes through the lightweight `fix_claude_agents_lang_drift` field-level sync per decisions.md §Language Configuration #17). When a file has both `claude_agents_lang_drift` AND a conflict-triggering finding (rare but possible if a user manually edits §Language in CLAUDE.md AND breaks the sentinel structure), the file routes to bucket 1 and the merger sub-agent absorbs the §Language fix.
+3. **Display-only by design** (no fix, surface to user):
+   - `claude_agents.unexpected_diffs` (CLAUDE↔AGENTS asymmetric guidance — script never auto-merges; user resolves manually).
+   - `legacy_skip_marker` (out of `--fix` scope per T-INIT-SKIP-SEMANTICS).
+   - `missing_l1_directive` / `l1_directive_drift` (skill-body prose; fix via `/go` on the affected skill body).
+
+Build a `<conflict_files>` list = the set of consumer file paths in bucket 1. If `len(<conflict_files>) == 0` and bucket 2 = ∅ and bucket 3 surfaces nothing actionable → equivalent to `total_drift == 0`; print sync-OK and exit (already handled by Step 3.1).
+
+**3.3 Ask (batched, up to 4 questions per `<ask tool>` call)**
+
+Compose the question batch:
+
+- **Q-conflict** (only when `len(<conflict_files>) ≥ 1`) — Layer 1 aggregate ask per `docs/architecture/smart-merge.md`. One question, 5 options:
+  1. Smart-merge all — for each file in `<conflict_files>`, dispatch the 4 sub-agents in parallel per smart-merge.md.
+  2. Overwrite all with new plugin version — `take_snapshot(target_root=".", slug="holo-update-smart-merge", file_paths=<conflict_files>)` then overwrite each file with the resolved new plugin template content.
+  3. Keep all existing files (no merge) — leave each conflict file as-is.
+  4. Per-file confirmation → Layer 2 ask per file (4 options each: smart-merge / overwrite with new plugin / keep (no merge) / skip current file). When `len(<conflict_files>) > 3` the Layer 2 fan-out emits ceil(N/4) `<ask tool>` batches.
+  5. Skip this step — skip smart-merge entirely.
+- **Q-fixable** (only when bucket 2 ≠ ∅) — Auto-fix all / Skip all for the deterministic-fixable findings list (display the categories + counts inline). One question, 2 options.
+
+Dispatch Q-conflict + Q-fixable in **one batched `<ask tool>` call** (max 4 questions per call; both questions fit). Display-only findings (bucket 3) are printed inline above the ask block — no question for them.
+
+Question batch wording template (translated to `conversation_language`):
 
 ```
-Found <total_drift> drift items (plugin: <name> v<version>):
+Found <total_drift> drift items, broken down as:
+- Conflict files (routed to smart-merge dispatch): <len(<conflict_files>)> — <list of conflict file paths with their trigger types>
+- Deterministic auto-fix: <bucket 2 count> — <category counts>
+- Display-only (manual handling): <bucket 3 count> — <category counts>
 
-.agents/skills/:
-  STALE   (P): <names>   → script will regenerate via expected_mirror_content()
-  MISSING (Q): <names>   → script will create
-  ORPHAN  (R): <names>   → script will rm -rf .agents/skills/<name>/   ⚠️ deletion
-
-Templates:
-  MISSING_TEMPLATE (S): <paths>   → script will cp from templates/project-skeleton/
-  MISSING_SECTION  (T): <list>    → script will append `## <header>` + _(TODO)_ marker
-  MISSING_FIELD    (X): <list>    → script will append `<key>: _(TODO)_` marker inside the owning section
-
-Gitignore:
-  GITIGNORE_MISSING_LINES (Y): <list>   → script will append the missing pattern lines at the file tail with a banner separator (append-only Phase 1; no LLM, no orphan-line deletion — three-phase smart-merge pipeline runs only at /holo:init CONFLICT)
-
-CLAUDE.md / AGENTS.md cross-sync:
-  <findings>   → never auto-merged (display only, manual handling required)
-
-CLAUDE.md / AGENTS.md §Language hardcoded-value drift:
-  CLAUDE_AGENTS_LANG_DRIFT (U): <list>   → script overwrites the bullet value (or inserts the missing axis bullet next to its sibling); structurally pre-#17 §Language blocks (no axis bullets at all) are skipped silently — user re-runs /holo:init or manually upgrades
-  ⚠️ source-of-truth model A: Auto-fix overwrites any direct CLAUDE.md / AGENTS.md hardcoded-value edits to match `ai_context/skills_config.md §Language`. To change project language, edit skills_config.md first then run Auto-fix.
-
-L1 language directive presence:
-  <findings>   → report-only (display only, fix via /go on the affected skill body)
-
-Language-variant mirror drift:
-  <findings>   → report-only (display only, manual translation work via Phase 6 review chain)
-
-Legacy short-TODO marker:
-  <findings>   → report-only (display only; fix manually or via /go — delete + copy canonical `<...>` guidance back from plugin template, or write real content)
-
-[Auto-fix all] / [Skip all]
+[Q-conflict ask] [Q-fixable ask]
 ```
 
-Options:
+**Template source resolution for smart-merge dispatch** — `/holo:update` resolves per `docs/architecture/smart-merge.md` "Template source resolution" section: prefer `${CLAUDE_PLUGIN_ROOT}/templates/project-skeleton.<content_language>/` variant when present; fall back to canonical `templates/project-skeleton/` + on-the-fly 4-agent translation chain (reuse `commands/init.md` Step 2.5's chain) writing to `<system_tmp>/holo-tmp-<YYYY-MM-DD>_<HHMMSS>/templates/...` (plugin is read-only). The tmp path persists until `/holo:update` exits.
 
-- **`Auto-fix all`** (recommended):
+**3.4 Apply + verify**
+
+Execute each ask answer independently:
+
+**Q-conflict answer** (if dispatched at Step 3.3):
+- Option 1 (Smart-merge all) → for each file in `<conflict_files>`, dispatch the 4 sub-agents in parallel per `docs/architecture/smart-merge.md` "4-sub-agent dispatch" section. Each sub-agent prompt MUST include: paths to consumer file + resolved new plugin template (per Step 3.3 template source resolution) + snapshot file, the sentinel marker rules from `docs/architecture/section-version-sentinel.md`, the smart-merge logic from `docs/architecture/smart-merge.md` (trigger conditions / three-layer ask / Layer 3 orphan-content fallback / edge cases), and the target `content_language` value. **Place the language axes injection at the end of each sub-agent prompt** (recency-favorable position, per Decision #16). Agent 1 (merger+translator) returns merged output to a staging tmp path; Agent 2/3/4 verify (Agent 4 conditional on translation happening); fix-loop = one Agent 1 retry on FAIL; second FAIL surfaces the staging output + outstanding findings with a 3-option user ask per smart-merge.md "Failure surface".
+- Option 2 (Overwrite all with new plugin) → call `take_snapshot(target_root=".", slug="holo-update-smart-merge", file_paths=<conflict_files>)`, then write each file with the resolved plugin template content.
+- Option 3 (Keep all existing files) → no action.
+- Option 4 (Per-file confirmation) → run Layer 2 ask per file (smart-merge.md "Layer 2 — per-file"); execute per per-file choice.
+- Option 5 (Skip this step) → no action.
+
+For Layer 1 options 1 and 2 (and Layer 2 options 1 and 2): backup is mandatory; `take_snapshot` runs before any disk write. Surface the snapshot directory path in the Step 4 final print so the user knows where to restore from.
+
+**Q-fixable answer** (if dispatched at Step 3.3):
+- `Auto-fix all` → invoke the script:
   ```bash
   python3 "${CLAUDE_PLUGIN_ROOT}/scripts/holo_update_check.py" --fix --json
   ```
-  CLAUDE/AGENTS findings are out of `--fix` scope (the script skips them by design); these two files are not touched
-- **`Skip all`**: no modifications
-
-**3.3 Apply + verify**
-
-Pick `Auto-fix all` → invoke the script in `--fix --json` mode (note `--fix` implicitly runs `--check` first); it outputs `fix_counts` JSON. Then invoke `--json` once more (without `--fix`) for a post-fix self-check:
-
-- `agents_sync.stale / missing / orphan` should all be 0
-- `missing_template` should be 0
-- `missing_section` should be 0
-- `missing_field` should be 0
-- `gitignore_missing_lines` should be 0
-- `claude_agents_lang_drift` should be 0 when fixable (value mismatch with sibling-bullet anchor available); may remain > 0 for structurally pre-#17 §Language blocks that the script skipped on purpose
-- `claude_agents.unexpected_diffs` may still be > 0 (out of `--fix` scope)
-- `legacy_skip_marker` may still be > 0 (report-only; out of `--fix` scope per T-INIT-SKIP-SEMANTICS)
+  `--fix` implicitly runs `--check` first; outputs `fix_counts` JSON. Then invoke `--json` once more (without `--fix`) for a post-fix self-check:
+  - `agents_sync.stale / missing / orphan` should all be 0
+  - `missing_template` should be 0
+  - `missing_section` should be 0
+  - `missing_field` should be 0
+  - `gitignore_missing_lines` should be 0
+  - `claude_agents_lang_drift` should be 0 for files in bucket 2 (standalone §Language drift; lightweight `fix_claude_agents_lang_drift` field-level sync handles it); may remain > 0 for files routed to bucket 1 (smart-merge subsumes that fix) or for structurally pre-#17 §Language blocks (script skips silently — user re-runs /holo:init or manually upgrades)
+  - `claude_agents.unexpected_diffs` may still be > 0 (display-only by design, out of `--fix` scope)
+  - `legacy_skip_marker` may still be > 0 (display-only by design, out of `--fix` scope per T-INIT-SKIP-SEMANTICS)
+  - `heading_drift` may still be > 0 (resolved by Q-conflict path, not by `--fix`)
+  - `section_content_drift` may still be > 0 (resolved by Q-conflict path, not by `--fix`)
+- `Skip all` → no script invocation.
 
 **Orphan sibling cleanup**: if `fix_counts.orphan_siblings_left` is non-empty, the script removed the `SKILL.md` of each orphan but kept other files under the parent directory (per the "no silent overwrite" rule). Print each entry to the user — e.g. `⚠️ kept sibling files under <parent>: <sibling list> (manual cleanup required)` — so the user knows to inspect and delete them.
 
@@ -261,11 +305,14 @@ Plugin: <name> v<version>
 Templates:          template_copied=D | section_appended=E | field_appended=F
 Gitignore:          gitignore_appended=G
 CLAUDE/AGENTS:      lang_fixed=H | <OK / U cross-sync warnings (manual fix needed)>
+Smart-merge:        files_merged=M | files_overwritten=N | files_kept=K | files_failed_after_retry=Z
+Snapshot:           <snapshot_dir or "(none — no smart-merge writes this run)">
 
-Suggested next steps (only when there are _(TODO)_ appends or manual sync):
+Suggested next steps (only when there are _(TODO)_ appends, manual sync, or smart-merge failures):
   1. Review `_(TODO — added by /holo:update)_` markers and fill in actual content as needed
   2. If CLAUDE.md ↔ AGENTS.md have unexpected diffs, manually sync them and rerun diff to verify
-  3. `/commit` to land the sync changes
+  3. If smart-merge surfaced any failed-after-retry files (Z > 0), inspect the staging output the smart-merge dispatch saved + the snapshot, then resolve manually
+  4. `/commit` to land the sync changes
 ```
 
 ## Constraints

@@ -1,3 +1,4 @@
+<!-- holo:section start -->
 <!--
 MAINTENANCE — read before editing this file.
 This file is an index for fast project follow-up, not a detailed manual.
@@ -5,16 +6,24 @@ This file is an index for fast project follow-up, not a detailed manual.
 2. Prefer deletion over addition; check if a new item merges into an existing one before adding.
 3. Describe the current design only — no "legacy / deprecated / formerly / renamed from".
 4. No real product / customer / private-content names — use structural placeholders.
-Shorter is better than longer; each entry is a distilled summary, not a detail dump — push detail to the linked source.
+5. Compactness Requirements:
+   - Shorter is better than longer. Each entry is a summary, not a detail dump.
+   - Compactness must not sacrifice accuracy or completeness — never drop important information just to fit the length target.
+   - Aim for ≤ 5 lines and push longer detail to the linked source (docs/<topic>.md).
+   - Do not compress or touch content unrelated to the current edit.
 -->
+<!-- holo:section end -->
 
-# Operational Conventions
+# Operational Conventions <!-- holo:heading -->
 
+<!-- holo:section start -->
 Rules easy to forget during long sessions. Dilution self-check triggers
 live in `CLAUDE.md` / `AGENTS.md`.
+<!-- holo:section end -->
 
-## Logging
+## Logging <!-- holo:heading -->
 
+<!-- holo:section start -->
 `logs/change_logs/` carries per-change activity logs. Two log shapes
 coexist, distinguished by the `Type` field in the file header:
 
@@ -59,21 +68,28 @@ as-is; do not retroactively rewrite or backfill the `Type` field.
 When the project uses the bundled `/go` / `/do` / `/post-check`
 skills, those skills own the exact log format; read their definitions
 for the source of truth.
+<!-- holo:section end -->
 
-## Cross-File Alignment
+## Cross-File Alignment <!-- holo:heading -->
 
+<!-- holo:section start -->
 When a concept changes, update every file in its row. Start with an
 empty table; add a row each time you discover a downstream file that
-must move in lockstep with an upstream change.
+must move in lockstep with an upstream change. Table cells list lockstep
+files only — a comma-separated file list (with anchors when useful), not
+an inline how-to; implementation detail belongs in the target file's
+own maintenance comments.
 
 | Changed | Also update |
 |---------|-------------|
 | <upstream artifact> | <list of downstream files> |
 
 After any change, grep for the old phrasing to catch stale references.
+<!-- holo:section end -->
 
-## Single Source of Truth
+## Single Source of Truth <!-- holo:heading -->
 
+<!-- holo:section start -->
 When the same value (a numeric bound, a path prefix, an enum, a regex
 pattern) appears in multiple places, write it in **one canonical
 location** and have every other place reference or derive from it.
@@ -92,9 +108,11 @@ later as a confusing bug.
 When the duplication can't be eliminated mechanically (e.g. a prose
 example in a doc), record the linkage as a row in §Cross-File
 Alignment so the mirror update becomes a checklist item, not memory.
+<!-- holo:section end -->
 
-## Identifier Renames
+## Identifier Renames <!-- holo:heading -->
 
+<!-- holo:section start -->
 When renaming an identifier across a repo, a single literal grep is
 **not enough** — identifiers leak into multiple syntactic forms.
 Before declaring "no residue", run all four scans:
@@ -120,9 +138,11 @@ Exclude history-frozen directories from the scan: `logs/change_logs/`,
 Codify the four scans into the PRE log's verification criteria section
 when planning a rename, so the post-change review can verify each
 independently.
+<!-- holo:section end -->
 
-## Generic Placeholders
+## Generic Placeholders <!-- holo:heading -->
 
+<!-- holo:section start -->
 Canonical docs (this folder, `docs/`, schemas, prompts) stay
 project-agnostic in tone:
 
@@ -134,24 +154,27 @@ project-agnostic in tone:
 Exempt (history is the point): `logs/change_logs/`,
 `logs/review_reports/`, archived TODOs, this file's `decisions.md`
 peer, git commit messages.
+<!-- holo:section end -->
 
-## Naming and Identifiers
-
-_(none yet — delete this marker once content is added)_
-
-## Data Separation
+## Naming and Identifiers <!-- holo:heading -->
 
 _(none yet — delete this marker once content is added)_
 
-## Git
+## Data Separation <!-- holo:heading -->
 
 _(none yet — delete this marker once content is added)_
 
-## Post-Change Checklist
+## Git <!-- holo:heading -->
 
+_(none yet — delete this marker once content is added)_
+
+## Post-Change Checklist <!-- holo:heading -->
+
+<!-- holo:section start -->
 1. All aligned files updated? (Cross-File Alignment table above)
 2. PRE log written before the change; POST log written before commit?
 3. `ai_context/` updated only if the change is durable?
 4. Grepped for stale references to old names / paths / values?
    (For identifier renames, use the 4-form scan from §Identifier Renames.)
 5. Smoke test or type check run, if code or schema changed?
+<!-- holo:section end -->

@@ -1,5 +1,5 @@
 ---
-description: Project skeleton initialization — drop the standard skeleton from the plugin's templates/project-skeleton/ (CLAUDE.md / AGENTS.md / ai_context/ / docs/todo_list.md / logs/) into the current working directory, then based on repo probing + user questioning fill placeholders with the project's actual values. Step 0 asks language axes first (content_language / conversation_language); then three rounds of questioning: Round 1 (project name / one-or-two-sentence goal / main branch / timezone — Q2 answer fans out to README description + plugin.json description + ai_context/project_background.md §Goal) / Round 2 (top-level directory classification, conditional) / Round 4 (doc bootstrap for architecture.md + requirements.md — each: auto-scan / manual / skip). Template uses a three-bucket schema: REQUIRED `<...>` (always filled by Round 1 / Step 0) / PROGRESSIVE `_(none yet — delete this marker once content is added)_` (template starts empty, fill as evolves) / INFERRED (Step 4.4 deterministic AI-infer). Optional generation of `.agents/skills/` mirror. No arguments; empty directory or already initialized both handled. Never silently overwrites — conflicts ask file-type-dispatched options (`.gitignore` → keep / overwrite / smart-merge with three-phase LLM-reorganize pipeline; markdown → keep / overwrite / merge mechanical append; other non-markdown → keep / overwrite). Does not touch non-template files, does not git add, does not commit. Triggers: /holo:init / initialize project / install skeleton / create an empty project.
+description: Project skeleton initialization — drop the standard skeleton from the plugin's templates/project-skeleton/ (CLAUDE.md / AGENTS.md / ai_context/ / docs/todo_list.md / logs/) into the current working directory, then based on repo probing + user questioning fill placeholders with the project's actual values. Step 0 asks language axes first (content_language / conversation_language); then three rounds of questioning: Round 1 (project name / one-or-two-sentence goal / main branch / timezone — Q2 answer fans out to README description + plugin.json description + ai_context/project_background.md §Goal) / Round 2 (top-level directory classification, conditional) / Round 4 (doc bootstrap for architecture.md + requirements.md — each: auto-scan / manual / skip). Template uses a three-bucket schema: REQUIRED `<...>` (always filled by Round 1 / Step 0) / PROGRESSIVE `_(none yet — delete this marker once content is added)_` (template starts empty, fill as evolves) / INFERRED (Step 4.4 deterministic AI-infer). Optional generation of `.agents/skills/` mirror. No arguments; empty directory or already initialized both handled. Never silently overwrites — conflicts ask file-type-dispatched options (markdown → smart-merge dispatch with three-layer ask + 4 sub-agent parallel + `take_snapshot` backup, per `docs/architecture/smart-merge.md`; `.gitignore` → keep / overwrite / smart-merge with three-phase LLM-reorganize pipeline; other non-markdown → keep / overwrite). Does not touch non-template files, does not git add, does not commit. Triggers: /holo:init / initialize project / install skeleton / create an empty project.
 ---
 
 > **Language**: per `ai_context/skills_config.md §Language` — disk-bound output (template files landed in the project, the filled-in placeholder values, the `skills_config.md §Language` values written by Step 4.2, any in-place translation result) uses `content_language`; user-facing surface (chat prose / `AskUserQuestion` prompts and option labels / progress-tool entry `content` / `[lang-translate]` progress lines / planned-actions print / `Step N skipped` lines) uses `conversation_language`. Code identifiers, file paths, field names, frontmatter keys, ISO 639-1 codes (`zh`, `en`, etc.), and structural prefixes (`Step N:`, `NEW`, `SAME`, `CONFLICT`, `SAME-after-translate`, `CONFLICT-after-translate`) stay English regardless. **Note on the bootstrap edge case**: until Step 0 settles `<conversation_language>` (the Step 0 question itself is asked before any settle), the AI follows `auto` semantics (per-turn match the user's most recent message language); from Step 0's answer onward the chosen value governs all subsequent user-facing output in this init run.
@@ -287,50 +287,80 @@ Glossary reference: `${CLAUDE_PLUGIN_ROOT}/scripts/translation_glossary.md` is t
 
 **`SAME`**: no-op, skip. Print one line in the conversation `Skipped (already identical): <path>`.
 
-**`CONFLICT`**: **ask the user about all of them at once** — do not ask file by file.
+**Sentinel notice in entry files (CLAUDE.md / AGENTS.md)**: the plugin templates' `CLAUDE.md` + `AGENTS.md` carry an inline "Plugin-managed sections (sentinel contract)" blockquote inside their preamble sentinel block (added by T-SECTION-VERSION-SENTINEL Phase 4 — lives inside `<!-- holo:section start --> ... <!-- holo:section end -->` so it counts as plugin canonical content and is overwritten on upgrade if a consumer deletes it). The notice explains the `<!-- holo:heading -->` ownership contract + the escape hatch (delete the marker to detach from plugin ownership). This step needs NO new write-back path: the standard template copy above brings the notice through into the consumer's entry files. The notice is byte-identical across `CLAUDE.md` ↔ `AGENTS.md` per the existing entry-file sync contract.
 
-Use **<ask tool>** to present a diff summary for each conflict file (`diff -u` first 10 lines + last 10 lines, truncated with `... (N more lines)` if too long), and let the user pick for each file. **Available options dispatch by file type**:
+**`CONFLICT`**: **dispatch by file type**. Different file types use different conflict-resolution machinery:
 
-| File type | Options |
-|---|---|
-| `.gitignore` (line-set semantics) | `keep` / `overwrite` / `smart-merge` (recommended) |
-| Markdown files (`*.md`) | `keep` / `overwrite` / `merge` (mechanical append) |
-| Other non-markdown files | `keep` / `overwrite` (no merge available) |
+| File type | Machinery | Reference |
+|---|---|---|
+| Markdown (`*.md`) | smart-merge dispatch (4 sub-agent parallel + three-layer ask + `take_snapshot` backup) | `docs/architecture/smart-merge.md` (T-INIT-UPDATE-SMART-MERGE) |
+| `.gitignore` (line-set semantics) | three-phase LLM-reorganize pipeline (Phase 1 union + Phase 2 LLM reorganize + Phase 3 set-equality gate) | inline below (T-GITIGNORE-SMART-MERGE) |
+| Other non-markdown | per-file `keep` / `overwrite` ask | inline below |
 
-Option semantics:
+For each CONFLICT file print a one-line diff summary (`diff -u` first 5 lines + last 5 lines, truncated with `... (N more lines)` if longer) before the dispatch so the user has context.
 
-- `keep`: keep current state, skip this template.
-- `overwrite`: overwrite with the template.
-- `merge` (markdown only): append the template content to the end of the existing file with separator `\n\n<!-- ↓ plugin-skeleton template content ↓ -->\n\n`. **Mechanical concatenation** — does not deduplicate sections, does not reconcile user's section structure; the user is responsible for cleaning up afterward.
-- `smart-merge` (`.gitignore` only): three-phase pipeline. See `ai_context/decisions.md` §Skill Implementation #14 for full rationale.
+### `.md` CONFLICT — smart-merge dispatch
 
-  1. **Phase 1 — deterministic union** (Python). Read both files, then call `gitignore_compute_union(template_content, target_content)` exported by `scripts/holo_update_check.py`. The return value is `(merged_content, added_patterns)`: `added_patterns` is the list of patterns present in the template but not in the target (canonical form, deduplicated, template order); `merged_content` is the deterministic fallback (target verbatim + banner sentinel + the added patterns at the tail). Compute the **expected pattern set** via `gitignore_pattern_lines(merged_content)` — this is the load-bearing invariant Phase 3 will gate against.
-  2. **Phase 2 — LLM reorganize**. Invoke the LLM with the union pattern set and a prompt that pins:
-     - Output every input pattern exactly, byte-for-byte (no rewrite, no normalisation, no dedup).
-     - Add no new patterns.
-     - Use only the seven section headers exposed as `_GITIGNORE_SECTION_WHITELIST` in the script: `# Editor / IDE`, `# Python`, `# Node`, `# OS`, `# Local config`, `# Build outputs / caches`, `# Project-specific`. Omit any section that has no patterns; do not invent new section headers.
-     - Group related patterns under their idiomatic section.
+When the CONFLICT set contains ≥ 1 `.md` file, run the smart-merge protocol per `docs/architecture/smart-merge.md`. Summary of the integration:
 
-     This step is **non-load-bearing**: its output is purely aesthetic. If the LLM call fails entirely, treat it as a Phase 3 failure and proceed to the fallback.
-  3. **Phase 3 — set-equality gate** (Python). Call `gitignore_verify_reorganize(llm_output, expected_patterns, _GITIGNORE_SECTION_WHITELIST)`. It enforces two invariants:
-     - Pattern set equality (no missing, no extra, no rewritten).
-     - Every `#`-prefix comment line in the LLM output is in the whitelist (the banner sentinel is implicitly allowed).
+1. **Layer 1 aggregate ask** (one `<ask tool>` call, 1 question, 5 options) — applies to ALL `.md` CONFLICT files:
+   1. Smart-merge all
+   2. Overwrite all with new plugin version
+   3. Keep all existing files (no merge)
+   4. Per-file confirmation → Layer 2
+   5. Skip this step
 
-     On `passed=True` → write the LLM output to the target `.gitignore`. On `passed=False` → write the Phase 1 `merged_content` to the target instead, and print a warning citing the gate's `violations` list verbatim:
-     ```
-     ⚠️ LLM reorganize gate failed for .gitignore: <violations>; wrote deterministic union (raw template additions appended at file tail with banner) instead.
-     ```
-     Correctness is guaranteed by Phase 1 alone — the LLM is a tidy-up step, not a merge step.
+2. **Dispatch per Layer 1 choice**:
+   - Option 1 → for each `.md` CONFLICT file, dispatch the 4 sub-agents in parallel per `docs/architecture/smart-merge.md` "4-sub-agent dispatch" section.
+   - Option 2 → call `take_snapshot(target_root=".", slug="holo-init-smart-merge", file_paths=<list of .md CONFLICT files>)` from `scripts/holo_update_check.py`, then overwrite each file with the resolved plugin template content. The snapshot directory path is surfaced in the Step 3.1 wrap-up line so the user knows where to restore from.
+   - Option 3 → no action; each consumer `.md` file stays as-is.
+   - Option 4 → for each `.md` CONFLICT file, ask Layer 2 (1 question, 4 options): `smart-merge` / `overwrite with new plugin` / `keep (no merge)` / `skip current file`. Execute per per-file choice (option 1 = same as Layer 1 option 1 for this file; option 2 = same as Layer 1 option 2 for this file; option 3 and 4 leave the file unchanged).
+   - Option 5 → skip smart-merge entirely; proceed to `.gitignore` + non-markdown CONFLICT handling below.
+
+3. **Template source resolution** — smart-merge uses the source root already selected by Step 3.1's branch (a) / (b) / (c) above (canonical `templates/project-skeleton/`, pre-generated `templates/project-skeleton.<content_language>/`, or branch (c)'s on-the-fly translation result). See `docs/architecture/smart-merge.md` "Template source resolution" section. No new pre-translation pass is added by this step.
+
+4. **Sub-agent dispatch contract** — for each `.md` file under smart-merge (Layer 1 option 1, or Layer 2 option 1 in option-4 fan-out), the parent dispatches the 4 sub-agents in a single sub-agent batch (parallel for runtimes that support it; sequential fallback otherwise). Each sub-agent prompt MUST include: paths to consumer file + resolved new plugin template + snapshot file, the sentinel marker rules from `docs/architecture/section-version-sentinel.md`, the smart-merge logic from `docs/architecture/smart-merge.md` (trigger conditions / three-layer ask / Layer 3 orphan-content fallback / edge cases), and the target `content_language` value. **Place the language axes injection at the end of each sub-agent prompt** (recency-favorable position, per Decision #16). Agent 1 (merger+translator) returns merged output to a staging tmp path; Agent 2/3/4 verify (Agent 4 conditional on translation happening); fix-loop = one Agent 1 retry on FAIL; second FAIL surfaces the staging output + outstanding findings with a 3-option user ask per smart-merge.md "Failure surface".
+
+5. **Backup** — before any disk write from the smart-merge path, `take_snapshot()` copies every CONFLICT file being smart-merged to `logs/file_snapshots/<YYYY-MM-DD>_<HHMMSS>_holo-init-smart-merge/<rel>`. `logs/` is gitignored on the consumer side per the shipped `.gitignore` — snapshots stay local. The snapshot directory path is surfaced in the Step 3.1 wrap-up line.
+
+### `.gitignore` CONFLICT — three-phase smart-merge pipeline
+
+For each `.gitignore` CONFLICT file, run the three-phase pipeline below (per [[T-GITIGNORE-SMART-MERGE]], unchanged from before phase 2). See `ai_context/decisions.md` §Skill Implementation #14 for rationale.
+
+1. **Phase 1 — deterministic union** (Python). Read both files, then call `gitignore_compute_union(template_content, target_content)` exported by `scripts/holo_update_check.py`. The return value is `(merged_content, added_patterns)`: `added_patterns` is the list of patterns present in the template but not in the target (canonical form, deduplicated, template order); `merged_content` is the deterministic fallback (target verbatim + banner sentinel + the added patterns at the tail). Compute the **expected pattern set** via `gitignore_pattern_lines(merged_content)` — this is the load-bearing invariant Phase 3 will gate against.
+2. **Phase 2 — LLM reorganize**. Invoke the LLM with the union pattern set and a prompt that pins:
+   - Output every input pattern exactly, byte-for-byte (no rewrite, no normalisation, no dedup).
+   - Add no new patterns.
+   - Use only the seven section headers exposed as `_GITIGNORE_SECTION_WHITELIST` in the script: `# Editor / IDE`, `# Python`, `# Node`, `# OS`, `# Local config`, `# Build outputs / caches`, `# Project-specific`. Omit any section that has no patterns; do not invent new section headers.
+   - Group related patterns under their idiomatic section.
+
+   This step is **non-load-bearing**: its output is purely aesthetic. If the LLM call fails entirely, treat it as a Phase 3 failure and proceed to the fallback.
+3. **Phase 3 — set-equality gate** (Python). Call `gitignore_verify_reorganize(llm_output, expected_patterns, _GITIGNORE_SECTION_WHITELIST)`. It enforces two invariants:
+   - Pattern set equality (no missing, no extra, no rewritten).
+   - Every `#`-prefix comment line in the LLM output is in the whitelist (the banner sentinel is implicitly allowed).
+
+   On `passed=True` → write the LLM output to the target `.gitignore`. On `passed=False` → write the Phase 1 `merged_content` to the target instead, and print a warning citing the gate's `violations` list verbatim:
+   ```
+   ⚠️ LLM reorganize gate failed for .gitignore: <violations>; wrote deterministic union (raw template additions appended at file tail with banner) instead.
+   ```
+   Correctness is guaranteed by Phase 1 alone — the LLM is a tidy-up step, not a merge step.
+
+### Other non-markdown CONFLICT — keep / overwrite ask
+
+For each non-`.md` non-`.gitignore` CONFLICT file, use one `<ask tool>` call (batch up to 4 file questions per call; emit additional batches if > 4 files) — each question has 2 options:
+
+- `keep` — leave consumer file as-is, skip this template.
+- `overwrite` — write plugin template content over consumer file. (No snapshot for non-md non-gitignore overwrites; these are typically binary or simple-text files where smart-merge logic does not apply.)
 
 **<ask tool> resolution**: Claude → `AskUserQuestion` (max 4 questions per call, batch beyond); other runtimes (no structured ask tool, e.g. Codex / Copilot agent mode) → enumerate questions + options per question in the response text and let the user answer in one pass (still max 4 per batch, batch beyond).
 
-After the user answers, execute decisions per file.
+After all CONFLICT files are resolved (smart-merge / .gitignore pipeline / keep / overwrite), execute the deferred writes per file.
 
 **3.1 wrap-up**: re-run the status scan from Step 1.2 to confirm all template files are `SAME` (except those the user chose `keep`); any residual `CONFLICT` → error and stop (indicates the user's choice did not take effect).
 
-Print result: `Created: A | Skipped (identical): B | Skipped (kept existing): C | Overwritten: D | Merged: E | Smart-merged: F | Smart-merge fallbacks: G`.
+Print result: `Created: A | Skipped (identical): B | Skipped (kept existing): C | Overwritten: D | Merged: E | Smart-merged: F | Smart-merge fallbacks: G | pre-overwrite snapshot: <snapshot_dir or "(none — nothing was overwritten)">`.
 
-`Smart-merged` counts `.gitignore` files where the LLM output cleared the Phase 3 gate; `Smart-merge fallbacks` counts those that wrote the Phase 1 deterministic union after gate failure (≥ 1 means the user should eyeball the resulting `.gitignore` — content is correct, organization is the raw banner form).
+`Smart-merged` counts `.gitignore` files where the LLM output cleared the Phase 3 gate; `Smart-merge fallbacks` counts those that wrote the Phase 1 deterministic union after gate failure (≥ 1 means the user should eyeball the resulting `.gitignore` — content is correct, organization is the raw banner form). `pre-overwrite snapshot` shows the `take_snapshot()` directory when D ≥ 1 (at least one markdown file was overwritten); restore by `cp <snapshot_dir>/<rel> <rel>` if any auto-overwrite hit content the user wanted to keep.
 
 **3.2 `.agents/skills/` mirror generation (dual source)**
 

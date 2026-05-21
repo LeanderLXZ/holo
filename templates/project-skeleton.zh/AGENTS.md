@@ -1,18 +1,32 @@
-# <project-name> — Agent Entry Point
+# <project-name> — Agent Entry Point <!-- holo:heading -->
 
+<!-- holo:section start -->
 本文件由 coding agents 在会话开始时自动加载。保持简短 ——
 详细上下文放在 `ai_context/`，不在此处。
 
-## 语言
+> **plugin 管理段（sentinel 契约）。** 段头带 `<!-- holo:heading -->`
+> + 段内被 `<!-- holo:section start --> ... <!-- holo:section end -->`
+> 包裹的内容是 plugin canonical 内容。plugin 升级时（`/holo:update`），
+> 这些区域通过 extract-and-reformat smart-merge 用新 plugin 模板重填 ——
+> 用户内容（sentinel 之间的 gap）保留；plugin canonical 内容（sentinel
+> 内）跟随新模板。**逃生口**：想永久接管某段 → 删掉该段的
+> `<!-- holo:heading -->` 标记；该段变为用户拥有，smart-merge 之后不
+> 再碰它。完整设计见 `docs/architecture/section-version-sentinel.md`。
+<!-- holo:section end -->
 
+## 语言 <!-- holo:heading -->
+
+<!-- holo:section start -->
 - `content_language: en` —— 落盘类输出（docs / logs / commits /
   skill 输出 / 新增代码注释）
 - `conversation_language: auto` —— AI ↔ 用户对话
 
 对**每一次**对话生效，不只是首轮。代码标识符与字段名保持英文。
+<!-- holo:section end -->
 
-## 会话开始：通读 ai_context/ 一次
+## 会话开始：通读 ai_context/ 一次 <!-- holo:heading -->
 
+<!-- holo:section start -->
 在**每个新会话**开始时，按 `ai_context/instructions.md` 指定的
 顺序通读整个 `ai_context/` 目录：
 
@@ -28,21 +42,27 @@
 
 读完后，**停下来等待用户指令。** 不要自行开始修改代码、schema 或
 文档。
+<!-- holo:section end -->
 
-## 默认不加载的内容
+## 默认不加载的内容 <!-- holo:heading -->
 
+<!-- holo:section start -->
 参见 `ai_context/read_scope.md` 中本项目专属的清单。
 
 通用规则：除非任务明确要求，否则不要扫描大型原始输入、完整对话
 历史、整个日志目录、生成产物、数据库、向量库及索引。
+<!-- holo:section end -->
 
-## 行动 vs. 加载
+## 行动 vs. 加载 <!-- holo:heading -->
 
+<!-- holo:section start -->
 读 `ai_context/` 是上下文加载，不是任务说明。只在用户显式请求时
 行动。如果在阅读过程中发现异常，记录下来并等待 —— 不要主动修复。
+<!-- holo:section end -->
 
-## 稀释自查
+## 稀释自查 <!-- holo:heading -->
 
+<!-- holo:section start -->
 长会话会导致静默遗忘。在编辑代码、schema 或文档之前 —— 以及任何
 任务类型切换之后 —— 暂停并回答：
 
@@ -55,9 +75,12 @@
 
 如果任一答案是"我不记得了"或"我在猜" → 在继续之前重读相关的
 `ai_context/` 文件。
+<!-- holo:section end -->
 
-## 与 CLAUDE.md 保持同步
+## 与 CLAUDE.md 保持同步 <!-- holo:heading -->
 
+<!-- holo:section start -->
 本文件与 `CLAUDE.md` 保持**完全一致**，仅标题行不同（"Agent
 Entry Point" vs. "Claude Entry Point"）。对其中之一的任何改动
 必须在同一次 commit 中镜像到另一文件。
+<!-- holo:section end -->

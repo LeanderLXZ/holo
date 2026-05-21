@@ -1,5 +1,6 @@
-# Skills Config (project instance)
+# Skills Config (project instance) <!-- holo:heading -->
 
+<!-- holo:section start -->
 Loaded on demand by skills that need project-specific anchors. **Not**
 loaded by default at session start — only the specific skill that needs
 it reads it.
@@ -16,9 +17,11 @@ report the drift.
 
 When porting to another project, edit only this file — skill bodies
 stay untouched.
+<!-- holo:section end -->
 
-## Background processes
+## Background processes <!-- holo:heading -->
 
+<!-- holo:section start -->
 Used by skills to detect "is there an in-flight long-running job on this
 branch / worktree?", so they don't disturb it.
 
@@ -28,39 +31,49 @@ branch / worktree?", so they don't disturb it.
   - `(none)`
 - Process logs:
   - `(none)`
+<!-- holo:section end -->
 
-## Protected branch prefixes
+## Protected branch prefixes <!-- holo:heading -->
 
+<!-- holo:section start -->
 Used by skills to identify branches that must not be auto-forwarded or
 auto-merged.
 
 - Prefixes:
   - `(none)`
+<!-- holo:section end -->
 
-## Main branch policy
+## Main branch policy <!-- holo:heading -->
 
+<!-- holo:section start -->
 Drives main-branch-related skill decisions (worktree prompts in `/go`,
 push defaults, etc.). Skills no longer auto-merge across branches —
 cross-branch synchronisation is an explicit user action via `/forward`.
 
 - Main branch: `main`
 - Rule: _(none yet — delete this marker once content is added)_
+<!-- holo:section end -->
 
-## Do-not-commit paths
+## Do-not-commit paths <!-- holo:heading -->
 
+<!-- holo:section start -->
 Project-specific paths that must never be committed, on top of
 `.gitignore` defaults.
 
 - `(none)`
+<!-- holo:section end -->
 
-## Source directories
+## Source directories <!-- holo:heading -->
 
+<!-- holo:section start -->
 Used by review skills to scope code-level scans.
 
 - `(none)`
+<!-- holo:section end -->
 
-## Data contract directories
+## Data contract directories <!-- holo:heading -->
 
+<!-- holo:section start -->
 Project-specific directories holding data-shape contracts —
 JSON Schema, Protobuf, OpenAPI, Pydantic models, SQL DDL, Avro,
 GraphQL schemas, etc. Many projects don't have a dedicated directory
@@ -68,29 +81,37 @@ GraphQL schemas, etc. Many projects don't have a dedicated directory
 degrade gracefully.
 
 - `(none)`
+<!-- holo:section end -->
 
-## Example artifact directories
+## Example artifact directories <!-- holo:heading -->
 
+<!-- holo:section start -->
 Used by review skills to scope example-output / fixture-data scans.
 
 - `(none)`
+<!-- holo:section end -->
 
-## Core component keywords
+## Core component keywords <!-- holo:heading -->
 
+<!-- holo:section start -->
 Used by review skills to locate key architectural components for
 alignment audits.
 
 - `(none)`
+<!-- holo:section end -->
 
-## Sensitive content placeholder rules
+## Sensitive content placeholder rules <!-- holo:heading -->
 
+<!-- holo:section start -->
 Real-world content that must NOT appear in docs / prompts / ai_context;
 must be replaced by structural placeholders.
 
 - `(none)`
+<!-- holo:section end -->
 
-## Timezone
+## Timezone <!-- holo:heading -->
 
+<!-- holo:section start -->
 Drives timestamp generation across skills (log filenames, report
 filenames, per-cycle timestamps).
 
@@ -100,9 +121,11 @@ filenames, per-cycle timestamps).
   timezone. This fallback is part of the contract (see top-of-file
   rule) — skills do not need to encode bespoke `try / except` per
   caller.
+<!-- holo:section end -->
 
-## Language
+## Language <!-- holo:heading -->
 
+<!-- holo:section start -->
 Two project-wide language axes consumed by every skill that writes
 output or asks the user a question, plus the SessionStart hook
 banner.
@@ -129,9 +152,11 @@ Notes:
 - Defaults above (`en` / `auto`) are the template's starting point;
   edit to your project's preferred values, or let `/holo:init` set
   them interactively when the project is initialised.
+<!-- holo:section end -->
 
-## Activity sources
+## Activity sources <!-- holo:heading -->
 
+<!-- holo:section start -->
 Per-source registry consumed by `/recent-activity`, `/todo-add`, `/go`,
 `/post-check`, `/full-review`, `/check-review`, and `/run-prompt`.
 Lists path + filename pattern + per-entry field names for each ledger
@@ -155,3 +180,4 @@ scan (graceful skip per top-of-file rule).
   - Filename pattern: `{YYYY-MM-DD_HHMMSS}_{model}_{slug}.md`
 - Prompt sources:
   - Path: `(none)`
+<!-- holo:section end -->

@@ -1,13 +1,13 @@
 ---
 name: do
-description: Lightweight counterpart to `/go` for simple in-place modifications — 4-step flow: load skills_config + print language axes → plan + modify (declare planned modification set first; if count ≥ 3 → `<ask tool>` 3-option fork: upgrade to /go / continue /do / exit) → write single-segment LOG (`Type: DO`, motivation + change list + verification summary + execution deviations) → ask user whether to commit (commit / skip; commit uses raw `git add` + `git commit`). No PRE log gating, no smoke test, no review, no cross-file fan-out, no worktree / stash / branch switch. Default does NOT touch `docs/` or `ai_context/` unless the discussion is explicitly about those files. Does NOT mid-flight escalate to /go; if scope widens past /do's envelope, exit and re-enter via /go. Does NOT call /go / /post-check / /full-review / /commit / /update-docs (commit is raw git, not delegated). `$ARGUMENTS` = focus / slug hint (optional). Triggers: /do / do it / just do it / quick edit / land lightly / 轻量改一下 / 改一下 / 简单修改.
+description: Default landing path for already-discussed changes — 4 steps: load config → declare plan + edit → write single-segment LOG → ask commit. Covers the common case: single intent, ≤2 files, no need for an intent baseline / multi-line review / smoke / cross-file fan-out / worktree-stash-branch-switch handling. **Includes docs / ai_context edits when the discussion target IS that file** (only opportunistic "while I'm here" doc edits are blocked). Auto-asks upgrade to /go when planned set hits ≥ 3 files. **Pick /do unless one of /go's triggers below clearly applies.** $ARGUMENTS = focus / slug hint (optional). Triggers: do / do it / just do it / quick edit / quick fix / edit in place / land lightly / land what we just discussed / land the simple fix / change one file / drop this in.
 ---
 
 > **Language**: per `ai_context/skills_config.md §Language` — disk-bound output (logs / docs / commit messages / code comments / files written) uses `content_language`; user-facing surface (chat prose / `AskUserQuestion` prompts and option labels / progress-tool entry `content` / status lines / strategy declarations / findings rendered in chat) uses `conversation_language`. Code identifiers, file paths, field names, frontmatter keys, and structural prefixes (`Step N:`, `LOG:`, etc.) stay English regardless.
 
-# /do — lightweight modification path
+# /do — default landing path
 
-Execute per the discussion above. `/do` is the lightweight counterpart to `/go` for simple in-place modifications — no PRE log gating, no smoke, no review, no cross-file fan-out, no worktree / stash / branch switch. If `$ARGUMENTS` is present, it is the focus / slug hint for this round.
+Execute per the discussion above. `/do` is the default path for landing already-discussed changes — single intent, ≤2 files, short feedback loop. No PRE log gating, no smoke, no review, no cross-file fan-out, no worktree / stash / branch switch. If `$ARGUMENTS` is present, it is the focus / slug hint for this round.
 
 **Discipline (per `CLAUDE.md` §Dilution Self-Check, adapted for `/do`)** — before editing, answer the three:
 
@@ -54,7 +54,7 @@ Subsequent steps referencing "skills_config.md `## XX`" use this config. This sk
 
 > **Language**: user-facing — render the language-axes anchor line below in `conversation_language` per `ai_context/skills_config.md §Language`. Axis values are echoed verbatim from §Language.
 
-After reading, print one line **Language-axes anchor**: `Language axes: conversation_language=<value> · content_language=<value> (source: ai_context/skills_config.md §Language)`. Both axis values are echoed **verbatim** from the §Language section; the bracketed source path stays English; the natural-language prefix translates to `conversation_language` (e.g. `语言双轴: conversation_language=zh · content_language=en （来源: ai_context/skills_config.md §Language）` under `conversation_language: zh`). This is a deliberate high-salience anchor planted before Steps 1–3 accumulate context.
+After reading, print one line **Language-axes anchor**: `Language axes: conversation_language=<value> · content_language=<value> (source: ai_context/skills_config.md §Language)`. Both axis values are echoed **verbatim** from the §Language section; the bracketed source path stays English; the natural-language prefix translates to `conversation_language` (rendered in the project's chosen language). This is a deliberate high-salience anchor planted before Steps 1–3 accumulate context.
 
 ## Step 1: Plan + modify
 

@@ -25,6 +25,7 @@ import os
 import re
 import shutil
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 
 
@@ -59,6 +60,71 @@ def find_plugin_root(override: str | None = None) -> str:
         "CLAUDE_PLUGIN_ROOT not set and cannot auto-detect plugin root from "
         "script location; pass --plugin-root explicitly"
     )
+
+
+# ---------------------------------------------------------------------------
+# Snapshot helper (T-SECTION-VERSION-SENTINEL Phase 4)
+# ---------------------------------------------------------------------------
+
+def take_snapshot(target_root: str, slug: str, file_paths: list[str]) -> str:
+    """Copy each file in ``file_paths`` to a per-run snapshot directory.
+
+    The snapshot lives at
+    ``<target_root>/logs/file_snapshots/<YYYY-MM-DD>_<HHMMSS>_<slug>/<rel_path>``.
+    UTC timestamp via ``datetime.now(timezone.utc)``; ``logs/`` is
+    gitignored on consumer projects (per the plugin's shipped
+    ``.gitignore``) so snapshots stay local and never reach
+    ``main`` or any commit.
+
+    Used by:
+
+    - ``/holo:update --fix`` ``section_content_drift`` auto-fix branch
+      (snapshot consumer file before overwriting its sentinel block
+      with plugin canonical body).
+    - ``/holo:init`` Step 3.1 CONFLICT ``overwrite`` path for ``.md``
+      files (snapshot consumer file before replacing with template).
+
+    ``file_paths`` may be absolute or relative to ``target_root``;
+    absolute paths get rebased to the target_root-relative form
+    before placement under the snapshot dir, so a consumer's
+    ``ai_context/decisions.md`` becomes
+    ``<snapshot_dir>/ai_context/decisions.md``. Files that do not
+    exist on disk are silently skipped (caller already validated
+    paths; this helper is a defensive no-op for stragglers).
+
+    ``shutil.copy2`` preserves mtime + mode + xattrs where supported.
+
+    Returns the snapshot directory path as a string (e.g.
+    ``/path/to/target/logs/file_snapshots/2026-05-21_023045_holo-update``).
+    Callers surface this path so the user knows where to restore from
+    if the auto-fix overwrote something they wanted to keep. Snapshot
+    dir is created lazily — when ``file_paths`` is empty, the
+    function still returns the would-be path but does NOT create the
+    directory (no-op).
+    """
+    now = datetime.now(timezone.utc)
+    stamp = now.strftime("%Y-%m-%d_%H%M%S")
+    snapshot_dir = os.path.join(
+        target_root, "logs", "file_snapshots", f"{stamp}_{slug}"
+    )
+
+    if not file_paths:
+        return snapshot_dir
+
+    os.makedirs(snapshot_dir, exist_ok=True)
+    for path in file_paths:
+        if os.path.isabs(path):
+            rel = os.path.relpath(path, target_root)
+            src = path
+        else:
+            rel = path
+            src = os.path.join(target_root, rel)
+        if not os.path.isfile(src):
+            continue
+        dest = os.path.join(snapshot_dir, rel)
+        os.makedirs(os.path.dirname(dest), exist_ok=True)
+        shutil.copy2(src, dest)
+    return snapshot_dir
 
 
 # ---------------------------------------------------------------------------
@@ -171,6 +237,30 @@ _CONTENT_LANG_RE = re.compile(
 # `_consumer_conversation_lang`.
 _CONVERSATION_LANG_RE = re.compile(
     r"^\s*-\s*`conversation_language:\s*([A-Za-z0-9-]+)`", re.MULTILINE
+)
+
+# Sentinel marker constants (must match `scripts/sentinel_bootstrap.py` +
+# `docs/architecture/section-version-sentinel.md`). The dual-marker
+# mechanism — `<!-- holo:heading -->` on H2 lines + `<!-- holo:section
+# start --> ... <!-- holo:section end -->` around plugin canonical body —
+# is consumed by `_md_headers` (marker stripping for the legacy
+# `missing_section` check), `_parse_sentinel_blocks` (Phase 3 sentinel
+# parser), `heading_drift_check`, and `section_content_drift_check`.
+_HOLO_HEADING_MARKER = "<!-- holo:heading -->"
+_HOLO_SECTION_START = "<!-- holo:section start -->"
+_HOLO_SECTION_END = "<!-- holo:section end -->"
+_HOLO_HEADING_MARKER_RE = re.compile(r"\s*<!-- holo:heading -->\s*$")
+
+# PROGRESSIVE marker (per `ai_context/decisions.md` §Skill Implementation
+# #15). Excluded from `section_content_drift` byte-diff because consumer
+# legitimately deletes it when adding real content (per the marker's own
+# instruction). Stripping both sides leaves only the prose content for
+# byte-diff so a consumer who has correctly removed the placeholder does
+# not register as drift. Pattern matches the marker line as-emitted by
+# templates / `/holo:init` and tolerates trailing whitespace.
+_PROGRESSIVE_MARKER_RE = re.compile(
+    r"^_\(none yet — delete this marker once content is added\)_\s*$",
+    re.MULTILINE,
 )
 
 
@@ -297,13 +387,22 @@ def template_file_check(plugin_root: str, target_root: str) -> list[dict]:
 
 
 def _md_headers(path: str) -> set[str]:
-    """Return the set of `^## ` headers in a markdown file, ignoring
-    headers that appear inside fenced code blocks (``` / ~~~) or HTML
-    comments (<!-- ... -->). Without these skips, code-block `## `
-    examples are harvested as real headers and corrupt the
-    template-vs-project diff in either direction (false negative when
-    the example is in both files, false positive when the consumer's
-    file has a code-block heading and the template does not).
+    """Return the set of `^## ` H2 headers in a markdown file, ignoring
+    headers that appear inside fenced code blocks (``` / ~~~) and
+    skipping multi-line HTML comment blocks (e.g. the file-top
+    MAINTENANCE block). H1 headers are tracked separately by
+    `_md_h1_header`.
+
+    H2 detection happens BEFORE the multi-line HTML comment toggle so
+    that a heading carrying the inline sentinel marker
+    (`## Foo <!-- holo:heading -->`, injected by the sentinel bootstrap
+    into plugin templates) is still recognised as a heading rather
+    than swallowed as a comment block. The trailing
+    `<!-- holo:heading -->` marker is stripped before storage so
+    plugin-side (marker-bearing) headers compare equal to consumer-side
+    pre-sentinel headers (no marker) and post-sentinel consumer headers
+    (also marker-bearing) alike — the marker presence is an ownership
+    signal, not part of the header identity.
     """
     headers: set[str] = set()
     in_fence = False
@@ -325,16 +424,66 @@ def _md_headers(path: str) -> set[str]:
                     continue
             if in_fence:
                 continue
-            # HTML comment: may span multiple lines; toggle on open/close.
+            # H2 detection FIRST (before the multi-line HTML comment
+            # toggle below) so heading lines carrying the inline sentinel
+            # marker are recognised. Single-line HTML comments inside a
+            # heading line (open + close on the same line, which the
+            # marker IS) do not affect block state.
+            if not in_html_comment and re.match(r"^## ", raw):
+                header = raw.rstrip()
+                header = _HOLO_HEADING_MARKER_RE.sub("", header).rstrip()
+                headers.add(header)
+                continue
+            # Multi-line HTML comment block (typical: file-top MAINTENANCE
+            # block). Toggle on open/close, skip everything in between.
             if not in_html_comment and "<!--" in raw:
                 in_html_comment = True
             if in_html_comment:
                 if "-->" in raw:
                     in_html_comment = False
                 continue
-            if re.match(r"^## ", raw):
-                headers.add(raw.rstrip())
     return headers
+
+
+def _md_h1_header(path: str) -> str | None:
+    """Return the file's H1 line as `"# Title"` (marker stripped), or
+    None if no H1 exists / file is missing.
+
+    Fence-aware (skips H1-looking lines inside ```/~~~ blocks).
+    Multi-line HTML comments (MAINTENANCE block) are also skipped.
+    Stops at the first H1 found (files typically have one H1 at most).
+    """
+    in_fence = False
+    in_html_comment = False
+    fence_marker = ""
+    try:
+        with open(path, encoding="utf-8") as f:
+            for raw in f:
+                stripped = raw.lstrip()
+                if not in_html_comment:
+                    if not in_fence and (stripped.startswith("```") or stripped.startswith("~~~")):
+                        in_fence = True
+                        fence_marker = stripped[:3]
+                        continue
+                    if in_fence and stripped.startswith(fence_marker):
+                        in_fence = False
+                        fence_marker = ""
+                        continue
+                if in_fence:
+                    continue
+                if not in_html_comment and re.match(r"^# (?!#)", raw):
+                    header = raw.rstrip()
+                    header = _HOLO_HEADING_MARKER_RE.sub("", header).rstrip()
+                    return header
+                if not in_html_comment and "<!--" in raw:
+                    in_html_comment = True
+                if in_html_comment:
+                    if "-->" in raw:
+                        in_html_comment = False
+                    continue
+    except OSError:
+        return None
+    return None
 
 
 def template_section_check(plugin_root: str, target_root: str) -> list[dict]:
@@ -1141,6 +1290,554 @@ def legacy_skip_marker_check(target_root: str) -> list[dict]:
     return findings
 
 
+# ---------------------------------------------------------------------------
+# Sentinel-aware drift detection (Phase 3 of T-SECTION-VERSION-SENTINEL)
+# ---------------------------------------------------------------------------
+#
+# Parses files that have been Phase-2-bootstrapped (plugin templates) /
+# Phase-4-initialized (consumers) and surfaces two new finding kinds:
+#
+# - `heading_drift` — consumer carries `<!-- holo:heading -->` markers
+#   on H2 lines that no longer match the plugin template heading list.
+#   Reports only the consumer-orphan direction (consumer marker, no
+#   plugin counterpart); the opposite direction is covered by
+#   `missing_section` after the `_md_headers` marker-stripping fix.
+# - `section_content_drift` — sentinel-bracketed plugin canonical block
+#   bodies differ byte-for-byte between plugin template and consumer.
+#   PROGRESSIVE markers are stripped from both sides before comparison
+#   so consumer-side "delete the marker, add real content" does not
+#   register as drift.
+#
+# Both checks are report-only for Phase 3; auto-fix branches land in
+# Phase 4 once the snapshot path (`logs/file_snapshots/`) is wired.
+# Multi-block-per-section handling is deferred to Phase 5's
+# `scripts/sentinel_parse.py` canonical API; Phase 3's helpers handle
+# the one-block-per-section shape that `scripts/sentinel_bootstrap.py`
+# emits.
+
+def _parse_sentinel_blocks(path: str) -> dict:
+    """Parse a markdown file and extract plugin-owned sentinel structure.
+
+    Returns a dict with six keys::
+
+        has_heading_markers: bool   # any `<!-- holo:heading -->` present
+        has_section_markers: bool   # any `<!-- holo:section start -->` present
+        h1_marked:           str | None
+            # If the file's H1 line carries `<!-- holo:heading -->`,
+            # the H1 text (without `# ` prefix, marker stripped); else
+            # None. Files without an H1 also return None.
+        heading_marked:      list[str]
+            # H2 lines bearing the heading marker (marker stripped, in
+            # source order). Pre-sentinel consumers return [].
+        preamble_blocks:     list[str]
+            # Plugin-canonical block bodies appearing BEFORE the first
+            # H2 line (file-top region; includes MAINTENANCE wrapper +
+            # any post-H1 intro wrap).
+        section_blocks:      dict[str, list[str]]
+            # Maps heading text (with marker stripped) to its sentinel
+            # blocks in source order. Headings without a marker (user
+            # sections) are tracked as the `current_heading` for
+            # block-attribution purposes but their entries are not
+            # included in `heading_marked`.
+
+    Block bodies are the lines BETWEEN the start and end markers, joined
+    with `\\n`, without trimming. Trimming happens at byte-diff time via
+    `_normalize_block_for_diff`.
+
+    Fence-aware: lines inside ``` / ~~~ code fences are skipped for
+    sentinel + heading detection so a tutorial section that quotes the
+    marker syntax in a code block does not corrupt parsing.
+    """
+    try:
+        with open(path, encoding="utf-8") as f:
+            lines = f.readlines()
+    except OSError:
+        return {
+            "has_heading_markers": False,
+            "has_section_markers": False,
+            "h1_marked": None,
+            "heading_marked": [],
+            "preamble_blocks": [],
+            "section_blocks": {},
+        }
+
+    # First pass: precompute fence state per line so the second-pass
+    # sentinel/heading detection can cheaply skip in-fence lines.
+    in_fence_per_line: list[bool] = []
+    cur_in_fence = False
+    cur_marker = ""
+    for raw in lines:
+        stripped = raw.lstrip()
+        in_fence_per_line.append(cur_in_fence)
+        if not cur_in_fence and (stripped.startswith("```") or stripped.startswith("~~~")):
+            cur_in_fence = True
+            cur_marker = stripped[:3]
+        elif cur_in_fence and stripped.startswith(cur_marker):
+            cur_in_fence = False
+            cur_marker = ""
+
+    heading_marked: list[str] = []
+    preamble_blocks: list[str] = []
+    section_blocks: dict[str, list[str]] = {}
+    current_heading: str | None = None  # None = preamble region
+    in_block = False
+    block_start_idx = -1
+    has_heading_marker_flag = False
+    has_section_marker_flag = False
+    h1_marked: str | None = None
+
+    for i, raw in enumerate(lines):
+        if in_fence_per_line[i]:
+            continue
+        # Normalize for sentinel/heading detection; keep `raw` for body capture.
+        line_no_nl = raw.rstrip("\n")
+        stripped_line = line_no_nl.strip()
+
+        if stripped_line == _HOLO_SECTION_START:
+            in_block = True
+            block_start_idx = i + 1
+            has_section_marker_flag = True
+            continue
+        if stripped_line == _HOLO_SECTION_END:
+            if in_block:
+                body_lines = [lines[j].rstrip("\n") for j in range(block_start_idx, i)]
+                body = "\n".join(body_lines)
+                if current_heading is None:
+                    preamble_blocks.append(body)
+                else:
+                    section_blocks.setdefault(current_heading, []).append(body)
+            in_block = False
+            block_start_idx = -1
+            continue
+
+        if in_block:
+            continue  # block body captured on close
+
+        # Outside any block — track H2 heading transitions.
+        if re.match(r"^## ", line_no_nl):
+            stripped_header = _HOLO_HEADING_MARKER_RE.sub("", line_no_nl.rstrip()).rstrip()
+            if _HOLO_HEADING_MARKER in line_no_nl:
+                has_heading_marker_flag = True
+                heading_marked.append(stripped_header)
+            current_heading = stripped_header
+            continue
+
+        # H1 heading (one hash + space + non-hash). Track only the
+        # FIRST H1 in source order; files typically have at most one.
+        if h1_marked is None and re.match(r"^# (?!#)", line_no_nl):
+            stripped_h1 = _HOLO_HEADING_MARKER_RE.sub("", line_no_nl.rstrip()).rstrip()
+            if _HOLO_HEADING_MARKER in line_no_nl:
+                has_heading_marker_flag = True
+                h1_marked = stripped_h1
+
+    return {
+        "has_heading_markers": has_heading_marker_flag,
+        "has_section_markers": has_section_marker_flag,
+        "h1_marked": h1_marked,
+        "heading_marked": heading_marked,
+        "preamble_blocks": preamble_blocks,
+        "section_blocks": section_blocks,
+    }
+
+
+def _normalize_block_for_diff(body: str) -> str:
+    """Prepare a sentinel block body for byte-diff comparison.
+
+    Per `ai_context/decisions.md` §Skill Implementation #15, PROGRESSIVE
+    markers (`_(none yet — delete this marker once content is added)_`)
+    are intentional empty placeholders; a consumer who has deleted the
+    marker and written real content per the marker's own instruction is
+    not drifting — the body change is by design. Stripping the marker
+    from BOTH sides before comparison reduces the diff to just the
+    prose, so legitimate user fill-in is invisible to
+    `section_content_drift`.
+
+    Also trims surrounding blank lines and per-line trailing whitespace
+    so cosmetic whitespace changes (e.g. an editor adding a trailing
+    space) do not register as drift.
+    """
+    text = _PROGRESSIVE_MARKER_RE.sub("", body)
+    lines = [l.rstrip() for l in text.split("\n")]
+    while lines and lines[0] == "":
+        lines.pop(0)
+    while lines and lines[-1] == "":
+        lines.pop()
+    return "\n".join(lines)
+
+
+def _block_excerpt(text: str, max_lines: int = 3, max_chars: int = 200) -> str:
+    """First few non-blank lines joined with ` / ` for chat display."""
+    lines = [l.strip() for l in text.split("\n") if l.strip()][:max_lines]
+    s = " / ".join(lines)
+    if len(s) > max_chars:
+        s = s[:max_chars] + "..."
+    return s
+
+
+def _block_unified_diff_summary(plugin: str, consumer: str, max_lines: int = 6) -> str:
+    """Short unified-diff-style summary for chat display.
+
+    Generated with `difflib.unified_diff` over the normalized block bodies.
+    `fromfile=consumer`, `tofile=plugin` so `-`/`+` reads as "consumer
+    loses → plugin canonical adds". Truncated to `max_lines` for chat
+    readability; users open the actual files for the full picture.
+    """
+    diff_lines = list(
+        difflib.unified_diff(
+            consumer.split("\n"),
+            plugin.split("\n"),
+            fromfile="consumer",
+            tofile="plugin",
+            lineterm="",
+            n=1,
+        )
+    )
+    # Drop the `---` / `+++` header pair, keep only hunks.
+    body = [l for l in diff_lines if not l.startswith("---") and not l.startswith("+++")]
+    truncated = len(body) > max_lines
+    body = body[:max_lines]
+    if truncated:
+        body.append("...")
+    return "\n".join(body) if body else "(diff empty)"
+
+
+def heading_drift_check(plugin_root: str, target_root: str) -> list[dict]:
+    """Sentinel-aware: find consumer marker-bearing H2s not in plugin template.
+
+    For each plugin template `.md` whose consumer counterpart exists AND
+    whose consumer contains at least one `<!-- holo:heading -->` marker
+    (the Phase-4 consumer signal), compare the consumer's marker-bearing
+    heading list against the plugin template's marker-bearing heading
+    list. Report headings present in the consumer with marker but absent
+    from the plugin canonical set as `consumer_orphan_heading` — most
+    likely: plugin v2 renamed or removed the heading, and the consumer's
+    marker is now stale.
+
+    The reverse direction (plugin has a heading, consumer doesn't) is
+    covered by `missing_section` after the `_md_headers` marker-stripping
+    fix; this check intentionally only carries the consumer-orphan
+    direction so the two checks do not double-flag.
+
+    Pre-Phase-4 consumers (no markers) → check skips the file silently
+    and `missing_section` handles plugin→consumer alone, preserving
+    backward-compatibility for consumers that have not been Phase 4
+    bootstrapped.
+
+    Rename detection (plugin renamed `## Foo` → `## Bar`, which presents
+    as a `missing_section` for `## Bar` + a `consumer_orphan_heading` for
+    `## Foo`) is the LLM's job in `/holo:update`; the script reports raw
+    set diff only. See `docs/architecture/section-version-sentinel.md`
+    §Edge cases §Heading rename.
+    """
+    skel = _skeleton_root(plugin_root, _consumer_content_lang(target_root))
+    findings: list[dict] = []
+    for f in sorted(glob.glob(f"{skel}/**/*.md", recursive=True)):
+        rel = os.path.relpath(f, skel)
+        target = os.path.join(target_root, rel)
+        if not os.path.exists(target):
+            continue  # missing_template covers absent files
+        consumer_parsed = _parse_sentinel_blocks(target)
+        if not consumer_parsed["has_heading_markers"]:
+            continue  # pre-sentinel consumer; defer to missing_section
+        plugin_parsed = _parse_sentinel_blocks(f)
+        # H1 drift: consumer's marker-bearing H1 vs plugin's marker-bearing H1.
+        plugin_h1 = plugin_parsed.get("h1_marked")
+        consumer_h1 = consumer_parsed.get("h1_marked")
+        if consumer_h1 is not None and consumer_h1 != plugin_h1:
+            findings.append({
+                "rel": rel,
+                "kind": "consumer_orphan_heading",
+                "level": 1,
+                "header": consumer_h1,
+                "source_path": f,
+            })
+        # H2 drift: consumer-orphan marker-bearing H2 lines.
+        plugin_heading_set = set(plugin_parsed["heading_marked"])
+        for header in consumer_parsed["heading_marked"]:
+            if header in plugin_heading_set:
+                continue
+            findings.append({
+                "rel": rel,
+                "kind": "consumer_orphan_heading",
+                "level": 2,
+                "header": header,
+                "source_path": f,
+            })
+    return findings
+
+
+def section_content_drift_check(plugin_root: str, target_root: str) -> list[dict]:
+    """Sentinel-aware: byte-diff plugin canonical blocks vs consumer's.
+
+    Fires only when BOTH plugin template and consumer have at least one
+    `<!-- holo:section start -->` marker (otherwise at least one side is
+    pre-Phase-4 and there is no canonical block content to compare). For
+    each H2 section + preamble region present in both files, position-
+    aligned block-by-block byte-diff is performed; differences (after
+    PROGRESSIVE-marker stripping and trailing-whitespace normalization
+    via `_normalize_block_for_diff`) produce a finding.
+
+    Phase 3 handles the one-block-per-section shape that
+    `scripts/sentinel_bootstrap.py` emits. Multi-block per section is
+    Phase 5's `scripts/sentinel_parse.py` canonical parser API; until
+    then, this check pairs by position (`block_index=0` vs `0`, `1` vs
+    `1`, etc.) and silently ignores per-side excess blocks. Report-only
+    for Phase 3 — Phase 4 wires snapshot-then-overwrite once
+    `logs/file_snapshots/` is in place.
+
+    Returns one finding per drifted block::
+
+        {
+            "rel":              "ai_context/decisions.md",
+            "section":          "## Format" | "preamble",
+            "block_index":      0,
+            "plugin_excerpt":   "...",   # first 3 non-blank lines, ≤ 200 chars
+            "consumer_excerpt": "...",
+            "diff_summary":     "...",   # unified diff snippet, ≤ 6 lines
+        }
+    """
+    skel = _skeleton_root(plugin_root, _consumer_content_lang(target_root))
+    findings: list[dict] = []
+    for f in sorted(glob.glob(f"{skel}/**/*.md", recursive=True)):
+        rel = os.path.relpath(f, skel)
+        target = os.path.join(target_root, rel)
+        if not os.path.exists(target):
+            continue
+        plugin_parsed = _parse_sentinel_blocks(f)
+        consumer_parsed = _parse_sentinel_blocks(target)
+        if not plugin_parsed["has_section_markers"] or not consumer_parsed["has_section_markers"]:
+            continue  # at least one side is pre-Phase-4; skip silently
+        # Preamble blocks (position-aligned).
+        pp = plugin_parsed["preamble_blocks"]
+        cp = consumer_parsed["preamble_blocks"]
+        for idx in range(min(len(pp), len(cp))):
+            plugin_body = _normalize_block_for_diff(pp[idx])
+            consumer_body = _normalize_block_for_diff(cp[idx])
+            # Plugin block normalizes to empty → PROGRESSIVE-marker-only
+            # plugin block, no canonical content to enforce; consumer-side
+            # content is intentional user fill, not drift. Skip silently.
+            if plugin_body == "":
+                continue
+            if plugin_body == consumer_body:
+                continue
+            findings.append({
+                "rel": rel,
+                "section": "preamble",
+                "block_index": idx,
+                "plugin_excerpt": _block_excerpt(pp[idx]),
+                "consumer_excerpt": _block_excerpt(cp[idx]),
+                "diff_summary": _block_unified_diff_summary(plugin_body, consumer_body),
+                "source_path": f,
+            })
+        # Per-section blocks (position-aligned within each shared heading).
+        for header in sorted(plugin_parsed["section_blocks"].keys()):
+            plugin_blocks = plugin_parsed["section_blocks"][header]
+            consumer_blocks = consumer_parsed["section_blocks"].get(header, [])
+            for idx in range(min(len(plugin_blocks), len(consumer_blocks))):
+                plugin_body = _normalize_block_for_diff(plugin_blocks[idx])
+                consumer_body = _normalize_block_for_diff(consumer_blocks[idx])
+                # Same PROGRESSIVE-only skip as preamble loop above —
+                # see comment there for rationale.
+                if plugin_body == "":
+                    continue
+                if plugin_body == consumer_body:
+                    continue
+                findings.append({
+                    "rel": rel,
+                    "section": header,
+                    "block_index": idx,
+                    "plugin_excerpt": _block_excerpt(plugin_blocks[idx]),
+                    "consumer_excerpt": _block_excerpt(consumer_blocks[idx]),
+                    "diff_summary": _block_unified_diff_summary(plugin_body, consumer_body),
+                    "source_path": f,
+                })
+    return findings
+
+
+def _rewrite_sentinel_block(
+    consumer_path: str,
+    section: str,
+    block_index: int,
+    new_body: str,
+) -> bool:
+    """Overwrite the (`section`, `block_index`)th sentinel block in
+    ``consumer_path`` with ``new_body``.
+
+    Locates the consumer's sentinel pair by walking the file and
+    tracking (current_heading, block_index_within_heading). When the
+    target pair is found, replaces the lines between
+    ``<!-- holo:section start -->`` and ``<!-- holo:section end -->``
+    (exclusive of both markers) with the lines of ``new_body``
+    (`\\n`-split).
+
+    Returns ``True`` if the block was located and replaced, ``False``
+    otherwise (corrupt file, drifted index, etc.). Caller is
+    responsible for snapshotting before invocation; this helper does
+    NOT take its own snapshot.
+
+    Fence-aware via the same precomputation pattern as
+    ``_parse_sentinel_blocks``.
+
+    ``section`` is the marker-stripped heading text (e.g.
+    ``"## Format"``) or ``"preamble"`` for blocks before the first
+    H2. ``block_index`` is the zero-based position within that
+    section (or preamble) — Phase 4 emits one block per section so
+    ``block_index`` is typically 0, but multi-block files are handled
+    correctly.
+    """
+    try:
+        with open(consumer_path, encoding="utf-8") as f:
+            lines = f.readlines()
+    except OSError:
+        return False
+
+    # Fence-state precomputation (same as _parse_sentinel_blocks).
+    in_fence_per_line: list[bool] = []
+    cur_in_fence = False
+    cur_marker = ""
+    for raw in lines:
+        stripped = raw.lstrip()
+        in_fence_per_line.append(cur_in_fence)
+        if not cur_in_fence and (stripped.startswith("```") or stripped.startswith("~~~")):
+            cur_in_fence = True
+            cur_marker = stripped[:3]
+        elif cur_in_fence and stripped.startswith(cur_marker):
+            cur_in_fence = False
+            cur_marker = ""
+
+    current_heading: str | None = None  # None = preamble
+    block_index_in_section: dict[str | None, int] = {}
+    in_block = False
+    block_start_line = -1
+
+    for i, raw in enumerate(lines):
+        if in_fence_per_line[i]:
+            continue
+        line_no_nl = raw.rstrip("\n")
+        stripped_line = line_no_nl.strip()
+
+        if stripped_line == _HOLO_SECTION_START:
+            in_block = True
+            block_start_line = i
+            continue
+
+        if stripped_line == _HOLO_SECTION_END and in_block:
+            key = current_heading
+            idx = block_index_in_section.get(key, 0)
+            block_index_in_section[key] = idx + 1
+            in_block = False
+            section_key = key if key is not None else "preamble"
+            if section_key == section and idx == block_index:
+                # Replace lines (block_start_line + 1) ... (i - 1) with new_body.
+                new_body_lines = [l + "\n" for l in new_body.split("\n")]
+                new_lines = (
+                    lines[: block_start_line + 1]
+                    + new_body_lines
+                    + lines[i:]
+                )
+                with open(consumer_path, "w", encoding="utf-8") as f:
+                    f.writelines(new_lines)
+                return True
+            continue
+
+        if in_block:
+            continue
+
+        if re.match(r"^## ", line_no_nl):
+            current_heading = _HOLO_HEADING_MARKER_RE.sub(
+                "", line_no_nl.rstrip()
+            ).rstrip()
+
+    return False
+
+
+def fix_section_content_drift(
+    target_root: str, findings: list[dict]
+) -> tuple[int, str | None]:
+    """Apply ``section_content_drift`` block-rewrite.
+
+    **NOT wired into `run_fix`. Also NOT currently called by smart-merge**
+    (Agent 1 merger generates the merged output as full markdown,
+    not as block-by-block rewrites). Kept defined here as a reusable
+    primitive — should a future variant of smart-merge or another
+    skill need to rewrite a single sentinel block without regenerating
+    the whole file, this function and its companion
+    ``_rewrite_sentinel_block`` are the building blocks. The earlier
+    "snapshot + overwrite consumer block with plugin canonical"
+    auto-fix wiring (Phase 4 of T-SECTION-VERSION-SENTINEL) was
+    reverted as over-engineering per `ai_context/decisions.md` #18 —
+    that model loses user-added content inside sentinel blocks; the
+    correct model is extract-and-reformat (Agent 1 reads the full
+    consumer file, extracts user info, refills into the new plugin
+    sentinel structure as a single full-file rewrite). Smart-merge
+    SOP: `docs/architecture/smart-merge.md`.
+
+    For each finding, look up the plugin canonical block body, rewrite
+    the consumer's sentinel block at the same (rel, section,
+    block_index) coordinates. **Snapshot first**: before any overwrite,
+    ``take_snapshot()`` copies every affected consumer file to
+    ``<target_root>/logs/file_snapshots/<YYYY-MM-DD>_<HHMMSS>_holo-update/<rel>``
+    so the rewrite is reversible.
+
+    Returns ``(replaced_count, snapshot_dir)`` where:
+
+    - ``replaced_count`` = number of sentinel blocks successfully
+      rewritten. A finding may be skipped if ``_rewrite_sentinel_block``
+      fails to locate the target block (file changed between detect
+      and fix, drifted indices) — those are not counted but do not
+      raise; the next ``--check`` will surface the residual drift.
+    - ``snapshot_dir`` = path to the snapshot directory; ``None`` if
+      ``findings`` is empty.
+
+    To compute plugin canonical block content, this function re-parses
+    each plugin source file via ``_parse_sentinel_blocks``. That is
+    cheap (one file read per affected source) and avoids carrying
+    rich content in the finding dict.
+    """
+    if not findings:
+        return (0, None)
+
+    affected_files = sorted({item["rel"] for item in findings})
+    snapshot_dir = take_snapshot(target_root, "holo-update", affected_files)
+
+    # Pre-compute plugin canonical content per (rel, section, block_index)
+    # by parsing each plugin source file once.
+    plugin_blocks: dict[tuple[str, str, int], str] = {}
+    plugin_sources = sorted({(item["rel"], item.get("source_path") or _infer_source_path(item)) for item in findings})
+    for rel, source_path in plugin_sources:
+        if not source_path or not os.path.isfile(source_path):
+            continue
+        parsed = _parse_sentinel_blocks(source_path)
+        for idx, body in enumerate(parsed["preamble_blocks"]):
+            plugin_blocks[(rel, "preamble", idx)] = body
+        for section, blocks in parsed["section_blocks"].items():
+            for idx, body in enumerate(blocks):
+                plugin_blocks[(rel, section, idx)] = body
+
+    replaced = 0
+    for item in findings:
+        key = (item["rel"], item["section"], item["block_index"])
+        canonical_body = plugin_blocks.get(key)
+        if canonical_body is None:
+            continue
+        consumer_path = os.path.join(target_root, item["rel"])
+        if _rewrite_sentinel_block(
+            consumer_path, item["section"], item["block_index"], canonical_body
+        ):
+            replaced += 1
+
+    return (replaced, snapshot_dir)
+
+
+def _infer_source_path(item: dict) -> str | None:
+    """Defensive helper: section_content_drift findings always carry
+    `source_path` in the shape Phase 3 emits, but in case a caller
+    constructs a finding without it (synthetic tests / migrations),
+    return None so the caller skips that entry rather than KeyError-ing.
+    """
+    return item.get("source_path")
+
+
 _GITIGNORE_BANNER = "# ↓ plugin-skeleton template additions ↓"
 
 
@@ -1377,6 +2074,8 @@ def run_check(plugin_root: str, target_root: str) -> dict:
         "l1_directive_drift": l1_directive_drift_check(plugin_root),
         "lang_mirror_drift": lang_mirror_check(plugin_root),
         "legacy_skip_marker": legacy_skip_marker_check(target_root),
+        "heading_drift": heading_drift_check(plugin_root, target_root),
+        "section_content_drift": section_content_drift_check(plugin_root, target_root),
     }
 
 
@@ -1391,6 +2090,17 @@ def total_drift(findings: dict) -> int:
     the main total.
     """
     a = findings["agents_sync"]
+    # NOTE: `heading_drift` and `section_content_drift` are intentionally
+    # excluded from `total_drift` — their fix path is the smart-merge
+    # ask flow (`docs/architecture/smart-merge.md`), driven by
+    # `/holo:update` post-detection conflict handling, not the
+    # deterministic `run_fix` path that `total_drift` tracks. Earlier
+    # auto-fix wiring (section_content_drift snapshot+overwrite,
+    # apply_heading_rename) was reverted as over-engineering per
+    # `ai_context/decisions.md` #18 — the correct update model is
+    # extract-and-reformat (Agent 1 merger generates full-file
+    # rewrites that preserve user content under the new plugin
+    # template structure).
     base = (
         len(findings["missing_template"])
         + len(findings["missing_section"])
@@ -1513,6 +2223,16 @@ def run_fix(findings: dict, target_root: str) -> dict:
         target_root, findings.get("claude_agents_lang_drift", [])
     )
 
+    # NOTE: `section_content_drift` and `heading_drift` are NOT
+    # auto-fixed here. Their fix path is the smart-merge ask flow
+    # (`docs/architecture/smart-merge.md`) driven by `/holo:update`
+    # post-detection conflict handling — Agent 1 merger generates
+    # full-file rewrites that preserve user content under the new
+    # plugin template structure. `fix_section_content_drift` +
+    # `_rewrite_sentinel_block` stay defined in this module as
+    # primitive building blocks for any future skill that needs
+    # single-block rewrites without full-file regeneration, but are
+    # NOT currently called by anything.
     return counts
 
 
@@ -1597,6 +2317,18 @@ def _print_human(findings: dict, fix_counts: dict | None) -> None:
     print(f"legacy_skip_marker (informational; not in total_drift): {len(lsm)}")
     for item in lsm:
         print(f"  {item['rel']}:{item['line']}: {item['snippet']}")
+    hd = findings.get("heading_drift", [])
+    print(f"heading_drift (smart-merge trigger; not in total_drift): {len(hd)}")
+    for item in hd:
+        print(f"  {item['rel']}: {item['header']} ({item['kind']})")
+    scd = findings.get("section_content_drift", [])
+    print(f"section_content_drift (smart-merge trigger; not in total_drift): {len(scd)}")
+    for item in scd:
+        print(f"  {item['rel']}: {item['section']} [block {item['block_index']}]")
+        # Indent the diff snippet so it reads as a sub-entry under the
+        # finding line; truncated already by _block_unified_diff_summary.
+        for diff_line in item["diff_summary"].split("\n"):
+            print(f"    {diff_line}")
     if fix_counts is not None:
         print("---")
         print(

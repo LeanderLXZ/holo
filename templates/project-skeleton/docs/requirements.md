@@ -1,5 +1,6 @@
-# Requirements
+# Requirements <!-- holo:heading -->
 
+<!-- holo:section start -->
 Long-form, authoritative requirements document. This is the source of
 truth; `ai_context/requirements.md` is its compressed index.
 
@@ -13,7 +14,10 @@ Two-layer separation:
 
 The pair is one row of `ai_context/conventions.md` §Cross-File
 Alignment — change either one and the other must move in lockstep.
+<!-- holo:section end -->
 
-## Sections
+## Sections <!-- holo:heading -->
 
+<!-- holo:section start -->
 _(no requirements drafted yet)_
+<!-- holo:section end -->

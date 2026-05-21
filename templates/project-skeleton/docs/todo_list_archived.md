@@ -1,5 +1,6 @@
-# TODO List — Archived
+# TODO List — Archived <!-- holo:heading -->
 
+<!-- holo:section start -->
 Slim archive of completed / abandoned tasks. **Slim** means: title +
 1-line summary + link to the relevant `logs/change_logs/` entry. Full
 detail lives in git history and change logs, not here.
@@ -8,9 +9,11 @@ Sibling: `docs/todo_list.md` (active queue + format contract).
 Entries move here when a task in the active queue completes or is
 abandoned — see the active file's `## File guide → How to update entries`
 for the exact move rules.
+<!-- holo:section end -->
 
-## Format
+## Format <!-- holo:heading -->
 
+<!-- holo:section start -->
 ```
 ### [T-XXX] <title>
 
@@ -22,12 +25,15 @@ for the exact move rules.
 Entries are append-only at the bottom of each section; do not reorder.
 
 ---
+<!-- holo:section end -->
 
-## Completed
+## Completed <!-- holo:heading -->
 
 <!-- Tasks that landed. Slim entries only. -->
 
-## Abandoned
+## Abandoned <!-- holo:heading -->
 
+<!-- holo:section start -->
 <!-- Tasks dropped before completion. Slim entries; the change-log
      entry must state WHY the task was abandoned. -->
+<!-- holo:section end -->

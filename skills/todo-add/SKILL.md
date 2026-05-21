@@ -34,9 +34,9 @@ Final step completion: call **<progress tool>** to mark the last entry `complete
 
 | Value | Target segment |
 |---|---|
-| Not passed / `next` / `next-step` / `下一步` | `## Next` |
-| `discuss` / `discussing` / `讨论中` | `## Discussing (Undecided)` |
-| `executing` / `in-progress` / `正在执行` | `## In Progress` (single slot, see Step 6 for limit) |
+| Not passed / `next` / `next-step` | `## Next` |
+| `discuss` / `discussing` | `## Discussing (Undecided)` |
+| `executing` / `in-progress` | `## In Progress` (single slot, see Step 6 for limit) |
 
 Illegal value → print "segment `<val>` not recognized, allowed: Next / Discussing / In Progress" and stop.
 

@@ -1,3 +1,4 @@
+<!-- holo:section start -->
 <!--
 MAINTENANCE — read before editing this file.
 This file is an index for fast project follow-up, not a detailed manual.
@@ -5,11 +6,17 @@ This file is an index for fast project follow-up, not a detailed manual.
 2. Prefer deletion over addition; check if a new item merges into an existing one before adding.
 3. Describe the current design only — no "legacy / deprecated / formerly / renamed from".
 4. No real product / customer / private-content names — use structural placeholders.
-Shorter is better than longer; each entry is a distilled summary, not a detail dump — push detail to the linked source.
+5. Compactness Requirements:
+   - Shorter is better than longer. Each entry is a summary, not a detail dump.
+   - Compactness must not sacrifice accuracy or completeness — never drop important information just to fit the length target.
+   - Aim for ≤ 5 lines and push longer detail to the linked source (docs/<topic>.md).
+   - Do not compress or touch content unrelated to the current edit.
 -->
+<!-- holo:section end -->
 
-# Next Steps
+# Next Steps <!-- holo:heading -->
 
+<!-- holo:section start -->
 High-level roadmap of architecture-direction work, grouped by priority.
 This is the **direction** layer, not the task layer.
 
@@ -25,15 +32,16 @@ Two-layer separation:
 If an entry here grows specific enough to name files and functions,
 move it to `docs/todo_list.md` and shrink the entry here to the
 direction it serves.
+<!-- holo:section end -->
 
-## High Priority
-
-_(none yet — delete this marker once content is added)_
-
-## Medium Priority
+## High Priority <!-- holo:heading -->
 
 _(none yet — delete this marker once content is added)_
 
-## Later
+## Medium Priority <!-- holo:heading -->
+
+_(none yet — delete this marker once content is added)_
+
+## Later <!-- holo:heading -->
 
 _(none yet — delete this marker once content is added)_
