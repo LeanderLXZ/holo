@@ -31,9 +31,13 @@ Entries are append-only at the bottom of each section; do not reorder.
 
 <!-- Tasks that landed. Slim entries only. -->
 
+_(none yet — delete this marker once content is added)_
+
 ## Abandoned <!-- holo:heading -->
 
 <!-- holo:section start -->
 <!-- Tasks dropped before completion. Slim entries; the change-log
      entry must state WHY the task was abandoned. -->
 <!-- holo:section end -->
+
+_(none yet — delete this marker once content is added)_

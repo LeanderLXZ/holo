@@ -14,6 +14,7 @@
 > `/todo` skill (if used) does NOT parse the body — it reads only this
 > Index, so this section MUST stay in sync with the body; drift here
 > means `/todo` gives the wrong answer.
+<!-- holo:section end -->
 
 ### 🟢 In Progress (0)
 
@@ -32,6 +33,7 @@
 
 **Total**: 0 — 🟢 In Progress 0 ｜ 🟡 Next 0 ｜ ⚪ Discussing 0
 
+<!-- holo:section start -->
 ---
 <!-- holo:section end -->
 
@@ -261,12 +263,16 @@ detail until "what + why" remains.
      Format: see "How to update entries → Task starts". -->
 <!-- holo:section end -->
 
+_(none yet — delete this marker once content is added)_
+
 ## Next <!-- holo:heading -->
 
 <!-- holo:section start -->
 <!-- Ordered by user priority. First entry is the next to start.
      Format: see "What to record". -->
 <!-- holo:section end -->
+
+_(none yet — delete this marker once content is added)_
 
 ## Discussing (Undecided) <!-- holo:heading -->
 
@@ -275,3 +281,5 @@ detail until "what + why" remains.
      Don't start; converge the decision first.
      Format: see "What to record" + "Open decisions" section mandatory. -->
 <!-- holo:section end -->
+
+_(none yet — delete this marker once content is added)_

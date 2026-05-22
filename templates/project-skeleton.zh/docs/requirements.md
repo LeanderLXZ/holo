@@ -18,6 +18,4 @@ Alignment 的其中一行 —— 改其一另一方必须同步移动。
 
 ## 段 <!-- holo:heading -->
 
-<!-- holo:section start -->
-_(no requirements drafted yet)_
-<!-- holo:section end -->
+_(none yet — delete this marker once content is added)_

@@ -30,9 +30,13 @@
 
 <!-- 已落地的任务。仅精简条目。 -->
 
+_(none yet — delete this marker once content is added)_
+
 ## Abandoned <!-- holo:heading -->
 
 <!-- holo:section start -->
 <!-- 完成前被放弃的任务。精简条目；对应的 change-log
      条目必须说明 WHY 该任务被放弃。 -->
 <!-- holo:section end -->
+
+_(none yet — delete this marker once content is added)_

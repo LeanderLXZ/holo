@@ -18,6 +18,4 @@ Alignment — change either one and the other must move in lockstep.
 
 ## Sections <!-- holo:heading -->
 
-<!-- holo:section start -->
-_(no requirements drafted yet)_
-<!-- holo:section end -->
+_(none yet — delete this marker once content is added)_

@@ -12,6 +12,7 @@
 > 之后**立即**刷新。刷新规则参见 `## File guide → Index maintenance`。
 > `/todo` skill（若使用）不解析正文 —— 它只读这份 Index，所以
 > 本段必须与正文保持同步；这里漂移意味着 `/todo` 会给出错误答案。
+<!-- holo:section end -->
 
 ### 🟢 In Progress (0)
 
@@ -30,6 +31,7 @@
 
 **Total**: 0 — 🟢 In Progress 0 ｜ 🟡 Next 0 ｜ ⚪ Discussing 0
 
+<!-- holo:section start -->
 ---
 <!-- holo:section end -->
 
@@ -251,12 +253,16 @@ schema 路径 / 行号 / 决策编号 / 行话**，除非
      Format: see "How to update entries → Task starts". -->
 <!-- holo:section end -->
 
+_(none yet — delete this marker once content is added)_
+
 ## Next <!-- holo:heading -->
 
 <!-- holo:section start -->
 <!-- Ordered by user priority. First entry is the next to start.
      Format: see "What to record". -->
 <!-- holo:section end -->
+
+_(none yet — delete this marker once content is added)_
 
 ## Discussing (Undecided) <!-- holo:heading -->
 
@@ -265,3 +271,5 @@ schema 路径 / 行号 / 决策编号 / 行话**，除非
      Don't start; converge the decision first.
      Format: see "What to record" + "Open decisions" section mandatory. -->
 <!-- holo:section end -->
+
+_(none yet — delete this marker once content is added)_
