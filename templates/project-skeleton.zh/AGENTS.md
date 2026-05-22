@@ -9,9 +9,10 @@
 > 包裹的内容是 plugin canonical 内容。plugin 升级时（`/holo:update`），
 > 这些区域通过 extract-and-reformat smart-merge 用新 plugin 模板重填 ——
 > 用户内容（sentinel 之间的 gap）保留；plugin canonical 内容（sentinel
-> 内）跟随新模板。**逃生口**：想永久接管某段 → 删掉该段的
-> `<!-- holo:heading -->` 标记；该段变为用户拥有，smart-merge 之后不
-> 再碰它。完整设计见 `docs/architecture/section-version-sentinel.md`。
+> 内）跟随新模板。**不可退出**：删除 marker 不再"分离"段所有权 ——
+> `/holo:update` 会将其标记为 `unmarked_heading` / `unmarked_section`
+> 漂移并通过 `--fix` 重新补回。需要永久自定义段内容的 consumer 请 fork
+> 整个 plugin。完整设计见 `docs/architecture/section-version-sentinel.md`。
 <!-- holo:section end -->
 
 ## 语言 <!-- holo:heading -->

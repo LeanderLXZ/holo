@@ -411,6 +411,210 @@ def bootstrap_file_content(content: str) -> str:
     return result
 
 
+def _strip_heading_text(line: str, h_re: re.Pattern[str]) -> str:
+    """Return heading text (without `#`/`##` prefix, trailing marker, or
+    surrounding whitespace). `h_re` matches the heading prefix; the
+    captured / remaining text after the prefix is the heading body.
+    Returns empty string if `line` is not a heading of the expected
+    level."""
+    if not h_re.match(line):
+        return ""
+    after = line.split(None, 1)
+    text = after[1] if len(after) > 1 else ""
+    text = text.rstrip()
+    if text.endswith(HEADING_MARKER):
+        text = text[: -len(HEADING_MARKER)].rstrip()
+    return text
+
+
+def inject_missing_markers(
+    content: str,
+    headings_needing_marker: list[tuple[int, str]],
+    sections_needing_body_wrap: list[str],
+) -> str:
+    """Add `<!-- holo:heading -->` markers to specific H1/H2 lines and wrap
+    specific H2 section bodies, leaving everything else untouched.
+
+    Partial-bootstrap counterpart to :func:`bootstrap_file_content`. Used
+    by :mod:`holo_update_check`'s ``fix_unmarked_heading`` /
+    ``fix_unmarked_section`` to mechanically resolve ``unmarked_heading`` /
+    ``unmarked_section`` drift surfaced on consumer files that already
+    carry at least one sentinel marker (zero-marker files are the
+    deferred ``missing_sentinel`` case — handled by re-running
+    ``bootstrap_file_content`` instead).
+
+    Args:
+        content: source markdown file content.
+        headings_needing_marker: list of ``(level, header_text)`` tuples,
+            ``level`` ∈ {1, 2}. ``header_text`` is the consumer's heading
+            text after stripping the ``#``/``##`` prefix, any existing
+            ``<!-- holo:heading -->`` marker, and surrounding whitespace
+            (case-sensitive exact match). Heading lines whose stripped
+            text matches a tuple in this list get the marker appended; if
+            the marker is already present the line is left as-is.
+        sections_needing_body_wrap: list of H2 ``header_text`` values whose
+            section body should be sentinel-wrapped. For each match, the
+            body (lines from the H2 line + 1 up to the next H2 or EOF) is
+            re-emitted via :func:`_wrap_body_with_markers` (the same
+            helper :func:`bootstrap_file_content` uses), so
+            user-territory marker lines (PROGRESSIVE, standalone
+            ``<...>`` placeholders) split the wrap correctly. Sections
+            whose body already contains a ``<!-- holo:section start -->``
+            line are skipped (idempotent).
+
+    Returns the modified content. Idempotent — re-running on an
+    already-fixed content yields byte-equal output.
+
+    Trailing-newline handling matches :func:`bootstrap_file_content`.
+
+    See ``ai_context/decisions.md`` §Skill Implementation #20 for design
+    rationale (dogfood + sentinel completeness; partial-sentinel = drift
+    not detach).
+    """
+    had_trailing_newline = content.endswith("\n")
+    lines = content.split("\n")
+    if had_trailing_newline:
+        lines = lines[:-1]
+
+    h1_targets = {h for lvl, h in headings_needing_marker if lvl == 1}
+    h2_marker_targets = {h for lvl, h in headings_needing_marker if lvl == 2}
+    h2_body_targets = set(sections_needing_body_wrap)
+
+    # Phase 1: append heading markers (line count unchanged).
+    h2_indices = fence_aware_h2_indices(lines)
+    h1_index = fence_aware_h1_index(lines)
+
+    if h1_index is not None:
+        h1_text = _strip_heading_text(lines[h1_index], H1_RE)
+        if h1_text in h1_targets and not lines[h1_index].rstrip().endswith(HEADING_MARKER):
+            lines[h1_index] = lines[h1_index].rstrip() + " " + HEADING_MARKER
+
+    for h2_idx in h2_indices:
+        h2_text = _strip_heading_text(lines[h2_idx], H2_RE)
+        if h2_text in h2_marker_targets and not lines[h2_idx].rstrip().endswith(HEADING_MARKER):
+            lines[h2_idx] = lines[h2_idx].rstrip() + " " + HEADING_MARKER
+
+    # Phase 2: wrap section bodies. Process in reverse so insertions / slice
+    # replacements don't shift earlier indices.
+    h2_indices = fence_aware_h2_indices(lines)
+    for k in range(len(h2_indices) - 1, -1, -1):
+        h2_idx = h2_indices[k]
+        h2_text = _strip_heading_text(lines[h2_idx], H2_RE)
+        if h2_text not in h2_body_targets:
+            continue
+        next_h2 = h2_indices[k + 1] if k + 1 < len(h2_indices) else len(lines)
+        body = lines[h2_idx + 1 : next_h2]
+        if any(line.strip() == SECTION_START for line in body):
+            continue  # already wrapped (or partially); leave alone.
+        wrapped = _wrap_body_with_markers(body)
+        if not wrapped:
+            continue  # empty / whitespace-only body; nothing to wrap.
+        new_chunk = ["", *wrapped]
+        lines[h2_idx + 1 : next_h2] = new_chunk
+
+    result = "\n".join(lines)
+    if had_trailing_newline:
+        result += "\n"
+    return result
+
+
+def prune_orphan_markers(
+    content: str,
+    plugin_h2_texts: set[str],
+    keep_h1_marker: bool,
+) -> str:
+    """Inverse of :func:`inject_missing_markers` — strip
+    ``<!-- holo:heading -->`` from consumer H1/H2 lines that are NOT in the
+    plugin template's marker-bearing heading list, and unwrap
+    ``<!-- holo:section start/end -->`` blocks underneath those orphan
+    headings (user-only sections must NOT carry plugin canonical wrap per
+    §Consumer-only headings in
+    ``docs/architecture/section-version-sentinel.md``).
+
+    Used by the holo-own dogfood bootstrap pass + as the manual cleanup
+    counterpart to over-aggressive :func:`bootstrap_file_content` runs on
+    consumer files that have user-added sections beyond the plugin
+    template's skeleton.
+
+    Args:
+        content: source markdown file content.
+        plugin_h2_texts: H2 heading texts present in the plugin template's
+            marker-bearing heading list (text without ``## `` prefix or
+            trailing marker, exact match). Consumer H2 lines whose
+            stripped text matches a member of this set KEEP their marker
+            + sentinel-wrapped body. Consumer H2 lines whose stripped
+            text is absent from this set have the marker stripped from
+            the heading line AND any ``<!-- holo:section start/end -->``
+            blocks within that H2's body are unwrapped (start/end marker
+            lines removed; surrounding blank-line padding tidied).
+        keep_h1_marker: True iff the plugin template's H1 carries the
+            ``<!-- holo:heading -->`` marker (positional check — text
+            equality is intentionally NOT used because the plugin H1
+            commonly contains ``<project-name>`` placeholder substituted
+            at init time). If False, strip the H1 marker (and unwrap the
+            adjacent preamble block if present).
+
+    Returns the modified content. Idempotent — re-running on
+    already-pruned content yields the same content.
+    """
+    had_trailing_newline = content.endswith("\n")
+    lines = content.split("\n")
+    if had_trailing_newline:
+        lines = lines[:-1]
+
+    h2_indices = fence_aware_h2_indices(lines)
+    h1_index = fence_aware_h1_index(lines)
+
+    # Phase 1: strip H1 marker if not retained.
+    if h1_index is not None and not keep_h1_marker:
+        stripped = lines[h1_index].rstrip()
+        if stripped.endswith(" " + HEADING_MARKER):
+            lines[h1_index] = stripped[: -(len(HEADING_MARKER) + 1)].rstrip()
+
+    # Phase 2: per-H2, decide keep vs strip+unwrap.
+    h2_indices = fence_aware_h2_indices(lines)  # re-fetch after H1 edit
+    # Process in reverse so body slice replacements don't shift earlier indices.
+    for k in range(len(h2_indices) - 1, -1, -1):
+        h2_idx = h2_indices[k]
+        h2_text = _strip_heading_text(lines[h2_idx], H2_RE)
+        if h2_text in plugin_h2_texts:
+            continue  # keep marker + wrap
+        # Orphan H2: strip marker + unwrap body sentinels.
+        stripped = lines[h2_idx].rstrip()
+        if stripped.endswith(" " + HEADING_MARKER):
+            lines[h2_idx] = stripped[: -(len(HEADING_MARKER) + 1)].rstrip()
+        next_h2 = h2_indices[k + 1] if k + 1 < len(h2_indices) else len(lines)
+        body = lines[h2_idx + 1 : next_h2]
+        new_body = [
+            line for line in body
+            if line.strip() != SECTION_START and line.strip() != SECTION_END
+        ]
+        # Collapse runs of >2 consecutive blank lines down to 1 (an unwrap
+        # leaves leading/trailing blanks behind the removed sentinel markers).
+        collapsed: list[str] = []
+        prev_blank = False
+        for line in new_body:
+            cur_blank = line.strip() == ""
+            if cur_blank and prev_blank:
+                continue
+            collapsed.append(line)
+            prev_blank = cur_blank
+        # Trim leading blanks (heading is on its own line; one blank after
+        # is enough and preserved by the H2-body convention).
+        while collapsed and collapsed[0].strip() == "":
+            collapsed.pop(0)
+        if collapsed:
+            new_chunk = ["", *collapsed]
+        else:
+            new_chunk = []
+        lines[h2_idx + 1 : next_h2] = new_chunk
+
+    result = "\n".join(lines)
+    if had_trailing_newline:
+        result += "\n"
+    return result
+
+
 def list_template_files(targets: list[Path]) -> list[Path]:
     """Walk targets and return sorted list of *.md files."""
     files: list[Path] = []
@@ -816,12 +1020,231 @@ def _self_test() -> int:
     )
     check("html_comment_not_treated_as_placeholder", bootstrap_file_content(inp), want)
 
+    # Test 21: inject_missing_markers — H2 missing both heading marker
+    # and section body wrap; both get added in one pass.
+    inp = (
+        "## Foo\n"
+        "\n"
+        "body line\n"
+    )
+    want = (
+        "## Foo " + HEADING_MARKER + "\n"
+        "\n"
+        + SECTION_START + "\n"
+        "body line\n"
+        + SECTION_END + "\n"
+    )
+    check(
+        "inject_h2_marker_and_body",
+        inject_missing_markers(inp, [(2, "Foo")], ["Foo"]),
+        want,
+    )
+
+    # Test 22: inject_missing_markers — H2 heading marker already present;
+    # only body wrap needs adding. Heading line stays untouched.
+    inp = (
+        "## Foo " + HEADING_MARKER + "\n"
+        "\n"
+        "body line\n"
+    )
+    want = (
+        "## Foo " + HEADING_MARKER + "\n"
+        "\n"
+        + SECTION_START + "\n"
+        "body line\n"
+        + SECTION_END + "\n"
+    )
+    check(
+        "inject_body_only_marker_present",
+        inject_missing_markers(inp, [(2, "Foo")], ["Foo"]),
+        want,
+    )
+
+    # Test 23: inject_missing_markers — heading text not in targets;
+    # no change at all (idempotent on irrelevant sections).
+    inp = (
+        "## Foo\n"
+        "\n"
+        "body line\n"
+    )
+    check(
+        "inject_no_target_match",
+        inject_missing_markers(inp, [(2, "Bar")], ["Bar"]),
+        inp,
+    )
+
+    # Test 24: inject_missing_markers — heading targeted but body already
+    # wrapped (partial-sentinel where the body wrap was kept but the
+    # heading marker got deleted); only heading marker is restored, body
+    # left alone.
+    inp = (
+        "## Foo\n"
+        "\n"
+        + SECTION_START + "\n"
+        "body line\n"
+        + SECTION_END + "\n"
+    )
+    want = (
+        "## Foo " + HEADING_MARKER + "\n"
+        "\n"
+        + SECTION_START + "\n"
+        "body line\n"
+        + SECTION_END + "\n"
+    )
+    check(
+        "inject_heading_only_body_already_wrapped",
+        inject_missing_markers(inp, [(2, "Foo")], ["Foo"]),
+        want,
+    )
+
+    # Test 25: inject_missing_markers — H1 marker missing; targeted by
+    # (1, "Title"); marker appended to H1 line. Other sections untouched.
+    inp = (
+        "# Title\n"
+        "\n"
+        "intro\n"
+        "\n"
+        "## Other " + HEADING_MARKER + "\n"
+        "\n"
+        + SECTION_START + "\n"
+        "body\n"
+        + SECTION_END + "\n"
+    )
+    want = (
+        "# Title " + HEADING_MARKER + "\n"
+        "\n"
+        "intro\n"
+        "\n"
+        "## Other " + HEADING_MARKER + "\n"
+        "\n"
+        + SECTION_START + "\n"
+        "body\n"
+        + SECTION_END + "\n"
+    )
+    check(
+        "inject_h1_marker_only",
+        inject_missing_markers(inp, [(1, "Title")], []),
+        want,
+    )
+
+    # Test 26: inject_missing_markers — idempotency. Re-running on
+    # already-fixed content yields the same bytes.
+    fixed = (
+        "## Foo " + HEADING_MARKER + "\n"
+        "\n"
+        + SECTION_START + "\n"
+        "body\n"
+        + SECTION_END + "\n"
+    )
+    check(
+        "inject_idempotent",
+        inject_missing_markers(fixed, [(2, "Foo")], ["Foo"]),
+        fixed,
+    )
+
+    # Test 27: inject_missing_markers — body with PROGRESSIVE marker
+    # splits correctly when body wrap is added.
+    inp = (
+        "## Section " + HEADING_MARKER + "\n"
+        "\n"
+        "prose before\n"
+        "\n"
+        "_(none yet — delete this marker once content is added)_\n"
+        "\n"
+        "prose after\n"
+    )
+    want = (
+        "## Section " + HEADING_MARKER + "\n"
+        "\n"
+        + SECTION_START + "\n"
+        "prose before\n"
+        + SECTION_END + "\n"
+        "\n"
+        "_(none yet — delete this marker once content is added)_\n"
+        "\n"
+        + SECTION_START + "\n"
+        "prose after\n"
+        + SECTION_END + "\n"
+    )
+    check(
+        "inject_body_with_progressive_marker",
+        inject_missing_markers(inp, [], ["Section"]),
+        want,
+    )
+
+    # Test 28: prune_orphan_markers — strip marker from H2 not in
+    # plugin set + unwrap its sentinel body.
+    inp = (
+        "## Allowed " + HEADING_MARKER + "\n"
+        "\n"
+        + SECTION_START + "\n"
+        "allowed body\n"
+        + SECTION_END + "\n"
+        "\n"
+        "## Orphan " + HEADING_MARKER + "\n"
+        "\n"
+        + SECTION_START + "\n"
+        "orphan body\n"
+        + SECTION_END + "\n"
+    )
+    want = (
+        "## Allowed " + HEADING_MARKER + "\n"
+        "\n"
+        + SECTION_START + "\n"
+        "allowed body\n"
+        + SECTION_END + "\n"
+        "\n"
+        "## Orphan\n"
+        "\n"
+        "orphan body\n"
+    )
+    check(
+        "prune_orphan_strips_marker_and_unwraps",
+        prune_orphan_markers(inp, {"Allowed"}, keep_h1_marker=True),
+        want,
+    )
+
+    # Test 29: prune_orphan_markers — H1 marker stripped when not retained.
+    inp = (
+        "# Title " + HEADING_MARKER + "\n"
+        "\n"
+        + SECTION_START + "\n"
+        "intro\n"
+        + SECTION_END + "\n"
+    )
+    want = (
+        "# Title\n"
+        "\n"
+        + SECTION_START + "\n"
+        "intro\n"
+        + SECTION_END + "\n"
+    )
+    check(
+        "prune_strips_h1_marker_when_not_kept",
+        prune_orphan_markers(inp, set(), keep_h1_marker=False),
+        want,
+    )
+
+    # Test 30: prune_orphan_markers — idempotent when nothing to strip.
+    inp = (
+        "## Allowed " + HEADING_MARKER + "\n"
+        "\n"
+        + SECTION_START + "\n"
+        "body\n"
+        + SECTION_END + "\n"
+    )
+    check(
+        "prune_idempotent",
+        prune_orphan_markers(inp, {"Allowed"}, keep_h1_marker=True),
+        inp,
+    )
+
     if failures:
         for f in failures:
             print(f)
         print(f"FAILED {len(failures)} test(s)")
         return 1
-    print("OK 20 tests")
+    print("OK 30 tests")
     return 0
 
 

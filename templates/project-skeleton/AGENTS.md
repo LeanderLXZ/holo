@@ -11,9 +11,10 @@ detailed context lives in `ai_context/`, not here.
 > regions are refilled from the new plugin template via extract-and-
 > reformat smart-merge — user content (gaps between sentinels) is
 > preserved; plugin canonical content (inside sentinels) follows the
-> new template. **Escape hatch**: to take permanent ownership of a
-> section, delete its `<!-- holo:heading -->` marker — the section
-> becomes user-owned and the smart-merge will leave it alone. See
+> new template. **No opt-out**: deleting a marker no longer detaches
+> a section — `/holo:update` flags it as `unmarked_heading` /
+> `unmarked_section` drift and `--fix` re-adds the marker. Consumers
+> needing a permanently customized body fork the plugin. See
 > `docs/architecture/section-version-sentinel.md` for the full design.
 <!-- holo:section end -->
 

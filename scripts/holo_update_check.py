@@ -1540,10 +1540,19 @@ def heading_drift_check(plugin_root: str, target_root: str) -> list[dict]:
         if not consumer_parsed["has_heading_markers"]:
             continue  # pre-sentinel consumer; defer to missing_section
         plugin_parsed = _parse_sentinel_blocks(f)
-        # H1 drift: consumer's marker-bearing H1 vs plugin's marker-bearing H1.
+        # H1 drift: consumer-orphan marker-bearing H1 — fire ONLY when the
+        # consumer has a marker-bearing H1 AND the plugin does NOT. Text-
+        # equality is intentionally NOT used because the plugin H1 commonly
+        # carries a `<project-name>` placeholder substituted at init time
+        # (e.g. plugin `# <project-name> — Claude Entry Point` becomes
+        # consumer `# myproject — Claude Entry Point`), which would
+        # otherwise false-flag every initialized consumer. The text-mismatch
+        # case is covered by `unmarked_heading_check` (via positional
+        # detection) and `missing_section` (when applicable). Per
+        # `ai_context/decisions.md` §Skill Implementation #20.
         plugin_h1 = plugin_parsed.get("h1_marked")
         consumer_h1 = consumer_parsed.get("h1_marked")
-        if consumer_h1 is not None and consumer_h1 != plugin_h1:
+        if consumer_h1 is not None and plugin_h1 is None:
             findings.append({
                 "rel": rel,
                 "kind": "consumer_orphan_heading",
@@ -1652,6 +1661,207 @@ def section_content_drift_check(plugin_root: str, target_root: str) -> list[dict
                     "source_path": f,
                 })
     return findings
+
+
+def unmarked_heading_check(plugin_root: str, target_root: str) -> list[dict]:
+    """Sentinel-aware: find consumer H1/H2 lines that match a plugin
+    marker-bearing heading but lack the marker.
+
+    For each plugin template `.md` whose consumer counterpart exists AND
+    whose consumer carries at least one sentinel marker (either heading or
+    section block), compare:
+
+    - **H2**: plugin's marker-bearing H2 set vs consumer's marker-bearing
+      H2 set. For each plugin marker-bearing H2 text present in the
+      consumer's full H2 list (after marker-stripping via `_md_headers`)
+      but absent from the consumer's marker-bearing H2 set → fire.
+    - **H1**: plugin has marker-bearing H1 AND consumer has an H1 (any
+      text — placeholders like `<project-name>` get substituted at init
+      time, so text equality is intentionally NOT checked) AND consumer's
+      H1 has no marker → fire. Reports the consumer's actual H1 text
+      (after marker-stripping) so the fixer can locate it by text match.
+
+    Precondition: consumer has at least one marker overall. Zero-marker
+    consumers (legacy / pre-Phase-4) belong to the deferred
+    `missing_sentinel` category; they would otherwise drown the report
+    with one finding per heading of every untouched legacy file.
+
+    Distinct from `missing_section` (consumer lacks the heading entirely)
+    and from `heading_drift` (consumer has a marker the plugin doesn't);
+    the three checks are mutually exclusive on any given heading. Drives
+    the dogfood + sentinel-completeness fix path per
+    `ai_context/decisions.md` §Skill Implementation #20.
+    """
+    skel = _skeleton_root(plugin_root, _consumer_content_lang(target_root))
+    findings: list[dict] = []
+    for f in sorted(glob.glob(f"{skel}/**/*.md", recursive=True)):
+        rel = os.path.relpath(f, skel)
+        target = os.path.join(target_root, rel)
+        if not os.path.exists(target):
+            continue  # missing_template covers absent files
+        consumer_parsed = _parse_sentinel_blocks(target)
+        if not (
+            consumer_parsed["has_heading_markers"]
+            or consumer_parsed["has_section_markers"]
+        ):
+            continue  # pre-sentinel; defer to missing_sentinel
+        plugin_parsed = _parse_sentinel_blocks(f)
+        # H2: plugin marker-bearing heading present in consumer's full
+        # H2 set but lacking marker.
+        consumer_all_h2 = _md_headers(target)  # full set, marker stripped
+        consumer_marker_h2 = set(consumer_parsed["heading_marked"])
+        for header in plugin_parsed["heading_marked"]:
+            # `consumer_all_h2` returns strings like "## Foo"; strip the
+            # `## ` prefix to compare against the marker-stripped header.
+            if f"## {header}" not in consumer_all_h2:
+                continue  # missing_section covers absent headings
+            if header in consumer_marker_h2:
+                continue  # already marker-bearing
+            findings.append({
+                "rel": rel,
+                "level": 2,
+                "header": header,
+                "source_path": f,
+            })
+        # H1: positional (not text-match — placeholders).
+        plugin_h1 = plugin_parsed.get("h1_marked")
+        if plugin_h1 is not None and consumer_parsed.get("h1_marked") is None:
+            consumer_h1_text = _md_h1_header(target)
+            if consumer_h1_text is not None:
+                # `_md_h1_header` returns like "# Title" (with `# ` prefix
+                # stripped of marker). Strip prefix to match fixer contract.
+                stripped = consumer_h1_text
+                if stripped.startswith("# "):
+                    stripped = stripped[2:]
+                findings.append({
+                    "rel": rel,
+                    "level": 1,
+                    "header": stripped,
+                    "source_path": f,
+                })
+    return findings
+
+
+def unmarked_section_check(plugin_root: str, target_root: str) -> list[dict]:
+    """Sentinel-aware: find consumer H2 sections whose body lacks the
+    sentinel-block wrap that the plugin template applies.
+
+    For each plugin template `.md` whose consumer counterpart exists AND
+    whose consumer carries at least one sentinel marker (either heading or
+    section block), iterate plugin marker-bearing H2 headings that have
+    at least one sentinel block in the plugin (`plugin_parsed[
+    "section_blocks"][header]` non-empty). For each, if the consumer has
+    the same H2 heading text (after marker-stripping via `_md_headers`)
+    but the consumer's `section_blocks[header]` is missing or empty →
+    fire.
+
+    Precondition: consumer has at least one marker overall. Same
+    deferred-`missing_sentinel` rationale as `unmarked_heading_check`.
+
+    Per-block (multi-wrap-per-section) drift is detected by
+    `section_content_drift_check`; this check only fires when the
+    consumer's H2 body has ZERO sentinel blocks while the plugin's same
+    H2 has ≥ 1. The two checks do not double-flag the same finding.
+    Drives the dogfood + sentinel-completeness fix path per
+    `ai_context/decisions.md` §Skill Implementation #20.
+    """
+    skel = _skeleton_root(plugin_root, _consumer_content_lang(target_root))
+    findings: list[dict] = []
+    for f in sorted(glob.glob(f"{skel}/**/*.md", recursive=True)):
+        rel = os.path.relpath(f, skel)
+        target = os.path.join(target_root, rel)
+        if not os.path.exists(target):
+            continue
+        consumer_parsed = _parse_sentinel_blocks(target)
+        if not (
+            consumer_parsed["has_heading_markers"]
+            or consumer_parsed["has_section_markers"]
+        ):
+            continue
+        plugin_parsed = _parse_sentinel_blocks(f)
+        plugin_blocks_by_h2 = plugin_parsed["section_blocks"]
+        consumer_blocks_by_h2 = consumer_parsed["section_blocks"]
+        consumer_all_h2 = _md_headers(target)
+        for header in plugin_parsed["heading_marked"]:
+            if not plugin_blocks_by_h2.get(header):
+                continue  # plugin's H2 has marker but no wrapped body
+            if f"## {header}" not in consumer_all_h2:
+                continue  # missing_section
+            if consumer_blocks_by_h2.get(header):
+                continue  # consumer already has at least one wrapped block
+            findings.append({
+                "rel": rel,
+                "section": header,
+                "source_path": f,
+            })
+    return findings
+
+
+def fix_unmarked_heading(target_root: str, findings: list[dict]) -> int:
+    """Append `<!-- holo:heading -->` to each consumer heading line listed
+    in `findings`. Delegates the mechanical insertion to
+    `scripts.sentinel_bootstrap.inject_missing_markers`. Returns the
+    number of files actually modified (one count per file, regardless of
+    how many findings target it).
+    """
+    if not findings:
+        return 0
+    # Import lazily to avoid bootstrap-time circular concerns; both
+    # scripts live in `scripts/` and run from the same sys.path entry.
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    try:
+        from sentinel_bootstrap import inject_missing_markers
+    finally:
+        sys.path.pop(0)
+    by_rel: dict[str, list[tuple[int, str]]] = {}
+    for item in findings:
+        by_rel.setdefault(item["rel"], []).append((item["level"], item["header"]))
+    fixed = 0
+    for rel, headings in by_rel.items():
+        path = os.path.join(target_root, rel)
+        try:
+            with open(path, encoding="utf-8") as fh:
+                content = fh.read()
+        except OSError:
+            continue
+        new_content = inject_missing_markers(content, headings, [])
+        if new_content != content:
+            with open(path, "w", encoding="utf-8") as fh:
+                fh.write(new_content)
+            fixed += 1
+    return fixed
+
+
+def fix_unmarked_section(target_root: str, findings: list[dict]) -> int:
+    """Wrap each consumer H2 section body listed in `findings` with
+    `<!-- holo:section start/end -->`. Delegates to
+    `scripts.sentinel_bootstrap.inject_missing_markers`. Returns the
+    number of files actually modified.
+    """
+    if not findings:
+        return 0
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    try:
+        from sentinel_bootstrap import inject_missing_markers
+    finally:
+        sys.path.pop(0)
+    by_rel: dict[str, list[str]] = {}
+    for item in findings:
+        by_rel.setdefault(item["rel"], []).append(item["section"])
+    fixed = 0
+    for rel, sections in by_rel.items():
+        path = os.path.join(target_root, rel)
+        try:
+            with open(path, encoding="utf-8") as fh:
+                content = fh.read()
+        except OSError:
+            continue
+        new_content = inject_missing_markers(content, [], sections)
+        if new_content != content:
+            with open(path, "w", encoding="utf-8") as fh:
+                fh.write(new_content)
+            fixed += 1
+    return fixed
 
 
 def _rewrite_sentinel_block(
@@ -2076,6 +2286,8 @@ def run_check(plugin_root: str, target_root: str) -> dict:
         "legacy_skip_marker": legacy_skip_marker_check(target_root),
         "heading_drift": heading_drift_check(plugin_root, target_root),
         "section_content_drift": section_content_drift_check(plugin_root, target_root),
+        "unmarked_heading": unmarked_heading_check(plugin_root, target_root),
+        "unmarked_section": unmarked_section_check(plugin_root, target_root),
     }
 
 
@@ -2110,6 +2322,8 @@ def total_drift(findings: dict) -> int:
         + len(findings.get("l1_directive_drift", []))
         + len(findings.get("lang_mirror_drift", []))
         + len(findings.get("claude_agents_lang_drift", []))
+        + len(findings.get("unmarked_heading", []))
+        + len(findings.get("unmarked_section", []))
     )
     if a.get("skipped"):
         return base
@@ -2140,6 +2354,8 @@ def run_fix(findings: dict, target_root: str) -> dict:
         "field_appended": 0,
         "gitignore_appended": 0,
         "claude_agents_lang_fixed": 0,
+        "unmarked_heading_fixed": 0,
+        "unmarked_section_fixed": 0,
         "orphan_siblings_left": [],
     }
 
@@ -2221,6 +2437,13 @@ def run_fix(findings: dict, target_root: str) -> dict:
 
     counts["claude_agents_lang_fixed"] = fix_claude_agents_lang_drift(
         target_root, findings.get("claude_agents_lang_drift", [])
+    )
+
+    counts["unmarked_heading_fixed"] = fix_unmarked_heading(
+        target_root, findings.get("unmarked_heading", [])
+    )
+    counts["unmarked_section_fixed"] = fix_unmarked_section(
+        target_root, findings.get("unmarked_section", [])
     )
 
     # NOTE: `section_content_drift` and `heading_drift` are NOT
@@ -2329,6 +2552,14 @@ def _print_human(findings: dict, fix_counts: dict | None) -> None:
         # finding line; truncated already by _block_unified_diff_summary.
         for diff_line in item["diff_summary"].split("\n"):
             print(f"    {diff_line}")
+    uh = findings.get("unmarked_heading", [])
+    print(f"unmarked_heading: {len(uh)}")
+    for item in uh:
+        print(f"  {item['rel']}: H{item['level']} '{item['header']}'")
+    us = findings.get("unmarked_section", [])
+    print(f"unmarked_section: {len(us)}")
+    for item in us:
+        print(f"  {item['rel']}: ## {item['section']}")
     if fix_counts is not None:
         print("---")
         print(
@@ -2339,7 +2570,9 @@ def _print_human(findings: dict, fix_counts: dict | None) -> None:
             f"section_appended={fix_counts.get('section_appended', 0)} "
             f"field_appended={fix_counts.get('field_appended', 0)} "
             f"gitignore_appended={fix_counts.get('gitignore_appended', 0)} "
-            f"claude_agents_lang_fixed={fix_counts.get('claude_agents_lang_fixed', 0)}"
+            f"claude_agents_lang_fixed={fix_counts.get('claude_agents_lang_fixed', 0)} "
+            f"unmarked_heading_fixed={fix_counts.get('unmarked_heading_fixed', 0)} "
+            f"unmarked_section_fixed={fix_counts.get('unmarked_section_fixed', 0)}"
         )
         for entry in fix_counts.get("orphan_siblings_left", []):
             print(
