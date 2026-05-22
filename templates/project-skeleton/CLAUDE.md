@@ -11,23 +11,24 @@ detailed context lives in `ai_context/`, not here.
 > regions are refilled from the new plugin template via extract-and-
 > reformat smart-merge — user content (gaps between sentinels) is
 > preserved; plugin canonical content (inside sentinels) follows the
-> new template. **No opt-out**: deleting a marker no longer detaches
-> a section — `/holo:update` flags it as `unmarked_heading` /
-> `unmarked_section` drift and `--fix` re-adds the marker. Consumers
-> needing a permanently customized body fork the plugin. See
+> new template. **No opt-out**: deleting a marker does not detach a
+> section — the next `/holo:update` re-aligns sentinel structure via
+> extract-and-reformat smart-merge (per `ai_context/decisions.md`
+> §Skill Implementation #18). Consumers needing a permanently
+> customized body fork the plugin. See
 > `docs/architecture/section-version-sentinel.md` for the full design.
 <!-- holo:section end -->
 
 ## Language <!-- holo:heading -->
 
 <!-- holo:section start -->
-- `content_language: en` — disk-bound output (docs / logs / commits /
-  skill output / new code comments)
-- `conversation_language: auto` — AI ↔ user turns
-
 Applies to **every** turn, not just the first. Code identifiers and
 field names stay English regardless.
 <!-- holo:section end -->
+
+- `content_language: en` — disk-bound output (docs / logs / commits /
+  skill output / new code comments)
+- `conversation_language: auto` — AI ↔ user turns
 
 ## Session Start: Read ai_context/ Once <!-- holo:heading -->
 

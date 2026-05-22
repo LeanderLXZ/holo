@@ -9,21 +9,22 @@
 > 包裹的内容是 plugin canonical 内容。plugin 升级时（`/holo:update`），
 > 这些区域通过 extract-and-reformat smart-merge 用新 plugin 模板重填 ——
 > 用户内容（sentinel 之间的 gap）保留；plugin canonical 内容（sentinel
-> 内）跟随新模板。**不可退出**：删除 marker 不再"分离"段所有权 ——
-> `/holo:update` 会将其标记为 `unmarked_heading` / `unmarked_section`
-> 漂移并通过 `--fix` 重新补回。需要永久自定义段内容的 consumer 请 fork
-> 整个 plugin。完整设计见 `docs/architecture/section-version-sentinel.md`。
+> 内）跟随新模板。**不可退出**：删除 marker 不会"分离"段所有权 ——
+> 下一次 `/holo:update` 会通过 extract-and-reformat smart-merge
+> 重新对齐 sentinel 结构（详见 `ai_context/decisions.md` §Skill
+> Implementation #18）。需要永久自定义段内容的 consumer 请 fork 整个
+> plugin。完整设计见 `docs/architecture/section-version-sentinel.md`。
 <!-- holo:section end -->
 
 ## 语言 <!-- holo:heading -->
 
 <!-- holo:section start -->
+对**每一次**对话生效，不只是首轮。代码标识符与字段名保持英文。
+<!-- holo:section end -->
+
 - `content_language: en` —— 落盘类输出（docs / logs / commits /
   skill 输出 / 新增代码注释）
 - `conversation_language: auto` —— AI ↔ 用户对话
-
-对**每一次**对话生效，不只是首轮。代码标识符与字段名保持英文。
-<!-- holo:section end -->
 
 ## 会话开始：通读 ai_context/ 一次 <!-- holo:heading -->
 

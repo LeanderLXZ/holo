@@ -30,19 +30,27 @@ No `$ARGUMENTS` → show everything.
 
 ### 3. Render
 
-Print the index section to the user as-is. Preserve markdown tables unchanged; do not reorder, re-judge, or append recommendations.
+Print the index section to the user. Preserve markdown table structure (column count, separators, row order); do not reorder, re-judge, or append recommendations.
+
+**Language**: this is a user-facing surface. Read `content_language` and `conversation_language` from `ai_context/skills_config.md §Language`.
+- Same values → print verbatim.
+- Different values → translate natural-language cells (Title / Brief / Status text / Open decisions / Blocked by / Scope / Ready and similar prose cells) from `content_language` into `conversation_language` on the fly. The translation is display-only — never write back to `docs/todo_list.md`.
+- Stay verbatim regardless of language: task IDs (`T-XXX`), file paths, dates / timestamps, numeric counts (`Importance`, the `(N)` count after each bucket heading), bucket headings (`### 🟢 In Progress (N)` / `### 🟡 Next (N)` / `### ⚪ Discussing (N)` — emoji + English label is a structural prefix), table column headers (`ID` / `Title` / `Brief` / `Updated` / etc. — field names), and inline `` `code` `` spans.
+- The summary row (`**Total**: N — 🟢 In Progress 0 ｜ 🟡 Next 0 ｜ ⚪ Discussing 1`): translate only the word `Total` if a natural rendering exists in `conversation_language`; bucket labels + numbers stay as-is.
 
 **Skip the blockquote that immediately follows the `## Index ...` heading** (consecutive lines starting with `>` — that is meta guidance for the todo_list maintainer and is noise to `/todo` users). Subtables / summary rows after the blockquote render normally.
 
-If filtered by `$ARGUMENTS`, append a `(filtered by keyword "<keyword>")` line at the end of the summary row.
+If filtered by `$ARGUMENTS`, append a `(filtered by keyword "<keyword>")` line at the end of the summary row — render the wrapper text in `conversation_language`; the `<keyword>` value itself stays as the user typed it.
 
 ### 4. Ask + stop
 
-Print one final line:
+Print one final line asking which entry the user wants to see. Render this line in `conversation_language` per `ai_context/skills_config.md §Language` (a user-facing prompt). The English baseline is:
 
 ```
 Which entry do you want to see? Tell me the ID (e.g. `T-XXX`), or say something else.
 ```
+
+Translate the prose to `conversation_language` when it differs from English; the `T-XXX` placeholder and the inline `` `code` `` formatting stay verbatim.
 
 After printing, **stop** — do not enter `/go`, do not change code, do not change todo_list, do not commit; wait for the user's response.
 

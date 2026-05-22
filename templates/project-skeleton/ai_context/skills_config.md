@@ -15,8 +15,13 @@ skills will skip the related step. If a section lists concrete paths
 but those paths don't exist on disk, skills will fail loudly and
 report the drift.
 
-When porting to another project, edit only this file — skill bodies
-stay untouched.
+**Section layout (Option A)**: each section keeps purely descriptive
+prose + contract paragraphs INSIDE the `<!-- holo:section start/end -->`
+block (plugin canonical; overwritten by smart-merge on upgrade), and
+moves configurable bullets / field values / per-source blocks OUTSIDE
+the sentinel into gap territory (user-territory; preserved verbatim by
+smart-merge). Edit only the gap bullets when porting to a new project;
+skill bodies stay untouched.
 <!-- holo:section end -->
 
 ## Background processes <!-- holo:heading -->
@@ -24,6 +29,7 @@ stay untouched.
 <!-- holo:section start -->
 Used by skills to detect "is there an in-flight long-running job on this
 branch / worktree?", so they don't disturb it.
+<!-- holo:section end -->
 
 - pgrep patterns:
   - `(none)`
@@ -31,17 +37,16 @@ branch / worktree?", so they don't disturb it.
   - `(none)`
 - Process logs:
   - `(none)`
-<!-- holo:section end -->
 
 ## Protected branch prefixes <!-- holo:heading -->
 
 <!-- holo:section start -->
 Used by skills to identify branches that must not be auto-forwarded or
 auto-merged.
+<!-- holo:section end -->
 
 - Prefixes:
   - `(none)`
-<!-- holo:section end -->
 
 ## Main branch policy <!-- holo:heading -->
 
@@ -49,27 +54,27 @@ auto-merged.
 Drives main-branch-related skill decisions (worktree prompts in `/go`,
 push defaults, etc.). Skills no longer auto-merge across branches —
 cross-branch synchronisation is an explicit user action via `/forward`.
+<!-- holo:section end -->
 
 - Main branch: `main`
 - Rule: _(none yet — delete this marker once content is added)_
-<!-- holo:section end -->
 
 ## Do-not-commit paths <!-- holo:heading -->
 
 <!-- holo:section start -->
 Project-specific paths that must never be committed, on top of
 `.gitignore` defaults.
+<!-- holo:section end -->
 
 - `(none)`
-<!-- holo:section end -->
 
 ## Source directories <!-- holo:heading -->
 
 <!-- holo:section start -->
 Used by review skills to scope code-level scans.
+<!-- holo:section end -->
 
 - `(none)`
-<!-- holo:section end -->
 
 ## Data contract directories <!-- holo:heading -->
 
@@ -79,35 +84,35 @@ JSON Schema, Protobuf, OpenAPI, Pydantic models, SQL DDL, Avro,
 GraphQL schemas, etc. Many projects don't have a dedicated directory
 (contracts inline in code) — leave as `(none)` and the related scans
 degrade gracefully.
+<!-- holo:section end -->
 
 - `(none)`
-<!-- holo:section end -->
 
 ## Example artifact directories <!-- holo:heading -->
 
 <!-- holo:section start -->
 Used by review skills to scope example-output / fixture-data scans.
+<!-- holo:section end -->
 
 - `(none)`
-<!-- holo:section end -->
 
 ## Core component keywords <!-- holo:heading -->
 
 <!-- holo:section start -->
 Used by review skills to locate key architectural components for
 alignment audits.
+<!-- holo:section end -->
 
 - `(none)`
-<!-- holo:section end -->
 
 ## Sensitive content placeholder rules <!-- holo:heading -->
 
 <!-- holo:section start -->
 Real-world content that must NOT appear in docs / prompts / ai_context;
 must be replaced by structural placeholders.
+<!-- holo:section end -->
 
 - `(none)`
-<!-- holo:section end -->
 
 ## Timezone <!-- holo:heading -->
 
@@ -115,13 +120,14 @@ must be replaced by structural placeholders.
 Drives timestamp generation across skills (log filenames, report
 filenames, per-cycle timestamps).
 
-- Command template: `TZ='UTC' date '+%Y-%m-%d_%H%M%S'`
-- Fallback: If this section is missing or the command template fails,
-  skills fall back to `date '+%Y-%m-%d_%H%M%S'` using the system
-  timezone. This fallback is part of the contract (see top-of-file
-  rule) — skills do not need to encode bespoke `try / except` per
-  caller.
+Fallback: If this section is missing or the command template fails,
+skills fall back to `date '+%Y-%m-%d_%H%M%S'` using the system
+timezone. This fallback is part of the contract (see top-of-file
+rule) — skills do not need to encode bespoke `try / except` per
+caller.
 <!-- holo:section end -->
+
+- Command template: `TZ='UTC' date '+%Y-%m-%d_%H%M%S'`
 
 ## Language <!-- holo:heading -->
 
@@ -129,9 +135,6 @@ filenames, per-cycle timestamps).
 Two project-wide language axes consumed by every skill that writes
 output or asks the user a question, plus the SessionStart hook
 banner.
-
-- `content_language: en`
-- `conversation_language: auto`
 
 Notes:
 
@@ -149,10 +152,13 @@ Notes:
 - Language codes follow ISO 639-1 (`zh`, not the country code `cn`;
   `en`, not `eng`). Locale variants (`zh-CN`, `zh-TW`) are reserved
   for future regional splits.
-- Defaults above (`en` / `auto`) are the template's starting point;
+- Defaults below (`en` / `auto`) are the template's starting point;
   edit to your project's preferred values, or let `/holo:init` set
   them interactively when the project is initialised.
 <!-- holo:section end -->
+
+- `content_language: en`
+- `conversation_language: auto`
 
 ## Activity sources <!-- holo:heading -->
 
@@ -165,6 +171,7 @@ from the current repo); the entries below are listed so non-default
 project layouts can override them. Sections whose body is `(none)` are
 treated as "not configured" — the consuming skill skips the related
 scan (graceful skip per top-of-file rule).
+<!-- holo:section end -->
 
 - Change logs:
   - Path: `logs/change_logs/`
@@ -180,4 +187,3 @@ scan (graceful skip per top-of-file rule).
   - Filename pattern: `{YYYY-MM-DD_HHMMSS}_{model}_{slug}.md`
 - Prompt sources:
   - Path: `(none)`
-<!-- holo:section end -->

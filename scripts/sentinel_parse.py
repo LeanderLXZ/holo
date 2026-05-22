@@ -9,7 +9,7 @@ The dual-marker sentinel mechanism is specified in
 [T-INIT-UPDATE-SMART-MERGE]'s extract-and-reformat smart-merge
 pipeline) that need a structured view of a sentinel-aware file.
 
-Markers (must match `scripts/sentinel_bootstrap.py`):
+Markers (canonical definition in `docs/architecture/section-version-sentinel.md`):
 
 - `<!-- holo:heading -->` — appended to an H2 line (`## Foo`) to declare
   the heading plugin-owned (canonical content, overwritten on plugin
@@ -45,8 +45,9 @@ don't corrupt parsing.
 PROGRESSIVE marker lines (`_(none yet — delete this marker once content
 is added)_`) are NOT stripped at parse time; the parser preserves raw
 bodies and gaps. Domain-specific normalization is left to consumers
-(e.g. `holo_update_check.py` strips PROGRESSIVE for `section_content_drift`
-byte-diff via `_normalize_block_for_diff`; the canonical parser keeps
+(e.g. `holo_update_check.py` strips PROGRESSIVE for
+`sentinel_layout_drift` sub_shape `block_content_drift` byte-diff
+via `_normalize_block_for_diff`; the canonical parser keeps
 the original text so other consumers can keep or skip the markers per
 their need).
 
