@@ -144,7 +144,7 @@ If the PRE log file write fails (IO error, path not writable, disk full, permiss
 > **Compactness Requirements**: writes to `ai_context/` in this step follow the universal contract —
 > - Shorter is better than longer. Each entry is a summary, not a detail dump.
 > - Compactness must not sacrifice accuracy or completeness — never drop important information just to fit the length target.
-> - Aim for ≤ 5 lines and push longer detail to the linked source (`docs/<topic>.md`, schemas, script docstrings).
+> - Aim for ≤ 5 lines per entry, and push longer detail to the linked source (`docs/<topic>.md`, schemas, script docstrings).
 > - Do not compress or touch content unrelated to the current edit.
 
 Translate decisions from the conversation into doc language. **This step only does "writing"** — cross-file alignment verification belongs to Step 6; full-repo review belongs to Step 7. Any "I wrote file A and now feel file B needs changing too" sensation in this step **first goes into the PRE log's "Execution deviations" section**, deferred to Step 6 for systematic patching; do not stream-edit across files while writing.

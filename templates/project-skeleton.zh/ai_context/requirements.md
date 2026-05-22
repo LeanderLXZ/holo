@@ -9,7 +9,7 @@ MAINTENANCE — 编辑本文件前请先阅读。
 5. 精简要求：
    - 越短越好。每条都是总结，不是细节堆叠。
    - 精简的同时也要保证信息的准确性和有效性，不要为了精简而漏掉重要信息。
-   - 目标 ≤ 5 行，更长的细节推到链接的来源里（docs/<topic>.md）。
+   - 目标每条 ≤ 5 行，更长的细节推到链接的来源里（docs/<topic>.md）。
    - 不要压缩或改动与当前编辑无关的内容。
 -->
 <!-- holo:section end -->
@@ -26,6 +26,22 @@ MAINTENANCE — 编辑本文件前请先阅读。
 本文件存在的目的是让会话起点无需加载长篇需求文档。
 当需求发生变化时，两个文件须同步更新；该配对是
 `conventions.md` §Cross-File Alignment 的其中一行。
+<!-- holo:section end -->
+
+## 格式 <!-- holo:heading -->
+
+<!-- holo:section start -->
+每条 entry 是一个编号块 —— 粗体引出语 + 2–5 行摘要（依 MAINTENANCE
+规则 5）+ `→ docs/requirements.md §N` 指针；更长的细节推到指针目标。
+
+**编号 —— 镜像 `docs/requirements.md`：**
+
+- 条目 `N.` ≡ `docs/requirements.md §N`（1:1）。
+- 只有当 `docs/requirements.md §N` 本身发生变化时，才新增 / 删除 /
+  重写本文件的条目（lockstep）；不要在本文件凭空新增独立条目。
+- 该 lockstep 对在 `conventions.md §Cross-File Alignment` 中登记
+  （以 "Requirement statement added/changed in `docs/requirements.md`
+  §N" 为 key 的那一行）。
 <!-- holo:section end -->
 
 ## 段 <!-- holo:heading -->

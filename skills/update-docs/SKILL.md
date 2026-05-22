@@ -51,7 +51,7 @@ This skill uses:
 > **Compactness Requirements**: patches landing in `ai_context/` follow the universal contract —
 > - Shorter is better than longer. Each entry is a summary, not a detail dump.
 > - Compactness must not sacrifice accuracy or completeness — never drop important information just to fit the length target.
-> - Aim for ≤ 5 lines and push longer detail to the linked source (`docs/<topic>.md`, schemas, script docstrings).
+> - Aim for ≤ 5 lines per entry, and push longer detail to the linked source (`docs/<topic>.md`, schemas, script docstrings).
 > - Do not compress or touch content unrelated to the current edit.
 
 Scan the recent conversation turns and identify "what the user just decided / discussed that should land as narrative." For each candidate point:

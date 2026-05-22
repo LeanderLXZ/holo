@@ -9,7 +9,7 @@ This file is an index for fast project follow-up, not a detailed manual.
 5. Compactness Requirements:
    - Shorter is better than longer. Each entry is a summary, not a detail dump.
    - Compactness must not sacrifice accuracy or completeness — never drop important information just to fit the length target.
-   - Aim for ≤ 5 lines and push longer detail to the linked source (docs/<topic>.md).
+   - Aim for ≤ 5 lines per entry, and push longer detail to the linked source (docs/<topic>.md).
    - Do not compress or touch content unrelated to the current edit.
 -->
 <!-- holo:section end -->
@@ -27,6 +27,23 @@ This file exists so that session start does not need to load the
 long-form requirements doc. Update both files in lockstep when a
 requirement changes; that pairing is one row of
 `conventions.md` §Cross-File Alignment.
+<!-- holo:section end -->
+
+## Format <!-- holo:heading -->
+
+<!-- holo:section start -->
+Each entry is a numbered block — bold lead phrase + 2–5 line summary
+(per MAINTENANCE rule 5) + `→ docs/requirements.md §N` pointer; push
+longer detail to the pointer target.
+
+**Numbering — mirrors `docs/requirements.md`:**
+
+- Entry `N.` ≡ `docs/requirements.md §N` (1:1).
+- Add / remove / rewrite an entry only when `docs/requirements.md §N`
+  itself changes (lockstep); never invent a free-standing entry here.
+- The lockstep pair is registered in `conventions.md §Cross-File
+  Alignment` (row keyed by "Requirement statement added/changed in
+  `docs/requirements.md` §N").
 <!-- holo:section end -->
 
 ## Sections <!-- holo:heading -->

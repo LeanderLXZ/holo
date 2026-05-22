@@ -9,7 +9,7 @@ This file is an index for fast project follow-up, not a detailed manual.
 5. Compactness Requirements:
    - Shorter is better than longer. Each entry is a summary, not a detail dump.
    - Compactness must not sacrifice accuracy or completeness — never drop important information just to fit the length target.
-   - Aim for ≤ 5 lines and push longer detail to the linked source (docs/<topic>.md).
+   - Aim for ≤ 5 lines per entry, and push longer detail to the linked source (docs/<topic>.md).
    - Do not compress or touch content unrelated to the current edit.
 -->
 <!-- holo:section end -->

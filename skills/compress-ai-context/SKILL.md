@@ -122,7 +122,7 @@ Question: `Stale entry "<file>:<entry-id-or-title>" still has N live ref(s) at <
 > **Compactness Requirements**: any new content this step writes (the bundled follow-up todo entry created when "Auto-prune + create follow-up todo" was picked) follows the universal contract —
 > - Shorter is better than longer. Each entry is a summary, not a detail dump.
 > - Compactness must not sacrifice accuracy or completeness — never drop important information just to fit the length target.
-> - Aim for ≤ 5 lines and push longer detail to the linked source (`docs/<topic>.md`, schemas, script docstrings).
+> - Aim for ≤ 5 lines per entry, and push longer detail to the linked source (`docs/<topic>.md`, schemas, script docstrings).
 > - Do not compress or touch content unrelated to the current edit.
 
 a. **Snapshot before write**: `take_snapshot(target_root, slug='compress-ai-context-prune', file_paths=[touched ai_context files + docs/todo_list.md if a follow-up todo will land])`. Invoked **immediately before** the first `Edit` of this phase; not pre-emptively at skill startup. Capture the returned snapshot dir path for the wrap-up.
@@ -179,7 +179,7 @@ The `<ask tool>`'s auto-appended "Other" fallback covers free-form responses (e.
 > **Compactness Requirements**: the compressed ai_context bodies written here follow the universal contract —
 > - Shorter is better than longer. Each entry is a summary, not a detail dump.
 > - Compactness must not sacrifice accuracy or completeness — never drop important information just to fit the length target.
-> - Aim for ≤ 5 lines and push longer detail to the linked source (`docs/<topic>.md`, schemas, script docstrings).
+> - Aim for ≤ 5 lines per entry, and push longer detail to the linked source (`docs/<topic>.md`, schemas, script docstrings).
 > - Do not compress or touch content unrelated to the current edit.
 
 a. **Snapshot before write**: `take_snapshot(target_root, slug='compress-ai-context-compress', file_paths=[touched ai_context + docs files])`. Invoked **immediately before** the first `Edit` of this phase. Capture the returned snapshot dir path for the wrap-up.
