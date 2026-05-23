@@ -1,4 +1,13 @@
-# HOLO
+# HOLO <!-- holo:heading -->
+
+HOLO is a Claude Code plugin that pairs an on-disk AI working-memory framework with a workflow skill suite — the two together make AI-paired sessions resumable across days, weeks, and maintainers.
+
+<!-- holo:section start -->
+Start here:
+
+- `ai_context/` — compressed handoff for AI sessions
+- `docs/` — long-form documentation
+<!-- holo:section end -->
 
 <p align="center">
   <img src="assets/banner.png" alt="HOLO — Claude Code Plugin: a disciplined four-step loop (discuss, land, review, ship) for AI-paired work" width="820">
@@ -8,11 +17,6 @@
   <img src="https://img.shields.io/badge/Claude%20Code-plugin-7857ED" alt="Claude Code Plugin">
   <a href="LICENSE"><img src="https://img.shields.io/github/license/LeanderLXZ/holo?color=blue" alt="License: MIT"></a>
 </p>
-
-HOLO is a Claude Code plugin that pairs an on-disk AI
-working-memory framework with a workflow skill suite — the two
-together make AI-paired sessions resumable across days, weeks, and
-maintainers.
 
 HOLO turns Claude Code into a structured engineering loop. Every
 change moves through **discuss → land → review → ship**, with each
@@ -156,6 +160,7 @@ entry lives in its source file under [commands/](commands/) or
 | [`/post-check`](skills/post-check/SKILL.md) | Re-validate the last `/go` against its PRE log. |
 | [`/full-review`](skills/full-review/SKILL.md) | Whole-repo alignment audit (multi-agent). |
 | [`/check-review`](skills/check-review/SKILL.md) | Re-validate a stored review report against current state. |
+| [`/fix`](skills/fix/SKILL.md) | Triage findings from `/post-check` / `/full-review` / `/check-review` into fix / todo / skip buckets; delegate fixes to `/go` or `/do`. |
 
 **Inventory — read-only views:**
 
@@ -230,16 +235,16 @@ flowchart LR
   Go --> Logs[("logs/change_logs")]
   Go --> Archived[("todo_list_archived")]
   Go --> Check(["/post-check"])
-  Check -- finding --> Go
-  Check --> Forward(["/forward"])
-  Check --> Push(["/push"])
+  Check -- finding --> Fix(["/fix"])
+  Fix --> Forward(["/forward"])
+  Fix --> Push(["/push"])
   Forward --> Push
 
   classDef workflow fill:#24283b,stroke:#7aa2f7,color:#c0caf5,stroke-width:1.5px
   classDef review fill:#24283b,stroke:#bb9af7,color:#c0caf5,stroke-width:1.5px
   classDef inventory fill:#1a1b26,stroke:#565f89,color:#a9b1d6,stroke-width:1.5px
   classDef data fill:#1a1b26,stroke:#565f89,color:#a9b1d6,stroke-width:1.5px
-  class Go,Forward,Push workflow
+  class Go,Forward,Push,Fix workflow
   class Check review
   class Todo inventory
   class TodoList,Logs,Archived data
@@ -247,9 +252,10 @@ flowchart LR
 
 `/todo` pulls a finalized entry from `todo_list`. `/go` implements it
 — writing to `logs/change_logs/` and archiving the entry on
-completion. `/post-check` then verifies the result; findings loop
-back into `/go` for a fix. Once clean, `/forward` is the optional
-sibling-branch sync before `/push` ships.
+completion. `/post-check` then verifies the result; findings flow
+through `/fix` (triage into fix / todo / skip; delegate fixes to
+`/go` or `/do`). Once clean, `/forward` is the optional sibling-branch
+sync before `/push` ships.
 
 ### (c) Review loop
 
@@ -262,7 +268,7 @@ flowchart LR
   Codex(codex) --> Review
   Review --> Report[("review_reports")]
   Report --> Check(["/check-review"])
-  Check -- still real --> Fix(["/go"]) --> Commit(["/commit"])
+  Check -- still real --> Fix(["/fix"]) --> Commit(["/commit"])
   Check -. stale .-> Pass((pass))
 
   classDef workflow fill:#24283b,stroke:#7aa2f7,color:#c0caf5,stroke-width:1.5px
@@ -278,9 +284,9 @@ flowchart LR
 `/full-review` dispatches scans across multiple agent runtimes
 (claude, codex, etc.) and consolidates findings into
 `review_reports/`. `/check-review` re-validates each finding against
-the current tree — anything still real loops through `/go` →
-`/commit` to fix; anything stale passes. Trigger this before pushing
-major work or releasing.
+the current tree — anything still real flows through `/fix` (triage
++ delegate to `/go` or `/do`) → `/commit`; anything stale passes.
+Trigger this before pushing major work or releasing.
 
 ### Walkthrough
 
@@ -289,10 +295,10 @@ A minimal sequence following the implementation loop:
 ```text
 1. /plan                            # discuss the change, no writes
 2. /todo-add                        # record the decision into todo_list
-3. /go add cache layer to fetcher   # land: edits + cross-file review + commit;
-                                    #       finding → /go again to fix
-4. /post-check                      # verify; on finding, back to /go
-5. /push                            # fast-forward push current branch
+3. /go add cache layer to fetcher   # land: edits + cross-file review + commit
+4. /post-check                      # verify the result against the PRE log
+5. /fix                             # triage findings; delegate to /go or /do
+6. /push                            # fast-forward push current branch
 ```
 
 For small drive-by edits, skip `/plan` and `/go` — edit, then

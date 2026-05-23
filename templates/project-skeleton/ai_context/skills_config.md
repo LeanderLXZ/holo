@@ -1,27 +1,17 @@
 # Skills Config (project instance) <!-- holo:heading -->
 
 <!-- holo:section start -->
-Loaded on demand by skills that need project-specific anchors. **Not**
-loaded by default at session start — only the specific skill that needs
-it reads it.
+Loaded on demand by skills, not at session start. Each `## …` header
+is mandatory — a missing header fails loud (per-section exceptions
+declare themselves in their body; see `## Timezone`). Body value
+`(none)` = skill skips the related step; listed paths that don't
+exist on disk fail loud.
 
-Each section below has a fixed header. **Section headers (the `## …`
-lines) MUST exist by default** — a missing header means the config is
-structurally incomplete; skills will fail loudly and stop. Exceptions
-are documented in the section body itself (currently only `## Timezone`
-declares a system-timezone `date` fallback; see that section). If this
-project has no value for a section, write `(none)` in the body and
-skills will skip the related step. If a section lists concrete paths
-but those paths don't exist on disk, skills will fail loudly and
-report the drift.
-
-**Section layout (Option A)**: each section keeps purely descriptive
-prose + contract paragraphs INSIDE the `<!-- holo:section start/end -->`
-block (plugin canonical; overwritten by smart-merge on upgrade), and
-moves configurable bullets / field values / per-source blocks OUTSIDE
-the sentinel into gap territory (user-territory; preserved verbatim by
-smart-merge). Edit only the gap bullets when porting to a new project;
-skill bodies stay untouched.
+Layout (Option A): descriptive prose + contract sentences live
+INSIDE `<!-- holo:section start/end -->` (plugin canonical,
+overwritten on `/holo:update`). Configurable bullets / field values
+live OUTSIDE the sentinel (user-territory, preserved by smart-merge).
+When porting to a new project, edit only the gap bullets.
 <!-- holo:section end -->
 
 ## Background processes <!-- holo:heading -->
@@ -117,44 +107,44 @@ must be replaced by structural placeholders.
 ## Timezone <!-- holo:heading -->
 
 <!-- holo:section start -->
-Drives timestamp generation across skills (log filenames, report
-filenames, per-cycle timestamps).
-
-Fallback: If this section is missing or the command template fails,
-skills fall back to `date '+%Y-%m-%d_%H%M%S'` using the system
-timezone. This fallback is part of the contract (see top-of-file
-rule) — skills do not need to encode bespoke `try / except` per
-caller.
+Drives timestamp generation (log filenames, report filenames,
+per-cycle timestamps). Section missing or command template fails →
+fallback to `date '+%Y-%m-%d_%H%M%S'` with system timezone (part of
+the contract).
 <!-- holo:section end -->
 
 - Command template: `TZ='UTC' date '+%Y-%m-%d_%H%M%S'`
+
+## Tmp directory <!-- holo:heading -->
+
+<!-- holo:section start -->
+Smart-merge transient working space used by the `## Reconcile core`
+SOP (`commands/update.md`) for translation template trees and Agent 1
+staging. Bullet value joins with `target_root` (repo root, **not**
+skill CWD). Section absent or `(none)` → fallback to
+`${TMPDIR:-/tmp}/holo-tmp-<YYYY-MM-DD>_<HHMMSS>/`. Distinct from
+`logs/file_snapshots/` (persistent user-restorable backups). Full
+design: `docs/architecture/smart-merge.md`.
+<!-- holo:section end -->
+
+- Smart-merge tmp root: `./tmp/holo/`
 
 ## Language <!-- holo:heading -->
 
 <!-- holo:section start -->
 Two project-wide language axes consumed by every skill that writes
-output or asks the user a question, plus the SessionStart hook
-banner.
+output or asks the user, plus the SessionStart banner.
 
-Notes:
-
-- `content_language` governs every written artifact the AI produces
-  or maintains in this project: `ai_context/` / `docs/` / `logs/` /
-  commit messages / README / skill console output / error messages /
-  code comments the AI writes. Code identifiers and field names
-  stay English regardless. Accepts any ISO 639-1 code.
-- `conversation_language` governs AI ↔ user turns (`AskUserQuestion`
-  prompts, free-form replies, confirmations). Accepts
-  `auto | <ISO 639-1>`. `auto` = per-turn match the user's most
-  recent message language. Any explicit value is a hard rule with a
-  single-message escape hatch (user says "respond in `<other>`" →
-  that turn replies in `<other>`, next turn returns to config).
-- Language codes follow ISO 639-1 (`zh`, not the country code `cn`;
-  `en`, not `eng`). Locale variants (`zh-CN`, `zh-TW`) are reserved
-  for future regional splits.
-- Defaults below (`en` / `auto`) are the template's starting point;
-  edit to your project's preferred values, or let `/holo:init` set
-  them interactively when the project is initialised.
+- `content_language` governs every written artifact (`ai_context/` /
+  `docs/` / `logs/` / commits / README / skill output / AI-written
+  code comments). Code identifiers and field names stay English
+  regardless.
+- `conversation_language` governs AI ↔ user turns. `auto` = per-turn
+  match the user's last message; an explicit value is a hard rule
+  with a single-message escape hatch ("respond in `<other>`" affects
+  only that turn).
+- Use ISO 639-1 codes (`zh` not `cn`, `en` not `eng`); locale
+  variants (`zh-CN`, `zh-TW`) reserved.
 <!-- holo:section end -->
 
 - `content_language: en`
@@ -163,14 +153,10 @@ Notes:
 ## Activity sources <!-- holo:heading -->
 
 <!-- holo:section start -->
-Per-source registry consumed by `/recent-activity`, `/todo-add`, `/go`,
-`/post-check`, `/full-review`, `/check-review`, and `/run-prompt`.
-Lists path + filename pattern + per-entry field names for each ledger
-the workflow skills touch. Git commits are implicit (always available
-from the current repo); the entries below are listed so non-default
-project layouts can override them. Sections whose body is `(none)` are
-treated as "not configured" — the consuming skill skips the related
-scan (graceful skip per top-of-file rule).
+Per-source ledger registry consumed by `/recent-activity`,
+`/todo-add`, `/go`, `/post-check`, `/full-review`, `/check-review`,
+`/fix`, `/run-prompt`. Lists path + filename pattern + per-entry
+field names. Git commits are implicit and not listed here.
 <!-- holo:section end -->
 
 - Change logs:

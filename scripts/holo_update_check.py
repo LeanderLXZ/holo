@@ -360,15 +360,28 @@ def _consumer_conversation_lang(target_root: str) -> str:
     return value
 
 
-def _skeleton_root(plugin_root: str, content_lang: str) -> str:
+def _skeleton_root(
+    plugin_root: str, content_lang: str, baseline_root: str | None = None
+) -> str:
     """Resolve the active project-skeleton root for the consumer's language.
 
-    For `content_lang == 'en'` (or when no variant exists) → canonical
-    `templates/project-skeleton/`. Otherwise → `templates/project-skeleton.<lang>/`
-    if present, else fall back to canonical (graceful degrade — the
-    `missing_template` finding will then flag the file as needing
-    creation, but at least won't corrupt content via section diff).
+    When ``baseline_root`` is provided, return it directly as the
+    authoritative baseline tree — the override path for
+    Reconcile.Step 4 invocations that need to compare against
+    Step 2a's on-the-fly tmp-translated template tree (see
+    `docs/architecture/drift-detection.md` §Baseline root override).
+    The override is opt-in; callers without a tmp baseline pass
+    ``None`` and fall through to plugin-tree resolution.
+
+    Default resolver: for `content_lang == 'en'` (or when no variant
+    exists) → canonical `templates/project-skeleton/`. Otherwise →
+    `templates/project-skeleton.<lang>/` if present, else fall back
+    to canonical (graceful degrade — the `missing_template` finding
+    will then flag the file as needing creation, but at least won't
+    corrupt content via section diff).
     """
+    if baseline_root is not None:
+        return baseline_root
     canonical = os.path.join(plugin_root, "templates/project-skeleton")
     if content_lang == "en":
         return canonical
@@ -376,9 +389,13 @@ def _skeleton_root(plugin_root: str, content_lang: str) -> str:
     return variant if os.path.isdir(variant) else canonical
 
 
-def template_file_check(plugin_root: str, target_root: str) -> list[dict]:
+def template_file_check(
+    plugin_root: str, target_root: str, baseline_root: str | None = None
+) -> list[dict]:
     """Files present in templates/project-skeleton[.<lang>]/ but absent from project."""
-    skel = _skeleton_root(plugin_root, _consumer_content_lang(target_root))
+    skel = _skeleton_root(
+        plugin_root, _consumer_content_lang(target_root), baseline_root
+    )
     missing: list[dict] = []
     for f in glob.glob(f"{skel}/**/*", recursive=True):
         if not os.path.isfile(f):
@@ -490,9 +507,13 @@ def _md_h1_header(path: str) -> str | None:
     return None
 
 
-def template_section_check(plugin_root: str, target_root: str) -> list[dict]:
+def template_section_check(
+    plugin_root: str, target_root: str, baseline_root: str | None = None
+) -> list[dict]:
     """For .md files present in both, find `^## ` headers in template[.<lang>] missing from project."""
-    skel = _skeleton_root(plugin_root, _consumer_content_lang(target_root))
+    skel = _skeleton_root(
+        plugin_root, _consumer_content_lang(target_root), baseline_root
+    )
     missing: list[dict] = []
     for f in glob.glob(f"{skel}/**/*.md", recursive=True):
         rel = os.path.relpath(f, skel)
@@ -617,7 +638,9 @@ def _skills_config_fields(path: str) -> dict[str, dict[str, str]]:
     return sections
 
 
-def missing_field_check(plugin_root: str, target_root: str) -> list[dict]:
+def missing_field_check(
+    plugin_root: str, target_root: str, baseline_root: str | None = None
+) -> list[dict]:
     """Compare ai_context/skills_config.md fields baseline vs consumer.
 
     Returns one finding per missing field. Skipped when:
@@ -625,7 +648,9 @@ def missing_field_check(plugin_root: str, target_root: str) -> list[dict]:
     - The owning section is absent from the consumer entirely (covered
       by `missing_section`; avoid double-flagging the same drift).
     """
-    skel = _skeleton_root(plugin_root, _consumer_content_lang(target_root))
+    skel = _skeleton_root(
+        plugin_root, _consumer_content_lang(target_root), baseline_root
+    )
     rel = "ai_context/skills_config.md"
     source_path = os.path.join(skel, rel)
     target_path = os.path.join(target_root, rel)
@@ -774,7 +799,11 @@ _EN_EXPECTED_PAIRS = [
 ]
 
 
-def claude_agents_check(target_root: str, plugin_root: str | None = None) -> dict:
+def claude_agents_check(
+    target_root: str,
+    plugin_root: str | None = None,
+    baseline_root: str | None = None,
+) -> dict:
     """CLAUDE.md / AGENTS.md placeholder + cross-sync diff (report only — never auto-merged).
 
     Consumer-language-aware: when the consumer's `content_language` is
@@ -805,7 +834,7 @@ def claude_agents_check(target_root: str, plugin_root: str | None = None) -> dic
     if plugin_root is not None:
         lang = _consumer_content_lang(target_root)
         if lang != "en":
-            skel = _skeleton_root(plugin_root, lang)
+            skel = _skeleton_root(plugin_root, lang, baseline_root)
             derived = _derive_expected_pairs(skel)
             if derived:
                 expected_pairs = derived
@@ -1223,33 +1252,6 @@ def _walk_files_relative(root: str) -> set[str]:
     return out
 
 
-# ---------------------------------------------------------------------------
-# `.gitignore` smart-merge: three-phase pipeline
-# ---------------------------------------------------------------------------
-#
-# Phase 1 (gitignore_compute_union): deterministic union of pattern lines.
-#   Used by /holo:init CONFLICT as input to the LLM step + fallback content
-#   on gate failure; used by /holo:update --fix as the direct output (no LLM).
-# Phase 2 (LLM reorganize): runs only at /holo:init CONFLICT, in the skill
-#   body's AI-agent context. The agent invokes its own LLM with a prompt that
-#   requires preserving the exact pattern set and using only the seven
-#   whitelisted section headers below.
-# Phase 3 (gitignore_verify_reorganize): strict gate; LLM output must preserve
-#   pattern set AND restrict comment-prefix lines to the whitelist (plus the
-#   sentinel banner). Failure triggers fallback to the Phase 1 raw union.
-#
-# See ai_context/decisions.md §Skill Implementation #14 for rationale.
-
-_GITIGNORE_SECTION_WHITELIST: frozenset[str] = frozenset({
-    "# Editor / IDE",
-    "# Python",
-    "# Node",
-    "# OS",
-    "# Local config",
-    "# Build outputs / caches",
-    "# Project-specific",
-})
-
 _LEGACY_SKIP_MARKER_RE = re.compile(
     r"_\(TODO\s*[—-]\s*skipped\s*at\s*/holo:init;\s*fill\s*via\s*later\s*/go\s*or\s*directly\s*edit\)_"
 )
@@ -1522,7 +1524,9 @@ def _block_unified_diff_summary(plugin: str, consumer: str, max_lines: int = 6) 
     return "\n".join(body) if body else "(diff empty)"
 
 
-def sentinel_layout_drift_check(plugin_root: str, target_root: str) -> list[dict]:
+def sentinel_layout_drift_check(
+    plugin_root: str, target_root: str, baseline_root: str | None = None
+) -> list[dict]:
     """Unified sentinel-layout drift detection.
 
     Subsumes the historical `heading_drift_check` (consumer-orphan
@@ -1592,7 +1596,9 @@ def sentinel_layout_drift_check(plugin_root: str, target_root: str) -> list[dict
          block_index: int, plugin_excerpt: str, consumer_excerpt: str,
          diff_summary: str, source_path: str}
     """
-    skel = _skeleton_root(plugin_root, _consumer_content_lang(target_root))
+    skel = _skeleton_root(
+        plugin_root, _consumer_content_lang(target_root), baseline_root
+    )
     findings: list[dict] = []
     for f in sorted(glob.glob(f"{skel}/**/*.md", recursive=True)):
         rel = os.path.relpath(f, skel)
@@ -1980,11 +1986,11 @@ def gitignore_pattern_lines(content: str) -> set[str]:
     forever and `--fix` would append a BOM-prefixed duplicate every
     run.
 
-    Used by `gitignore_compute_union` (Phase 1) and
-    `gitignore_verify_reorganize` (Phase 3) for set-equality
-    comparisons. The canonical form (stripped, escape preserved) is
-    also what `gitignore_missing_lines_check` returns in its
-    `pattern` field and what `--fix` appends to disk.
+    Used by `gitignore_compute_union` and
+    `gitignore_missing_lines_check` for set-equality comparisons. The
+    canonical form (stripped, escape preserved) is also what
+    `gitignore_missing_lines_check` returns in its `pattern` field and
+    what `--fix` appends to disk.
     """
     content = content.lstrip("﻿")
     out: set[str] = set()
@@ -2003,18 +2009,17 @@ def gitignore_compute_union(template_content: str, target_content: str) -> tuple
 
     - ``merged_content`` = ``target_content`` verbatim + a blank separator +
       the banner sentinel + each missing pattern (in the template's original
-      line order) + trailing newline. Suitable both as the fallback output
-      when the LLM reorganize gate fails (`/holo:init`) and as the direct
-      append-only output for `/holo:update --fix`. When ``missing_patterns``
-      is empty, ``merged_content`` is ``target_content`` verbatim.
+      line order) + trailing newline. Used as the direct append-only output
+      for both `/holo:init` (Reconcile.Step 5b) and `/holo:update --fix`.
+      When ``missing_patterns`` is empty, ``merged_content`` is
+      ``target_content`` verbatim.
     - ``missing_patterns`` = patterns present in the template but absent
       from the target (canonical / stripped form, deduplicated, original
       order from the template).
 
     Template comment lines and section headers are NOT propagated; only
-    pattern lines. The init Step 3.1 LLM step is responsible for grouping
-    the union pattern set under whitelisted headers; the update `--fix`
-    writes the raw banner-separated append shape.
+    pattern lines. Section organization is left to the consumer; the
+    append shape is deterministic and LLM-free.
     """
     # Strip leading BOM defensively (mirrors `gitignore_pattern_lines`
     # — same hazard if an editor-injected BOM survives into the union
@@ -2053,77 +2058,9 @@ def gitignore_compute_union(template_content: str, target_content: str) -> tuple
     return (merged, missing)
 
 
-def gitignore_verify_reorganize(
-    reorganized: str,
-    expected_patterns: set[str],
-    allowed_headers: frozenset[str] | None = None,
-) -> tuple[bool, list[str]]:
-    """Verify an LLM-reorganized .gitignore output (Phase 3).
-
-    Two strict gates:
-
-    1. **Pattern set equality** — ``gitignore_pattern_lines(reorganized) ==
-       expected_patterns``. No pattern may be missing, added, or rewritten
-       (even a whitespace tweak counts as rewrite). This is the
-       load-bearing correctness check; gate failure triggers fallback to
-       the Phase 1 deterministic union.
-    2. **Section header whitelist** — every `#`-prefix comment line in
-       the reorganized output must appear in ``allowed_headers`` (default:
-       :data:`_GITIGNORE_SECTION_WHITELIST`). The Phase 1 banner sentinel
-       is implicitly allowed regardless of the whitelist.
-
-    Returns ``(passed, violations)``. ``violations`` enumerates failure
-    reasons in human-readable form (empty when ``passed=True``). Each
-    violation truncates long lists to the first five entries for
-    readability.
-    """
-    if allowed_headers is None:
-        allowed_headers = _GITIGNORE_SECTION_WHITELIST
-
-    violations: list[str] = []
-
-    actual_patterns = gitignore_pattern_lines(reorganized)
-    missing = expected_patterns - actual_patterns
-    extra = actual_patterns - expected_patterns
-    if missing:
-        sample = sorted(missing)[:5]
-        suffix = " ..." if len(missing) > 5 else ""
-        violations.append(
-            f"pattern set: {len(missing)} missing from LLM output (sample: {sample}{suffix})"
-        )
-    if extra:
-        sample = sorted(extra)[:5]
-        suffix = " ..." if len(extra) > 5 else ""
-        violations.append(
-            f"pattern set: {len(extra)} unexpected in LLM output (sample: {sample}{suffix})"
-        )
-
-    invalid_headers: list[str] = []
-    seen_invalid: set[str] = set()
-    for raw in reorganized.splitlines():
-        line = raw.strip()
-        if not line.startswith("#"):
-            continue
-        if line == _GITIGNORE_BANNER:
-            continue
-        if line in allowed_headers:
-            continue
-        if line in seen_invalid:
-            continue
-        seen_invalid.add(line)
-        invalid_headers.append(line)
-    if invalid_headers:
-        sample = invalid_headers[:5]
-        suffix = " ..." if len(invalid_headers) > 5 else ""
-        violations.append(
-            f"non-whitelisted header(s): {len(invalid_headers)} found "
-            f"(sample: {sample}{suffix}; whitelist: {sorted(allowed_headers)})"
-        )
-
-    return (not violations, violations)
-
-
-def gitignore_missing_lines_check(plugin_root: str, target_root: str) -> list[dict]:
+def gitignore_missing_lines_check(
+    plugin_root: str, target_root: str, baseline_root: str | None = None
+) -> list[dict]:
     """Detect .gitignore pattern lines present in template but missing from consumer.
 
     One finding per missing pattern (mirrors ``missing_section``'s
@@ -2140,7 +2077,9 @@ def gitignore_missing_lines_check(plugin_root: str, target_root: str) -> list[di
     - Consumer `.gitignore` absent (covered by ``missing_template``).
     - No patterns missing.
     """
-    skel = _skeleton_root(plugin_root, _consumer_content_lang(target_root))
+    skel = _skeleton_root(
+        plugin_root, _consumer_content_lang(target_root), baseline_root
+    )
     template_path = os.path.join(skel, ".gitignore")
     target_path = os.path.join(target_root, ".gitignore")
 
@@ -2177,23 +2116,30 @@ def gitignore_missing_lines_check(plugin_root: str, target_root: str) -> list[di
 # Aggregate runner + fix application
 # ---------------------------------------------------------------------------
 
-def run_check(plugin_root: str, target_root: str) -> dict:
+def run_check(
+    plugin_root: str, target_root: str, baseline_root: str | None = None
+) -> dict:
     return {
         "plugin_root": plugin_root,
         "target_root": os.path.abspath(target_root),
+        "baseline_root": baseline_root,
         "consumer_content_lang": _consumer_content_lang(target_root),
         "agents_sync": agents_sync_check(plugin_root, target_root),
-        "missing_template": template_file_check(plugin_root, target_root),
-        "missing_section": template_section_check(plugin_root, target_root),
-        "missing_field": missing_field_check(plugin_root, target_root),
-        "gitignore_missing_lines": gitignore_missing_lines_check(plugin_root, target_root),
-        "claude_agents": claude_agents_check(target_root, plugin_root),
+        "missing_template": template_file_check(plugin_root, target_root, baseline_root),
+        "missing_section": template_section_check(plugin_root, target_root, baseline_root),
+        "missing_field": missing_field_check(plugin_root, target_root, baseline_root),
+        "gitignore_missing_lines": gitignore_missing_lines_check(
+            plugin_root, target_root, baseline_root
+        ),
+        "claude_agents": claude_agents_check(target_root, plugin_root, baseline_root),
         "claude_agents_lang_drift": claude_agents_lang_drift_check(target_root),
         "missing_l1_directive": l1_directive_check(plugin_root),
         "l1_directive_drift": l1_directive_drift_check(plugin_root),
         "lang_mirror_drift": lang_mirror_check(plugin_root),
         "legacy_skip_marker": legacy_skip_marker_check(target_root),
-        "sentinel_layout_drift": sentinel_layout_drift_check(plugin_root, target_root),
+        "sentinel_layout_drift": sentinel_layout_drift_check(
+            plugin_root, target_root, baseline_root
+        ),
     }
 
 
@@ -2240,9 +2186,9 @@ def run_fix(findings: dict, target_root: str) -> dict:
     MISSING_SECTION / MISSING_FIELD / GITIGNORE_MISSING_LINES.
 
     CLAUDE / AGENTS findings are never touched here — they require manual merge.
-    The `.gitignore` smart-merge LLM-reorganize pipeline (Phases 2 + 3) is
-    NOT invoked here either — `/holo:update --fix` is append-only Phase 1
-    by design, see ai_context/decisions.md §Skill Implementation #14.
+    `.gitignore` reconciliation is deterministic append-only union (no LLM)
+    via `gitignore_compute_union`; see ai_context/decisions.md
+    §Skill Implementation #14.
 
     Returns a dict with counts (`regenerated` / `created` / `deleted` /
     `template_copied` / `section_appended` / `field_appended` /
@@ -2504,10 +2450,22 @@ def main() -> None:
     parser.add_argument("--target", default=".", help="target project root (default: cwd)")
     parser.add_argument("--fix", action="store_true", help="apply auto-fixes after check")
     parser.add_argument("--json", action="store_true", help="emit machine-readable JSON")
+    parser.add_argument(
+        "--baseline-root",
+        default=None,
+        help=(
+            "override the active project-skeleton baseline tree; when set, "
+            "this path replaces the plugin-tree resolver for every "
+            "baseline-aware finding category. Used by Reconcile.Step 4 "
+            "to point at Step 2a's tmp-translated template tree for "
+            "non-shipped-variant content_language consumers. See "
+            "docs/architecture/drift-detection.md §Baseline root override."
+        ),
+    )
     args = parser.parse_args()
 
     plugin_root = find_plugin_root(args.plugin_root)
-    findings = run_check(plugin_root, args.target)
+    findings = run_check(plugin_root, args.target, baseline_root=args.baseline_root)
     fix_counts = None
     if args.fix:
         fix_counts = run_fix(findings, args.target)

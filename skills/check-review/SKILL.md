@@ -71,7 +71,7 @@ Output markdown (**no write to disk, no code changes, no commit**):
 
 ## 5. Wait for confirmation
 
-After output, **stop**. Do not enter `/go`, do not write a log, do not change files; wait for the user to confirm / adjust each item before executing.
+After output, **stop**. Do not enter `/go`, do not write a log, do not change files; wait for the user to confirm / adjust each item before executing. Typical handoffs: `/fix` for triage (bulk-accept AI recommendations OR decide per finding, with delegation to `/go` or `/do`), or `/go` directly when the user has already decided every item.
 
 ## Constraints
 

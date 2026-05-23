@@ -32,5 +32,12 @@ dist/
 build/
 .cache/
 
+# Smart-merge tmp root (project-configurable via
+# `ai_context/skills_config.md ## Tmp directory`; default `./tmp/holo/`).
+# Carries 4-agent translation template trees + Agent 1 merger staging
+# output during `/holo:init` / `/holo:update`. Distinct from
+# `logs/file_snapshots/` (persistent backups, NOT gitignored).
+tmp/holo/
+
 # Project-specific (extend as needed; mirror `ai_context/skills_config.md`
 # §Do-not-commit paths so the two stay in sync)

@@ -234,7 +234,7 @@ This round's alignment status across requirements / schema / code / README / arc
 
 > **Language**: user-facing — render the closing "awaiting your call" short line in `conversation_language` per `ai_context/skills_config.md §Language`. One short sentence at most; do not produce additional summary / recommendations / next-step lists.
 
-After the full report prints, **stop**. At most add one more sentence like "awaiting your call" or a similarly very short closing line, **do not write further summaries, do not commit further, do not list next steps** — any tail pushes the dual-track report up. Do not enter `/go`, do not modify code, do not modify schema / prompt / docs / ai_context; wait for the user to decide item by item based on the full report in the conversation, typically handed to the next `/go` for follow-up fixes.
+After the full report prints, **stop**. At most add one more sentence like "awaiting your call" or a similarly very short closing line, **do not write further summaries, do not commit further, do not list next steps** — any tail pushes the dual-track report up. Do not enter `/go`, do not modify code, do not modify schema / prompt / docs / ai_context; wait for the user to decide item by item based on the full report in the conversation. Typical handoffs: `/fix` for triage (bulk-accept AI recommendations OR decide per finding, with delegation to `/go` or `/do`), or `/go` directly when the user has already decided every item.
 
 ## Constraints
 
