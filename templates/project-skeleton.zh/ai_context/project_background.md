@@ -2,6 +2,7 @@
 <!--
 MAINTENANCE — 编辑本文件前请先阅读。
 稳定的项目元规则。保持精简；仅在规则本身变化时更新。
+Sentinel 纪律（参见 CLAUDE.md §plugin 管理段）：sentinel `<!-- holo:section start/end -->` 内的内容是 plugin canonical，`/holo:update` 会覆写；项目专属新增内容写在 sentinel 之外的 gap 里。
 -->
 <!-- holo:section end -->
 

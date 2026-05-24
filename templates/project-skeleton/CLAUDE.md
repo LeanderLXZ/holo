@@ -17,6 +17,11 @@ detailed context lives in `ai_context/`, not here.
 > §Skill Implementation #18). Consumers needing a permanently
 > customized body fork the plugin. See
 > `docs/architecture/section-version-sentinel.md` for the full design.
+>
+> **Edits inside `<!-- holo:section start/end -->` are overwritten on
+> the next `/holo:update`.** Project-specific additions must go in the
+> gap between `<!-- holo:section end -->` and the next sentinel-start
+> / heading-sentinel.
 <!-- holo:section end -->
 
 ## Language <!-- holo:heading -->

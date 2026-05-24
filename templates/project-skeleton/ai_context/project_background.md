@@ -2,6 +2,7 @@
 <!--
 MAINTENANCE — read before editing this file.
 Stable project meta-rules. Keep short; update only when the rule itself changes.
+Sentinel discipline (see CLAUDE.md §Plugin-managed sections): content inside `<!-- holo:section start/end -->` is plugin-canonical and overwritten on `/holo:update`; project-specific additions go in the gap between sentinels.
 -->
 <!-- holo:section end -->
 

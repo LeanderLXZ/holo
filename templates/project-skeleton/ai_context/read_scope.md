@@ -2,6 +2,7 @@
 <!--
 MAINTENANCE — read before editing this file.
 Stable project meta-rules. Keep short; update only when the rule itself changes.
+Sentinel discipline (see CLAUDE.md §Plugin-managed sections): content inside `<!-- holo:section start/end -->` is plugin-canonical and overwritten on `/holo:update`; project-specific additions go in the gap between sentinels.
 -->
 <!-- holo:section end -->
 
@@ -16,12 +17,12 @@ of the `ai_context/` reading order.
 ## Default Priority <!-- holo:heading -->
 
 <!-- holo:section start -->
-Read first when starting a session:
-
-- `ai_context/`
-- <add project-specific small-but-high-signal directories here as they
-  emerge — e.g. a `docs/architecture/` index, a top-level `README.md`>
+Read first when starting a session. `ai_context/` is always read first
+regardless. Add project-specific small-but-high-signal directories
+below as they emerge — e.g. a top-level `README.md`.
 <!-- holo:section end -->
+
+- _(none yet — delete this marker once content is added)_
 
 ## Do Not Read By Default <!-- holo:heading -->
 
@@ -31,7 +32,10 @@ requires them:
 
 - `logs/change_logs/` — full history
 - `logs/review_reports/` — past audit snapshots
+- `logs/file_snapshots/` — smart-merge backup archive
 <!-- holo:section end -->
+
+- _(none yet — delete this marker once content is added)_
 
 ## When To Read Deeper <!-- holo:heading -->
 

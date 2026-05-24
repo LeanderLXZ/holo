@@ -11,6 +11,7 @@ This file is an index for fast project follow-up, not a detailed manual.
    - Compactness must not sacrifice accuracy or completeness — never drop important information just to fit the length target.
    - Aim for ≤ 5 lines per entry, and push longer detail to the linked source (docs/<topic>.md).
    - Do not compress or touch content unrelated to the current edit.
+6. Sentinel discipline (see CLAUDE.md §Plugin-managed sections): content inside `<!-- holo:section start/end -->` is plugin-canonical and overwritten on `/holo:update`; project-specific additions go in the gap between sentinels.
 -->
 <!-- holo:section end -->
 
@@ -80,12 +81,15 @@ files only — a comma-separated file list (with anchors when useful), not
 an inline how-to; implementation detail belongs in the target file's
 own maintenance comments.
 
+Table shape (header only — fill rows in the gap below):
+
 | Changed | Also update |
 |---------|-------------|
-| <upstream artifact> | <list of downstream files> |
 
 After any change, grep for the old phrasing to catch stale references.
 <!-- holo:section end -->
+
+_(none yet — delete this marker once content is added)_
 
 ## Single Source of Truth <!-- holo:heading -->
 

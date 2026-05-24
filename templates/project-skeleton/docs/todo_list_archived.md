@@ -29,7 +29,9 @@ Entries are append-only at the bottom of each section; do not reorder.
 
 ## Completed <!-- holo:heading -->
 
+<!-- holo:section start -->
 <!-- Tasks that landed. Slim entries only. -->
+<!-- holo:section end -->
 
 _(none yet — delete this marker once content is added)_
 

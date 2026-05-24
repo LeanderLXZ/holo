@@ -11,6 +11,7 @@
    - 精简的同时也要保证信息的准确性和有效性，不要为了精简而漏掉重要信息。
    - 目标每条 ≤ 5 行，更长的细节推到链接的来源里（docs/<topic>.md）。
    - 不要压缩或改动与当前编辑无关的内容。
+6. Sentinel 纪律（参见 CLAUDE.md §plugin 管理段）：sentinel `<!-- holo:section start/end -->` 内的内容是 plugin canonical，`/holo:update` 会覆写；项目专属新增内容写在 sentinel 之外的 gap 里。
 -->
 <!-- holo:section end -->
 
@@ -73,12 +74,15 @@
 只列 lockstep 文件 —— 是逗号分隔的文件清单（必要时带 anchor），不
 是 inline how-to；实现细节归目标文件自己的 maintenance comment。
 
+下方表格的形状（仅表头 —— 用户在下方 gap 内补行）：
+
 | Changed | Also update |
 |---------|-------------|
-| <upstream artifact> | <list of downstream files> |
 
 任何改动之后，grep 旧措辞以捕获残留引用。
 <!-- holo:section end -->
+
+_(none yet — delete this marker once content is added)_
 
 ## Single Source of Truth <!-- holo:heading -->
 

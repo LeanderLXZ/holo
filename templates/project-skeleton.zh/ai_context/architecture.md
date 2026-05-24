@@ -11,6 +11,7 @@ MAINTENANCE — 编辑本文件前请先阅读。
    - 精简的同时也要保证信息的准确性和有效性，不要为了精简而漏掉重要信息。
    - 目标每条 ≤ 5 行，更长的细节推到链接的来源里（docs/<topic>.md）。
    - 不要压缩或改动与当前编辑无关的内容。
+6. Sentinel 纪律（参见 CLAUDE.md §plugin 管理段）：sentinel `<!-- holo:section start/end -->` 内的内容是 plugin canonical，`/holo:update` 会覆写；项目专属新增内容写在 sentinel 之外的 gap 里。
 -->
 <!-- holo:section end -->
 

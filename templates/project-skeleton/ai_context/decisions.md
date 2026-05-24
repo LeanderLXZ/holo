@@ -11,6 +11,7 @@ This file is an index for fast project follow-up, not a detailed manual.
    - Compactness must not sacrifice accuracy or completeness — never drop important information just to fit the length target.
    - Aim for ≤ 5 lines per entry, and push longer detail to the linked source (docs/<topic>.md).
    - Do not compress or touch content unrelated to the current edit.
+6. Sentinel discipline (see CLAUDE.md §Plugin-managed sections): content inside `<!-- holo:section start/end -->` is plugin-canonical and overwritten on `/holo:update`; project-specific additions go in the gap between sentinels.
 -->
 <!-- holo:section end -->
 

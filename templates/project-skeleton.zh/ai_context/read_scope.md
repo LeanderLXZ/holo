@@ -2,6 +2,7 @@
 <!--
 MAINTENANCE — 编辑本文件前请先阅读。
 稳定的项目元规则。保持精简；仅在规则本身变化时更新。
+Sentinel 纪律（参见 CLAUDE.md §plugin 管理段）：sentinel `<!-- holo:section start/end -->` 内的内容是 plugin canonical，`/holo:update` 会覆写；项目专属新增内容写在 sentinel 之外的 gap 里。
 -->
 <!-- holo:section end -->
 
@@ -15,12 +16,11 @@ MAINTENANCE — 编辑本文件前请先阅读。
 ## 默认优先级 <!-- holo:heading -->
 
 <!-- holo:section start -->
-启动会话时优先读：
-
-- `ai_context/`
-- <在此随项目演进追加专属的"小而高信号"目录 —— 例如
-  `docs/architecture/` 索引、顶层 `README.md`>
+启动会话时优先读。`ai_context/` 永远最先读。随项目演进，把专属的
+"小而高信号"目录按需追加在下方 —— 例如顶层 `README.md`。
 <!-- holo:section end -->
+
+- _(none yet — delete this marker once content is added)_
 
 ## 默认不读 <!-- holo:heading -->
 
@@ -29,7 +29,10 @@ MAINTENANCE — 编辑本文件前请先阅读。
 
 - `logs/change_logs/` —— 完整历史
 - `logs/review_reports/` —— 过往审计快照
+- `logs/file_snapshots/` —— smart-merge 备份归档
 <!-- holo:section end -->
+
+- _(none yet — delete this marker once content is added)_
 
 ## 何时深入阅读 <!-- holo:heading -->
 

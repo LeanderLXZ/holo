@@ -28,7 +28,9 @@
 
 ## Completed <!-- holo:heading -->
 
+<!-- holo:section start -->
 <!-- 已落地的任务。仅精简条目。 -->
+<!-- holo:section end -->
 
 _(none yet — delete this marker once content is added)_
 

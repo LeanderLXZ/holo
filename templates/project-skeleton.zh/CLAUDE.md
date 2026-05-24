@@ -14,6 +14,11 @@
 > 重新对齐 sentinel 结构（详见 `ai_context/decisions.md` §Skill
 > Implementation #18）。需要永久自定义段内容的 consumer 请 fork 整个
 > plugin。完整设计见 `docs/architecture/section-version-sentinel.md`。
+>
+> **sentinel `<!-- holo:section start/end -->` 内的编辑会在下一次
+> `/holo:update` 时被覆写。** 项目专属新增内容必须写在
+> `<!-- holo:section end -->` 到下一个 sentinel-start /
+> heading-sentinel 之间的 gap 里。
 <!-- holo:section end -->
 
 ## 语言 <!-- holo:heading -->
