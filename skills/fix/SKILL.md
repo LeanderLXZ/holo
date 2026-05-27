@@ -1,6 +1,6 @@
 ---
 name: fix
-description: Post-audit triage handoff — read findings from the most recent `/post-check` / `/full-review` / `/check-review` (session context first, disk fallback) and triage each finding (H/M/L) and Open Question into a fix / todo / skip bucket; delegate the fix bucket to `/go` or `/do` (AI recommends per `/do`'s envelope rules: ≥ 3 files OR docs/ai_context touched → `/go`; else `/do`). Two top-level modes via `AskUserQuestion` (4 options, recommended first): Auto `/<recommended>` / Auto `/<other>` / Item-by-item / Exit. Auto applies AI recommendations only — "skip" and "todo" recommendations both drop, no automatic `/todo-add`; only the "fix" subset delegates. Item-by-item asks per finding (3 options shared with OQs: fix / todo / skip, recommended first), collects, summarises, then if the fix bucket is non-empty re-asks `/go` vs `/do` (3 options: Auto recommended / Auto other / Exit); todo bucket lands via `/todo-add` per item. Anti-over-engineering reminder embedded in the fix brief in both modes; no auto re-run of `/post-check` after fixes land. $ARGUMENTS = source slug / model keyword (optional; defaults to most recent in-session review, else latest on disk). Triggers: fix / fix it / triage findings / handle the review findings / /fix / fix after /post-check / fix after /full-review / fix after /check-review.
+description: Post-audit triage handoff — read findings from the most recent /post-check / /full-review / /check-review (session first, disk fallback) and triage each H/M/L + OQ into fix / todo / skip; delegate fix bucket to /go or /do per /do's envelope rules (≥ 3 files OR docs/ai_context anchor → /go; else /do). Top-level modes: Auto via /<recommended> / Auto via /<other> / Item-by-item / Exit; Auto drops todo+skip recs (only fix subset delegates); multi-recommendation findings (prose with 2+ tokens) auto-resolve to skip when `skip` or `todo` is among them (todo-eligible IDs surfaced at Step 5 wrap-up); remaining gaps (unknown or multi-without-skip-and-without-todo) trigger mid-Auto targeted asks at Step 4a.0 (no fallback to Item-by-item). Item-by-item asks per finding then re-asks /go vs /do. Anti-over-engineering reminder embedded in fix brief; todo bucket → /todo-add per item; no auto re-run of /post-check. $ARGUMENTS = source slug / model keyword (optional). Triggers: fix / fix it / triage findings / handle the review findings / /fix.
 ---
 
 > **Language**: per `ai_context/skills_config.md §Language` — disk-bound output (logs / docs / commit messages / code comments / files written / fix brief composed for the delegated `/go` / `/do` discussion context) uses `content_language`; user-facing surface (chat prose / `AskUserQuestion` prompts and option labels / progress-tool entry `content` / status lines / strategy declarations / per-finding summary table rendered in chat) uses `conversation_language`. Code identifiers, file paths, field names, frontmatter keys, and structural prefixes (`Step N:`, `H1`, `M1`, `L1`, `OQ1`, `REVIEWED-PASS`, etc.) stay English regardless.
@@ -79,13 +79,20 @@ After resolving, parse the source body and build the **findings table** in memor
 - **Severity bucket**: `High` / `Medium` / `Low` / `OQ` (Open Question)
 - **File:line**: the evidence anchor cited by the finding (or `(no file anchor)` if the finding is repo-wide)
 - **Description**: 1-sentence summary trimmed from the source
-- **AI-recommended disposition**: `fix` / `todo` / `skip` / `unknown` — read from the source's "Recommendations" section if present (`/post-check` Step 6 §Recommendations, `/full-review` Output §Recommendations, `/check-review` Step 4 §Recommendations). Apply the following alias map when parsing the source's wording (the three upstream review skills emit non-uniform tokens; normalize them here):
+- **AI-recommended disposition** + **token set**: derived from the **set** of disposition tokens the source's "Recommendations" entry contains (`/post-check` Step 6 §Recommendations, `/full-review` Output §Recommendations, `/check-review` Step 4 §Recommendations). Apply this alias map to identify tokens in the prose (the three upstream review skills emit non-uniform tokens; normalize them here):
   - `fix` ← `fix`
   - `todo` ← `todo` / `leave as todo` / `leave todo` / `park todo` / `park as todo` / `defer to todo` / `defer` (OQ surface wording)
   - `skip` ← `skip` / `skip — <reason>`
   - `adopt` (OQ-only) ← treated as `fix` for bucket-routing purposes (adopted OQ-answer joins the fix delegation brief; see Step 4b.1 for OQ-surface wording)
   
-  After alias normalization: **if the source has no Recommendations section at all, or no recommendation for this specific ID, mark the disposition `unknown`** — do not infer a silent default; the user must see the gap
+  Collect every recognized token in the entry's prose (deduped, preserving prose-order) → call it the **token set**. Pure token-count detection: separator words (`or` / `/` / `;` / `,`) do not change the count. Then categorize the disposition:
+  - `|set| == 0` (no token recognized, or source has no Recommendations section / entry for this ID) → `unknown`
+  - `|set| == 1` → that single token (`fix` / `todo` / `skip` / `adopt`)
+  - `|set| >= 2 ∧ skip ∈ set` → `silent_skip` (Auto resolves to skip without asking — see Step 4a.1)
+  - `|set| >= 2 ∧ skip ∉ set ∧ todo ∈ set` → `silent_skip_todo_eligible` (Auto resolves to skip; Step 5 wrap-up surfaces the ID so the user can re-register as todo via Item-by-item if wanted)
+  - `|set| >= 2 ∧ skip ∉ set ∧ todo ∉ set` → `needs_input` (Auto asks the user mid-flight at Step 4a.0; the preserved token set drives the option-order rule there)
+  
+  Retain the token set on the row even for single-token findings, so Step 4a.0's option-order rule (AI's offered tokens first by internal precedence `fix → todo → skip`, then fill the missing third) can reference it. `silent_skip` and `silent_skip_todo_eligible` are NOT asked at Step 4a.0 — they are dropped by the Step 4a.1 filter without user input
 
 After resolving, **fail-fast on three empty conditions**:
 
@@ -95,9 +102,11 @@ After resolving, **fail-fast on three empty conditions**:
 
 Print one summary line:
 
-`Selected findings source: <path or "in-session /post-check">; H={h} M={m} L={l} OQ={oq}; recommendations: fix={f} todo={t} skip={s} unknown={u}`
+`Selected findings source: <path or "in-session /post-check">; H={h} M={m} L={l} OQ={oq}; recommendations: fix={f} todo={t} skip={s} auto-skipped-by-multi={n} (todo-eligible={k}) unknown={u} needs_input={ni}; gaps={u+ni}`
 
-If `unknown > 0`, append one extra line: `⚠️ {u} findings have no AI-recommended disposition (source missing Recommendations section or entry); Auto modes will refuse to dispatch and force Item-by-item.`
+where `n = count(silent_skip) + count(silent_skip_todo_eligible)`, `k = count(silent_skip_todo_eligible)` (subset of `n`), and `gaps = u + ni` — findings that will trigger a mid-Auto targeted ask at Step 4a.0 if Auto is picked.
+
+If `gaps > 0`, append one extra line: `Note: {gaps} findings need your input mid-Auto (Step 4a.0 will ask in batches of ≤ 4); Auto still proceeds for the rest.`
 
 ## Step 2: Recommend `/go` vs `/do`
 
@@ -119,33 +128,68 @@ Cache the recommendation as `<RECOMMENDED>` (and the other as `<OTHER>`) for Ste
 
 > **Language**: user-facing — render the `<ask tool>` prompt and option labels in `conversation_language` per `ai_context/skills_config.md §Language`. Structural prefixes (`/go` / `/do` / `Auto` / `Item-by-item`) stay English; only the surrounding prose translates.
 
-**If `unknown > 0` (any finding without an AI-recommended disposition)**: Auto modes are unsafe (silent High-finding drops possible), so the 4-option ask is replaced with a 2-option `<ask tool>` — the user is **never** silently railroaded into Item-by-item without an Exit option.
+Call **<ask tool>** with one question. The 4-option ask is shown unconditionally — ambiguity (`gaps > 0`) is handled inside Step 4a at sub-step 4a.0, not gated here.
 
-Question: `{u} findings have no AI-recommended disposition (source missing Recommendations section or entry). Auto modes disabled. Choose how to proceed.`
+Question: `${h+m+l+oq} findings selected (fix={f} todo={t} skip={s} auto-skipped-by-multi={n} (todo-eligible={k}) gaps={gaps}); recommended landing path: /<RECOMMENDED>. Choose how to proceed.`
 
-Options (exactly two, recommended option first):
-
-1. **Proceed to Item-by-item (recommended)** — proceed to Step 4b; decide each finding yourself
-2. **Exit — drop the triage** — abort the skill, no delegation, no `/todo-add`; print `/fix exited; no actions taken` and stop
-
-Otherwise (every finding has a known disposition), call **<ask tool>** with one question:
-
-Question: `${h+m+l+oq} findings selected (fix={f} todo={t} skip={s}); recommended landing path: /<RECOMMENDED>. Choose how to proceed.`
+When `gaps > 0`, append to the question body: `Note: Auto will ask {gaps} per-finding questions mid-flight at Step 4a.0 (batched ≤ 4); the rest stays Auto.`
 
 Options (exactly four, recommended option first):
 
-1. **Auto — apply AI recommendations via `/<RECOMMENDED>` (recommended)** — only findings recommended `fix` reach `/<RECOMMENDED>`; "todo" and "skip" recommendations both drop (no automatic `/todo-add` in Auto mode); fix brief carries the source review path + selected IDs + anti-over-engineering reminder; proceed to Step 4a
+1. **Auto — apply AI recommendations via `/<RECOMMENDED>` (recommended)** — multi-disposition findings containing `skip` or `todo` silently resolve to skip (todo-eligible IDs reported at Step 5); gap findings (`unknown` / `needs_input`) get a per-finding ask at Step 4a.0 batched ≤ 4 per call; only fix-resolved findings reach `/<RECOMMENDED>`; "todo" and "skip" single-token recommendations both drop (no automatic `/todo-add` in Auto mode); fix brief carries the source review path + selected IDs + anti-over-engineering reminder; proceed to Step 4a
 2. **Auto — apply AI recommendations via `/<OTHER>`** — same dispatch logic but delegates to `/<OTHER>` instead (user overrides AI's `/go` vs `/do` recommendation); proceed to Step 4a
-3. **Item-by-item — decide each finding (and each OQ) myself** — proceed to Step 4b
+3. **Item-by-item — decide each finding (and each OQ) myself** — proceed to Step 4b (ignores the silent-skip / gap categorization; every finding gets asked)
 4. **Exit — drop the triage** — abort the skill, no delegation, no `/todo-add`; print `/fix exited; no actions taken` and stop
 
 ## Step 4a: Auto path (recommended option / other option)
 
-> **Language**: disk-bound — the fix brief composed here is disk-bound from the moment of composition (it becomes the discussion context for the delegated `/go` PRE log or `/do` discussion). Write the brief in `content_language` per `ai_context/skills_config.md §Language`. The user-facing wrapper prose around the brief (the "I will hand off the following brief to /go" lead-in line and the `Skill` invocation confirmation) translates to `conversation_language`; the brief content itself stays in `content_language`. Code identifiers, file paths, IDs stay English regardless.
+> **Language**: user-facing — render the 4a.0 per-finding `<ask tool>` batches in `conversation_language` per `ai_context/skills_config.md §Language`. Finding IDs / file paths / option names stay English; only the surrounding prose translates.
 
-Filter the findings table to keep only rows whose AI-recommended disposition is `fix`. Drop everything else (no `/todo-add` calls — Auto mode is "accept the recommendations, period").
+> **Language**: disk-bound — the fix brief composed at 4a.1 is disk-bound from the moment of composition (it becomes the discussion context for the delegated `/go` PRE log or `/do` discussion). Write the brief in `content_language` per `ai_context/skills_config.md §Language`. The user-facing wrapper prose around the brief (the "I will hand off the following brief to /go" lead-in line and the `Skill` invocation confirmation) translates to `conversation_language`; the brief content itself stays in `content_language`. Code identifiers, file paths, IDs stay English regardless.
 
-If the filtered set is **empty** (AI recommended only `todo` / `skip` across the board): print one line `Auto mode found no findings recommended for fix; nothing to delegate. Dropped: {t} todo recommendations + {s} skip recommendations from this round. To register the "todo" recommendations explicitly, re-run /fix in Item-by-item mode.` and **stop the skill** (mark Step 4: completed).
+### 4a.0 Resolve gaps (mid-Auto user input)
+
+Count `gaps = count(unknown) + count(needs_input)`. If `gaps == 0`, skip directly to 4a.1.
+
+If `gaps > 0`, batch per-finding `<ask tool>` calls (max 4 questions per call; same 3-option schema as Step 4b.1). For each gap finding (H/M/L or OQ):
+
+**For H/M/L gap findings**:
+
+Question: `<ID> (<file:line>): <description trimmed from source>. <disposition-clause>. Choose disposition.`
+
+Where `<disposition-clause>` is:
+- `AI offered: <token1> / <token2>` when the disposition is `needs_input` (echo the recognized tokens in the order they appeared in the prose)
+- `AI recommendation: (none — pick yourself)` when the disposition is `unknown`
+
+Options (semantics for H/M/L) — order rule: AI's offered tokens first (sorted by internal precedence `fix → todo → skip`), then fill the missing third:
+
+1. **Fix — include in this round's delegated landing (`/<RECOMMENDED>` or `/<OTHER>`)**
+2. **Add todo — register as `/todo-add` Next entry instead of fixing this round**
+3. **Skip — do not fix, do not register**
+
+For `unknown` (no AI offered tokens), the order falls back to the fixed precedence `fix → todo → skip`.
+
+**For Open Questions (OQ) gap findings** — adapt the wording to OQ semantics (same 3-bucket schema, different surface):
+
+Question: `<OQ ID>: <question text>. <suggestion-clause>. Choose disposition.`
+
+Where `<suggestion-clause>` is:
+- `AI offered: <candidate1> / <candidate2>` when the disposition is `needs_input`
+- `AI suggestion: (none — pick yourself)` when the disposition is `unknown`
+
+Options (semantics for OQ) — order rule: AI's offered tokens first by internal precedence `adopt → defer → skip` (mapping `fix→adopt`, `todo→defer`), then fill the missing third; for `unknown`, fixed precedence `adopt → defer → skip`:
+
+1. **Adopt — accept AI's suggested answer and fold into this round's fix delegation**
+2. **Defer to todo — register the open question as a `/todo-add` Discussing entry for later resolution**
+3. **Skip — do not act on this OQ this round**
+
+After all batches are answered, merge user picks back into the findings table (overwrite each gap row's disposition with the chosen single token: `fix` / `todo` / `skip` for H/M/L, `adopt` / `defer` / `skip` for OQ). Then proceed to 4a.1. **Note**: gap-resolved `todo` and `defer` picks do NOT trigger `/todo-add` in Auto mode (consistent with the bulk-accept design — Auto only delegates the `fix` / `adopt` subset; "todo" picks land as dropped with the rest). If the user wants those gap-picks registered as todos, they re-run `/fix` Item-by-item.
+
+### 4a.1 Filter + compose fix brief
+
+Filter the findings table to keep only rows whose final disposition is `fix` or `adopt`. Drop everything else, including `silent_skip` / `silent_skip_todo_eligible` rows and any gap rows the user picked `todo` / `skip` / `defer` for (no `/todo-add` calls — Auto mode is "accept the recommendations, period").
+
+If the filtered set is **empty** (AI recommended only `todo` / `skip` / `silent_skip` / `silent_skip_todo_eligible` across the board, and the 4a.0 gap-ask didn't promote any to `fix` / `adopt`): print one line `Auto mode found no findings recommended for fix; nothing to delegate. Dropped: {t} todo + {s} skip + {n} auto-skipped-by-multi (of which todo-eligible={k}) + {gaps_resolved_non_fix} gap-resolved-to-todo-or-skip from this round. To register the "todo" recommendations explicitly, re-run /fix in Item-by-item mode.` Then, if `k > 0`, print one additional reminder line: `Note: {k} findings auto-skipped because AI's multi-option included \`todo\`; rerun /fix Item-by-item if you want them registered as todos: <ID list>.` Then **stop the skill** (mark Step 4: completed).
 
 Otherwise, compose the **fix brief** and write it into the conversation as a fenced code block:
 
@@ -183,7 +227,8 @@ Iterate over the findings table in **source order** (preserving the source's H1,
 Question: `<ID> (<file:line>): <description trimmed from source>. <disposition-clause>. Choose disposition.`
 
 Where `<disposition-clause>` is:
-- `AI recommends: <fix|todo|skip>` when the disposition is explicit
+- `AI recommends: <fix|todo|skip|adopt>` when the disposition is a single token
+- `AI offered: <token1> / <token2>` when the disposition is multi-token (`silent_skip` / `silent_skip_todo_eligible` / `needs_input` — list tokens in the prose-order preserved in the row's token set; under Auto these would have routed differently per Step 4a.1 silent-skip rules or Step 4a.0 ask, but Item-by-item asks them like every other row)
 - `AI recommendation: (none — pick yourself)` when the disposition is `unknown` (do NOT print "AI recommends: unknown" — it reads as if AI made a recommendation literally named "unknown")
 
 Options (semantics for H/M/L):
@@ -197,7 +242,8 @@ Options (semantics for H/M/L):
 Question: `<OQ ID>: <question text>. <suggestion-clause>. Choose disposition.`
 
 Where `<suggestion-clause>` is:
-- `AI suggests: "<suggested answer / candidate direction>"` when the source provided one
+- `AI suggests: "<suggested answer / candidate direction>"` when the source provided a single candidate (single-token `adopt`)
+- `AI offered: <candidate1> / <candidate2>` when the source surfaced multiple candidates (multi-token)
 - `AI suggestion: (none — pick yourself)` when the disposition is `unknown`
 
 Options (semantics for OQ):
@@ -206,7 +252,10 @@ Options (semantics for OQ):
 2. **Defer to todo — register the open question as a `/todo-add` Discussing entry for later resolution**
 3. **Skip — do not act on this OQ this round**
 
-For both shapes, the order rule is: recommended option first, then the other two in `fix→todo→skip` (H/M/L) or `adopt→defer→skip` (OQ) precedence with the recommended one removed from the fixed precedence. When the disposition is `unknown` (no AI recommendation), the order falls back to the fixed precedence (fix/todo/skip or adopt/defer/skip).
+For both shapes, the order rule is:
+- **Single-token disposition** — recommended option first, then the other two in `fix→todo→skip` (H/M/L) or `adopt→defer→skip` (OQ) precedence with the recommended one removed from the fixed precedence.
+- **Multi-token disposition** — AI's offered tokens first (sorted by internal precedence `fix→todo→skip` for H/M/L, `adopt→defer→skip` for OQ), then fill the missing third — same as Step 4a.0.
+- **`unknown` disposition** — fixed precedence `fix→todo→skip` (H/M/L) or `adopt→defer→skip` (OQ).
 
 Batch up to **4 findings per `<ask tool>` call** (the Claude `AskUserQuestion` hard limit); the same batch may mix H/M/L and OQ — do not split by severity. Repeat batches until all findings have been answered.
 
@@ -282,12 +331,15 @@ Print one line summarising what was handed off:
 - **Item-by-item path with only todo bucket (Step 4b.5 only)**: `✓ /fix complete — registered M todo entries; no fix delegation; source review: <path>.`
 - **Item-by-item path with all-skip**: `✓ /fix complete — all findings skipped; no actions taken; source review: <path>.`
 
+**Auto-path todo-eligible reminder** (Auto path only — Step 4a.1 already prints this for the empty-filter case; this branch covers the non-empty fix-bucket case): if `silent_skip_todo_eligible` count `k > 0`, after the wrap-up line print one extra reminder: `Note: {k} findings auto-skipped because AI's multi-option included \`todo\`; rerun /fix Item-by-item if you want them registered as todos: <ID list>.`
+
 Do not invoke `/post-check` after fixes land — the user decides whether to re-verify (typical follow-up: run the delegated `/go` / `/do`, then optionally `/post-check` again). Do not commit, do not push, do not write to disk beyond the fix brief and the delegated-skill arguments.
 
 ## Constraints
 
 - **No code changes by `/fix` itself**. Every landing is delegated to `/go` or `/do`; every todo registration goes through `/todo-add`; every audit re-run is the user's decision (re-invoke `/post-check` manually).
 - **Auto mode drops "todo" recommendations**. By design — Auto mode is the bulk-accept path; users who want explicit todo registration pick Item-by-item.
+- **Auto mode handles multi-disposition gracefully**. Findings whose recommendation prose contains 2+ tokens silently resolve to skip when `skip` or `todo` is present (todo-eligible IDs surfaced in Step 5 wrap-up); other gaps (`unknown` / `needs_input`) route through the mid-Auto Step 4a.0 ask, not a Step 3 fallback to Item-by-item. Never silently downgrade Auto to Item-by-item just because a single finding is ambiguous.
 - **OQ uniformity**. Open Questions share the same 3-option schema as H/M/L findings; do not split them into a separate ask round.
 - **Anti-over-engineering reminder is mandatory**. Both Auto and Item-by-item paths embed the same fixed-text reminder paragraph in the fix brief; never omit.
 - **Source-resolution failure is fail-loud**. If no review surface is found across all three tiers (arg / session / disk), stop with a hint — do not guess, do not pull findings from random commit messages.

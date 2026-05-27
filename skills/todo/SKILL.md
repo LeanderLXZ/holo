@@ -1,6 +1,6 @@
 ---
 name: todo
-description: Read the `## Index` section at the top of docs/todo_list.md and render it verbatim to the user; end with "which entry do you want to see?" — trust the index (maintained by /todo-add); do not re-parse, re-bucket, or generate recommendations. $ARGUMENTS = ID keyword filter (optional). Read-only on todo_list / code; no commit. Triggers: todo / what is next / what's on the todo list / what should I do now.
+description: Read the `## Index` section at the top of docs/todo_list.md and render it verbatim — trust the index (maintained by /todo-add); do not re-parse, re-bucket, or generate recommendations. End with "which entry do you want to see?". $ARGUMENTS = ID keyword filter (optional). Read-only; no commit. Triggers: todo / what is next / what's on the todo list / what should I do now.
 ---
 
 > **Language**: per `ai_context/skills_config.md §Language` — disk-bound output (logs / docs / commit messages / code comments / files written) uses `content_language`; user-facing surface (chat prose / `AskUserQuestion` prompts and option labels / progress-tool entry `content` / status lines / strategy declarations / findings rendered in chat) uses `conversation_language`. Code identifiers, file paths, field names, frontmatter keys, and structural prefixes (`Step N:`, `LOG:`, etc.) stay English regardless.

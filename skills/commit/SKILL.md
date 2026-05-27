@@ -1,6 +1,6 @@
 ---
 name: commit
-description: Commit the current working tree changes — verify tracking state (forbidden paths / large files / untracked files), split commits along logical units, message aligned to repo convention (drawn from git log). $ARGUMENTS = commit subject (optional). No push / no force / no amend / no --no-verify; cross-file ai_context/docs alignment → /go, cross-branch sync → /forward. Triggers: commit / commit it / commit the current changes.
+description: Commit current working tree changes — verify tracking state (forbidden paths / large files / untracked), split commits along logical units, message style drawn from git log. $ARGUMENTS = commit subject (optional). No push / no force / no amend / no --no-verify. Cross-file ai_context/docs alignment → /go; cross-branch sync → /forward. Triggers: commit / commit it / commit the current changes.
 ---
 
 > **Language**: per `ai_context/skills_config.md §Language` — disk-bound output (the commit message body, any in-place file edits like `.gitignore` additions) uses `content_language`; user-facing surface (chat prose / `AskUserQuestion` prompts and option labels / progress-tool entry `content` / wrap-up `commit OK: <sha> <subject>` line) uses `conversation_language`. Code identifiers, file paths, field names, frontmatter keys, structural prefixes (`Step N:`, `commit OK:`, commit SHAs, branch names) stay English regardless.

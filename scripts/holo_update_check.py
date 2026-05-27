@@ -66,15 +66,69 @@ def find_plugin_root(override: str | None = None) -> str:
 # Snapshot helper (T-SECTION-VERSION-SENTINEL Phase 4)
 # ---------------------------------------------------------------------------
 
+def _resolve_snapshot_root(target_root: str) -> str:
+    """Resolve the file-snapshot root from skills_config.md.
+
+    Reads ``<target_root>/ai_context/skills_config.md`` for the
+    ``## File snapshots`` section's ``File snapshot root: <path>``
+    bullet and returns it joined with ``target_root`` (the bullet
+    value is repo-root-relative by convention, not skill CWD).
+    Graceful fallback to ``<target_root>/logs/file_snapshots`` when:
+
+    - skills_config.md missing or unreadable,
+    - ``## File snapshots`` section absent (pre-rollout consumer),
+    - bullet absent,
+    - bullet value is ``(none)`` or empty.
+
+    Sibling of ``## Tmp directory`` consumed by Reconcile.Step 2a;
+    full design in ``decisions.md`` §Skill Implementation #22 +
+    ``docs/architecture/drift-detection.md`` §File snapshot path
+    resolution.
+    """
+    fallback = os.path.join(target_root, "logs", "file_snapshots")
+    config_path = os.path.join(target_root, "ai_context", "skills_config.md")
+    if not os.path.exists(config_path):
+        return fallback
+    try:
+        with open(config_path, encoding="utf-8") as f:
+            text = f.read()
+    except OSError:
+        return fallback
+    # Locate the `## File snapshots` section body (up to next `## ` or EOF).
+    section_re = re.compile(
+        r"^## File snapshots\b.*?(?=^## |\Z)",
+        re.S | re.M,
+    )
+    sm = section_re.search(text)
+    if not sm:
+        return fallback
+    # Match `- File snapshot root: <path>` — backticked or plain form.
+    bullet_re = re.compile(
+        r"^-\s+File snapshot root:\s*`?([^`\n]+?)`?\s*$",
+        re.M,
+    )
+    bm = bullet_re.search(sm.group(0))
+    if not bm:
+        return fallback
+    value = bm.group(1).strip()
+    if not value or value == "(none)":
+        return fallback
+    if os.path.isabs(value):
+        return value
+    return os.path.normpath(os.path.join(target_root, value))
+
+
 def take_snapshot(target_root: str, slug: str, file_paths: list[str]) -> str:
     """Copy each file in ``file_paths`` to a per-run snapshot directory.
 
     The snapshot lives at
-    ``<target_root>/logs/file_snapshots/<YYYY-MM-DD>_<HHMMSS>_<slug>/<rel_path>``.
-    UTC timestamp via ``datetime.now(timezone.utc)``; ``logs/`` is
-    gitignored on consumer projects (per the plugin's shipped
-    ``.gitignore``) so snapshots stay local and never reach
-    ``main`` or any commit.
+    ``<snapshot_root>/<YYYY-MM-DD>_<HHMMSS>_<slug>/<rel_path>``,
+    where ``<snapshot_root>`` is resolved via ``_resolve_snapshot_root``
+    (reads ``ai_context/skills_config.md ## File snapshots`` bullet;
+    fallback ``<target_root>/logs/file_snapshots``). UTC timestamp via
+    ``datetime.now(timezone.utc)``; the default ``logs/`` is gitignored
+    on consumer projects (per the plugin's shipped ``.gitignore``) so
+    snapshots stay local and never reach ``main`` or any commit.
 
     Used by:
 
@@ -84,6 +138,8 @@ def take_snapshot(target_root: str, slug: str, file_paths: list[str]) -> str:
       body).
     - ``/holo:init`` Step 3.1 CONFLICT ``overwrite`` path for ``.md``
       files (snapshot consumer file before replacing with template).
+    - ``/compress-ai-context`` Steps 4a / 7a (plan-freeze snapshot
+      before any sub-agent or coordinator ``Edit``).
 
     ``file_paths`` may be absolute or relative to ``target_root``;
     absolute paths get rebased to the target_root-relative form
@@ -96,18 +152,18 @@ def take_snapshot(target_root: str, slug: str, file_paths: list[str]) -> str:
     ``shutil.copy2`` preserves mtime + mode + xattrs where supported.
 
     Returns the snapshot directory path as a string (e.g.
-    ``/path/to/target/logs/file_snapshots/2026-05-21_023045_holo-update``).
-    Callers surface this path so the user knows where to restore from
-    if the auto-fix overwrote something they wanted to keep. Snapshot
-    dir is created lazily — when ``file_paths`` is empty, the
-    function still returns the would-be path but does NOT create the
-    directory (no-op).
+    ``/path/to/target/logs/file_snapshots/2026-05-21_023045_holo-update``
+    when the default path is in effect, otherwise the configured
+    ``<snapshot_root>/...`` form). Callers surface this path so the
+    user knows where to restore from if the auto-fix overwrote
+    something they wanted to keep. Snapshot dir is created lazily —
+    when ``file_paths`` is empty, the function still returns the
+    would-be path but does NOT create the directory (no-op).
     """
     now = datetime.now(timezone.utc)
     stamp = now.strftime("%Y-%m-%d_%H%M%S")
-    snapshot_dir = os.path.join(
-        target_root, "logs", "file_snapshots", f"{stamp}_{slug}"
-    )
+    snapshot_root = _resolve_snapshot_root(target_root)
+    snapshot_dir = os.path.join(snapshot_root, f"{stamp}_{slug}")
 
     if not file_paths:
         return snapshot_dir
@@ -1900,8 +1956,10 @@ def fix_section_content_drift(
     the consumer's sentinel block at the same (rel, section,
     block_index) coordinates. **Snapshot first**: before any overwrite,
     ``take_snapshot()`` copies every affected consumer file to
-    ``<target_root>/logs/file_snapshots/<YYYY-MM-DD>_<HHMMSS>_holo-update/<rel>``
-    so the rewrite is reversible.
+    ``<snapshot_root>/<YYYY-MM-DD>_<HHMMSS>_holo-update/<rel>`` (where
+    ``<snapshot_root>`` is resolved via ``_resolve_snapshot_root``;
+    default ``<target_root>/logs/file_snapshots/``) so the rewrite is
+    reversible.
 
     Returns ``(replaced_count, snapshot_dir)`` where:
 

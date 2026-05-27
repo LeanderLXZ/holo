@@ -1,6 +1,6 @@
 ---
 name: compress-ai-context
-description: Maintenance skill that scans 6 ai_context files (`decisions.md` / `conventions.md` / `requirements.md` / `architecture.md` / `handoff.md` / `next_steps.md`), optionally prunes stale entries first (LLM-judged against current architecture; starter heuristics by file type; per-case 3-option ask for `stale + has live refs`), then compresses bloated entries with rationale landing in `docs/architecture/<topic>.md` where the linked doc target needs it. Sentinel-aware — parses via `scripts/sentinel_parse.py` and operates only on gap-territory content (sentinel-bearing content is plugin-canonical, owned by `/holo:update`). Snapshot-on-apply — `take_snapshot(target_root, slug, files)` (existing helper at `scripts/holo_update_check.py`) invoked **immediately before** each phase's first Edit; snapshots land in `logs/file_snapshots/<YYYY-MM-DD_HHMMSS>_<slug>/<original-path>`. Reuses the contract from `ai_context/conventions.md §Compactness Requirements` (does NOT re-author rules). No numbering check / no auto-reorder / no commit / no push. Triggers: /compress-ai-context / compress ai_context / prune stale ai_context entries / 压缩 ai_context / 清理过时决策.
+description: Maintenance skill — scans 6 ai_context files (decisions / conventions / requirements / architecture / handoff / next_steps), optionally prunes stale entries (LLM-judged + per-case 3-option ask for `stale + has live refs`), then compresses bloated entries with rationale landing in docs/architecture/<topic>.md. Coordinator + scatter-gather flow (per-file sub-agents above threshold); sentinel-aware via sentinel_parse.py; snapshot-on-plan-freeze via take_snapshot (one per phase, before any Edit); completion-gate re-scan + multi-axis verify (semantic / density / compliance) + 3-option rollback ask. Reuses conventions.md §Compactness Requirements (does NOT re-author rules). No commit / no push. Triggers: /compress-ai-context / compress ai_context / prune stale ai_context entries.
 ---
 
 > **Language**: per `ai_context/skills_config.md §Language` — disk-bound output (prune deletions, compress patches, snapshot files copied, follow-up todo entry written into `docs/todo_list.md`, the trailing reminder line if redirected to a file) uses `content_language`; user-facing surface (chat prose / `AskUserQuestion` prompts and option labels / progress-tool entry `content` / scan summary printed in chat / per-entry preview wrappers / final wrap-up status line) uses `conversation_language`. Code identifiers, file paths, field names, frontmatter keys, section headings (`## Decisions`, `### [T-XXX]`), and structural prefixes (`Step N:`, `PRUNE:`, `COMPRESS:`, `SNAPSHOT:`, etc.) stay English regardless.
@@ -14,9 +14,18 @@ canonical compactness contract. Two phases (both optional / opt-in via
 Step 1 gateway): **prune** stale entries (entries that no longer
 reflect current architecture / requirements), then **compress**
 bloated-but-still-accurate entries by pushing rationale to linked
-docs. Sentinel-aware (won't touch plugin-canonical territory),
-snapshot-backed (every write is preceded by `take_snapshot` so
-rollback is one `cp` away).
+docs.
+
+**Architecture (post-T-COMPRESS-AI-CONTEXT-PARALLEL refactor)**:
+coordinator + scatter-gather. The main agent owns gateway asks /
+plan freeze / snapshot / docs landings / completion gate /
+verification aggregation; per-file work (scan + classify + apply
+on ai_context files) is dispatched to sub-agents in parallel when
+total work ≥ threshold. Sub-agents never write to shared files
+(docs/, README.md Contents) — those are coordinator-serial. Plan
+freezes before any Edit; one `take_snapshot` per phase captures the
+frozen-plan file set; rollback after the run is one `cp` away.
+Sentinel-aware throughout (won't touch plugin-canonical territory).
 
 ## Progress reporting
 
@@ -125,9 +134,9 @@ Question: `Stale entry "<file>:<entry-id-or-title>" still has N live ref(s) at <
 > - Aim for ≤ 5 lines per entry, and push longer detail to the linked source (`docs/<topic>.md`, schemas, script docstrings).
 > - Do not compress or touch content unrelated to the current edit.
 
-a. **Snapshot before write**: `take_snapshot(target_root, slug='compress-ai-context-prune', file_paths=[touched ai_context files + docs/todo_list.md if a follow-up todo will land])`. Invoked **immediately before** the first `Edit` of this phase; not pre-emptively at skill startup. Capture the returned snapshot dir path for the wrap-up.
+a. **Snapshot-on-plan-freeze**: by the end of Step 3 the prune plan is frozen (which entries delete + whether a follow-up todo is needed). Before any `Edit`, call `take_snapshot(target_root, slug='compress-ai-context-prune', file_paths=[touched ai_context files + docs/todo_list.md if a follow-up todo will land])` **once**, covering all files in the frozen plan. Not pre-emptively at skill startup, and not piecemeal per-Edit. Snapshot root is resolved by the helper from `ai_context/skills_config.md ## File snapshots` (default `<target_root>/logs/file_snapshots/`); callers do not pass the root, the helper reads it. Capture the returned snapshot dir path for the wrap-up.
 
-b. **Apply each pruned entry via `Edit`** (one `Edit` per entry; no batched `replace_all`). For `decisions.md` entries: do NOT renumber surviving entries (per `decisions.md §Format` global-append-only rule); just delete the offending block. For `conventions.md` rows: delete the table row only. For all 6 files: also remove any redundant surrounding `---` separator or trailing blank line if the surrounding structure breaks.
+b. **Apply each pruned entry via `Edit`** (one `Edit` per entry; no batched `replace_all`). For `decisions.md` entries: do NOT renumber surviving entries (per `decisions.md §Format` global-append-only rule); just delete the offending block. For `conventions.md` rows: delete the table row only. For all 6 files: also remove any redundant surrounding `---` separator or trailing blank line if the surrounding structure breaks. Prune-phase apply stays coordinator-serial (no sub-agent dispatch) — prune touches at most a handful of entries per file and the safety bias dominates parallelism gain.
 
 c. **Create bundled follow-up todo** (only if ≥ 1 case picked "Auto-prune + create follow-up todo"): append ONE new entry to `docs/todo_list.md ## Next` with slug like `T-PRUNE-DANGLING-REFS-<YYYYMMDD>`, body listing each dangling ref as a change-manifest bullet (file:line + short context). Update the top `## Index` Next sub-table per `docs/todo_list.md "## File guide → Index maintenance"` rules.
 
@@ -138,43 +147,87 @@ PRUNE applied:
 - 1 orphan entry deleted (no live refs)
 - 1 entry deleted + dangling refs (logged in T-PRUNE-DANGLING-REFS-20260521)
 - 1 entry kept (user picked Skip)
-SNAPSHOT: logs/file_snapshots/<YYYY-MM-DD_HHMMSS>_compress-ai-context-prune/
+SNAPSHOT: <snapshot_root>/<YYYY-MM-DD_HHMMSS>_compress-ai-context-prune/   (default snapshot_root = logs/file_snapshots/)
 ```
 
-## Step 5: Compress scan
+## Step 5: Compress scan + plan freeze (scatter-gather)
 
 > **Language**: user-facing — render the scan summary printed to the conversation in `conversation_language` per `ai_context/skills_config.md §Language`. Structural labels stay English.
 
-For each of the 6 ai_context files, parse via `scripts/sentinel_parse.py` (same as Step 2) and look at gap-territory content only. **Trigger**: file > 150 lines OR any single entry > 5 lines. If neither, the file is skipped silently.
+**Trigger** (per file): file > 150 lines OR any single entry > 5 lines. Files matching neither are skipped silently.
 
-For each bloated entry:
+a. **Coordinator pre-scan**: parse each of the 6 ai_context files via `scripts/sentinel_parse.py` (gap-territory only, same as Step 2). For each file, count "bloated entries" cheaply (entries > 5 lines + whether file body > 150 lines). Sum to `<total_bloated>`.
 
-1. **Identify the linked-doc target** — typically the entry's `→` pointer line (`→ docs/architecture/<topic>.md`); or, when the entry has no explicit pointer, grep `docs/` for the entry's key terms to find a plausible existing doc. If no target exists, the new-doc creation case (rare).
+b. **Dispatch decision**:
+   - `<total_bloated> ≥ 8` → **scatter mode**: dispatch up to 6 sub-agents in parallel, one per file that has ≥ 1 bloated entry. Each sub-agent receives: (i) its file path; (ii) the gap-territory content; (iii) the §Compactness Requirements contract; (iv) the classification rubric (a)/(b)/(c) below; (v) the language-axes directive at the **tail** of its prompt per `ai_context/conventions.md §Cross-File Alignment` (sub-agent dispatch tail-position rule, decisions.md #16). Sub-agents must read `ai_context/conventions.md §Compactness Requirements` before classifying.
+   - `<total_bloated> < 8` → **inline mode**: coordinator runs the per-entry classification serially. No sub-agent dispatch.
 
-2. **Classify** as:
-   - **(a) doc already covers rationale** — the linked doc already documents the design / rationale this entry contains; compression simply removes the duplication, leaving a one-line decision + one-line rationale + pointer in ai_context.
-   - **(b) rationale needs landing in docs first** — the linked doc exists but does not cover this entry's rationale yet; compression includes a docs/ patch that lands the rationale **then** trims ai_context.
-   - **(c) no linked doc exists** — needs a brand-new `docs/architecture/<topic>.md` file; rare; flagged in the preview so user can confirm before `Write`-ing a new file.
+c. **Per-entry classification** (executed by sub-agent in scatter mode, by coordinator in inline mode):
+   1. **Identify the linked-doc target** — typically the entry's `→` pointer line (`→ docs/architecture/<topic>.md`); or, when the entry has no explicit pointer, grep `docs/` for the entry's key terms to find a plausible existing doc. If no target exists, the new-doc creation case (rare).
+   2. **Classify** as:
+      - **(a) doc already covers rationale** — the linked doc already documents the design / rationale this entry contains; compression simply removes the duplication, leaving a one-line decision + one-line rationale + pointer in ai_context.
+      - **(b) rationale needs landing in docs first** — the linked doc exists but does not cover this entry's rationale yet; compression includes a docs/ patch that lands the rationale **then** trims ai_context.
+      - **(c) no linked doc exists** — needs a brand-new `docs/architecture/<topic>.md` file; rare; flagged in the plan so user can confirm before `Write`-ing a new file.
+   3. **Propose the patch** (does NOT Edit anything in this step) — record the proposed compressed body for ai_context + the proposed docs landing block + the docs target path + classification tag.
 
-## Step 6: Compress single batched ask
+d. **Plan merge + docs-landing conflict resolution** (coordinator-owned, executed after sub-agents return / inline mode collects all proposals):
+   - Aggregate all proposals into a single plan: `{file_path: [proposed_edits], docs_landings: [{target, classification, body}], new_doc_files: [path]}`.
+   - **Conflict resolution**: when multiple ai_context entries land rationale into the same `docs/architecture/<topic>.md`, the coordinator owns the merge order and produces a single combined docs Edit for that target (preserving section ordering, deduping overlapping rationale). Sub-agents do NOT see other sub-agents' proposals; conflict resolution is exclusively coordinator-side.
+   - **Plan freeze**: by the end of Step 5d, the full set of files to be touched (ai_context source files + docs targets + new doc files + possibly `docs/architecture/README.md` Contents) is fixed. This frozen file list feeds Step 7's snapshot call.
 
-> **Language**: user-facing — render the preview wrapper (the per-entry header lines `entry N/M: <file>:<entry-id>`, before/after snippets, docs landing target, the trailing aggregate counts) in `conversation_language` per `ai_context/skills_config.md §Language`. The patch / snippet bodies shown inside the wrapper are disk-bound — they stay in `content_language` (the language they will land in at Step 7); do not retranslate.
+e. **Print scan summary to conversation** (replaces the verbose per-entry preview that the prior design printed; full preview is moved to Step 6 in summary form only):
 
-> **Language**: user-facing — render the `<ask tool>` prompt + option labels in `conversation_language` per `ai_context/skills_config.md §Language`. File paths, entry IDs, section headings quoted inside the prompt stay English; only surrounding prose translates.
+```
+COMPRESS scan:
+- ai_context/decisions.md: 8 entries scanned, 3 bloated (2 already-covered / 1 needs-docs-landing)
+- ai_context/architecture.md: 4 entries scanned, 1 bloated (1 already-covered)
+- ai_context/conventions.md: 6 entries scanned, 0 bloated
+- ai_context/requirements.md: 3 entries scanned, 0 bloated
+- ai_context/handoff.md: 5 entries scanned, 0 bloated
+- ai_context/next_steps.md: 2 entries scanned, 0 bloated
+Total: 4 bloated entries across 2 files (scatter mode: 6 sub-agents dispatched / inline mode)
+Docs landings: docs/architecture/section-version-sentinel.md (+rationale block); docs/architecture/smart-merge.md (+rationale block); (NEW) docs/architecture/<topic>.md
+```
 
-Print every accepted compress candidate in full, each block headed with `entry N/M: <file>:<entry-id> → <classification>`. For each entry, show: before snippet (≤ 5 lines from the existing entry), after snippet (the compressed form), docs landing target (`docs/architecture/<topic>.md §<section>`, marked `(new file)` for classification (c)), landing snippet (the rationale block that will land in docs). Aggregate counts at top: `<M> entries to compress: <X> already-covered / <Y> needs-docs-landing / <Z> new-doc-file`. After all entries are printed, ask via **<ask tool>** — one question, three options:
+If `Total: 0 bloated`, skip to Step 8 with a one-line `0 bloated entries found, compress phase no-op` notice.
 
-Question: `Apply all <M> compress patches as previewed?`
+## Step 6: Simple plan report + single batched ask
 
-1. **Confirm — apply all patches as shown (recommended)** — proceed to Step 7
-2. **Tweak first — adjust wording / drop an entry / re-route docs target** — wait for the user's tweak instruction, recompose preview, re-enter Step 6
+> **Language**: user-facing — render the plan report (per-file entry-ID one-liners + docs landing schedule + classification counts) and the `<ask tool>` prompt + option labels in `conversation_language` per `ai_context/skills_config.md §Language`. File paths, entry IDs, classification tags `(a)` / `(b)` / `(c)`, section headings, and the `(NEW)` marker stay English as structural labels; only surrounding prose translates.
+
+**Print a simple plan report** (per-entry one-liner; do NOT print before/after snippets, do NOT print landing-block bodies — the safety net is the snapshot taken at Step 7a + Step 8's multi-axis verify + rollback ask, not pre-confirmation preview):
+
+```
+COMPRESS plan (<M> entries to compress: <X> already-covered / <Y> needs-docs-landing / <Z> new-doc-file):
+- ai_context/decisions.md:
+  - #13 → (a) docs/architecture/section-version-sentinel.md
+  - #14 → (b) docs/architecture/smart-merge.md
+  - #15 → (a) docs/architecture/section-version-sentinel.md
+- ai_context/architecture.md:
+  - §Key Boundaries.sentinel-ownership → (a) docs/architecture/section-version-sentinel.md
+Docs landing schedule (coordinator-owned, serial):
+- docs/architecture/section-version-sentinel.md — 3 entries (0 need new rationale)
+- docs/architecture/smart-merge.md — 1 entry (1 needs new rationale appended)
+- (NEW) docs/architecture/<topic>.md — only present if classification (c) appeared
+docs/architecture/README.md Contents update: yes / no (yes if any (c))
+Snapshot target: <snapshot_root>/<YYYY-MM-DD_HHMMSS>_compress-ai-context-compress/   (default snapshot_root = logs/file_snapshots/, configurable via ai_context/skills_config.md ## File snapshots)
+```
+
+Per-entry one-liner format: `<entry-id> → <classification>(a/b/c) <docs-target-path>`. No body text. The classification tag is sufficient for the user to spot mis-classification (e.g. an entry tagged (b) "needs docs landing" when the linked doc already covers the rationale).
+
+Ask via **<ask tool>** — one question, three options:
+
+Question: `Proceed with compress plan above?`
+
+1. **Confirm — apply plan as shown (recommended)** — proceed to Step 7
+2. **Tweak first — adjust specific entries** — wait for the user's free-form tweak instruction (typical: "drop entry X", "re-route entry Y to docs/<other>.md", "rework entry Z classification (b) → (a) because the rationale is already covered"); coordinator updates the plan, re-prints the simple report, re-enters Step 6
 3. **Cancel — drop all compress patches** — abort the compress phase; prune-phase changes (if any) stay landed; skip to Step 8 wrap-up
 
-The `<ask tool>`'s auto-appended "Other" fallback covers free-form responses (e.g. "apply 1 / 3 / 5, drop 2 / 4"). Option labels stay concise.
+The `<ask tool>`'s auto-appended "Other" fallback covers free-form responses (e.g. "apply 1 / 3 / 5, drop 2 / 4"). Option labels stay concise. **Do not regress to per-entry full-preview** — full preview defeats the simple-report contract; users who need to see the proposed body should run `/compress-ai-context`, then inspect the snapshot diff after Step 7 lands and use the Step 8 rollback ask to revert specific entries.
 
-## Step 7: Compress apply
+## Step 7: Compress apply (scatter-gather) + completion gate
 
-> **Language**: disk-bound — compress patches (ai_context entry shrinks + docs/ rationale landings + new-doc files) all written in `content_language` per `ai_context/skills_config.md §Language`. Snapshot files are byte-copies of source.
+> **Language**: disk-bound — compress patches (ai_context entry shrinks + docs/ rationale landings + new-doc files) all written in `content_language` per `ai_context/skills_config.md §Language`. Snapshot files are byte-copies of source. Sub-agent prompts dispatched in Step 7b include the language-axes directive at the **tail** of the prompt per `ai_context/conventions.md §Cross-File Alignment` (sub-agent dispatch tail-position rule, decisions.md #16) — reply in `conversation_language`, write disk artifacts in `content_language`.
 
 > **Compactness Requirements**: the compressed ai_context bodies written here follow the universal contract —
 > - Shorter is better than longer. Each entry is a summary, not a detail dump.
@@ -182,53 +235,117 @@ The `<ask tool>`'s auto-appended "Other" fallback covers free-form responses (e.
 > - Aim for ≤ 5 lines per entry, and push longer detail to the linked source (`docs/<topic>.md`, schemas, script docstrings).
 > - Do not compress or touch content unrelated to the current edit.
 
-a. **Snapshot before write**: `take_snapshot(target_root, slug='compress-ai-context-compress', file_paths=[touched ai_context + docs files])`. Invoked **immediately before** the first `Edit` of this phase. Capture the returned snapshot dir path for the wrap-up.
+a. **Snapshot-on-plan-freeze**: by the end of Step 6 the compress plan is frozen (per-file entry list + docs landing schedule + new-doc files + `docs/architecture/README.md` Contents flag). Before any `Edit`, call `take_snapshot(target_root, slug='compress-ai-context-compress', file_paths=[every ai_context file touched + every docs/ landing target + every new-doc path + docs/architecture/README.md if Contents update is scheduled])` **once**, covering all files in the frozen plan. Not piecemeal per-sub-agent, not piecemeal per-Edit. Snapshot root resolved from `ai_context/skills_config.md ## File snapshots` (default `logs/file_snapshots/`). Capture the returned snapshot dir path for the wrap-up.
 
-b. **Apply patches**:
-   - For classification (a): one `Edit` per entry replacing the long form with the compressed form.
-   - For classification (b): one `Edit` on the docs target landing the rationale, then one `Edit` on the ai_context entry compressing it.
-   - For classification (c): one `Write` creating the new `docs/architecture/<topic>.md` (header + the rationale body), then one `Edit` compressing the ai_context entry to point at the new file. Update `docs/architecture/README.md Contents` if it exists, adding the new entry per the existing alphabetical/topical order.
+b. **Sub-agent apply (parallel, ai_context only)**: dispatch one sub-agent per ai_context file that has ≥ 1 entry in the compress plan (max 6 in parallel; threshold same as Step 5b — scatter mode dispatches sub-agents, inline mode runs Step 7b coordinator-side serially). Each sub-agent receives:
+   - Its file path + the exact list of `(entry-id, classification, compressed_body)` triples for that file (from the frozen plan).
+   - The §Compactness Requirements blockquote copied verbatim into its prompt.
+   - The instruction: **only Edit your assigned ai_context file**; do NOT Edit docs/, README.md, or any file outside your scope. Use one `Edit` per entry (no batched `replace_all`).
+   - The language-axes directive at the **tail** of the prompt (reply in `conversation_language`; disk Edits in `content_language`).
+   Sub-agents return per-entry success/failure to the coordinator. **Sub-agents do NOT see other sub-agents' files** — there is no cross-agent coordination at this layer.
 
-c. **Print apply summary**:
+c. **Coordinator apply (serial, docs / new-doc / Contents)**: after all sub-agents return success, the coordinator applies the docs landing schedule **serially**:
+   - For each `docs/architecture/<topic>.md` in the docs landing schedule: one `Edit` appending the combined rationale block produced by Step 5d's conflict resolution (single Edit per docs file regardless of how many ai_context entries land there).
+   - For each new-doc path (classification (c)): one `Write` creating `docs/architecture/<topic>.md` with header + rationale body.
+   - If any new-doc was created and `docs/architecture/README.md` exists: one `Edit` updating its Contents index, inserting the new entry per the file's existing alphabetical / topical order.
+   Serial execution is deliberate — multiple parallel writers on the same docs file would last-writer-wins; serialization is the simplest correct path and docs edits are cheap.
+
+d. **Completion gate (re-scan)**: re-run the Step 5 trigger check across the 6 ai_context files (file > 150 lines OR any single entry > 5 lines). If any bloated entry remains:
+   - **Fail loudly**: print `COMPRESS completion-gate FAILED:` followed by the residual entry list (file:entry-id + reason: file-still-too-long / entry-still-too-long).
+   - Do NOT silently exit. The user can choose: (i) re-run `/compress-ai-context` (will pick up the residue); (ii) accept the residue as inherently-uncompressible (e.g. a table row that legitimately exceeds 5 lines); (iii) roll back via Step 8's rollback ask.
+   - This gate exists because the original single-agent design exhibited "compress only a small subset per invocation" behavior; the scatter-gather + completion gate combo is the architectural answer to that pain point.
+
+e. **Print apply summary**:
 
 ```
 COMPRESS applied:
-- 6 entries compressed in ai_context
+- 6 entries compressed across 4 ai_context files (sub-agents: 4 dispatched, 0 failed / coordinator inline)
 - 4 docs/ landings (3 appended to existing files, 1 new file: docs/architecture/<topic>.md)
-SNAPSHOT: logs/file_snapshots/<YYYY-MM-DD_HHMMSS>_compress-ai-context-compress/
+- docs/architecture/README.md Contents updated: yes / no
+Completion gate: ✓ no residue (or: ✗ N residual bloated entries — see list above)
+SNAPSHOT: <snapshot_root>/<YYYY-MM-DD_HHMMSS>_compress-ai-context-compress/   (default snapshot_root = logs/file_snapshots/)
 ```
 
-## Step 8: Verify + wrap-up
+## Step 8: Multi-axis verify + rollback ask + wrap-up
 
-> **Language**: user-facing — render verification result lines + wrap-up summary + reminder to `/commit` in `conversation_language` per `ai_context/skills_config.md §Language`. Structural prefixes (`✓`, `✗`, `SNAPSHOT:`, file paths) stay English; only summary prose translates.
+> **Language**: user-facing — render verification result lines (✓ / ✗ per axis), the rollback `<ask tool>` prompt + option labels, the wrap-up summary, and the reminder to `/commit` in `conversation_language` per `ai_context/skills_config.md §Language`. Structural prefixes (`✓`, `✗`, `SNAPSHOT:`, file paths, `axis:`) stay English; only summary prose translates.
 
-a. **External-reference sanity** — for each pruned or compressed `decisions.md` entry, grep the repo (excluding `logs/` + `docs/todo_list_archived.md`) for `decisions.md #N` references where `N` is the deleted/compressed entry's number; flag any that now point at a non-existent entry. (Compress preserves numbers, so this should be empty for compress-only runs; prune-only when "leave dangling refs" was picked will show flagged refs — expected.)
+> **Language (sub-agent dispatch)**: sub-agents spawned in Step 8b receive the language-axes directive at the **tail** of their prompt per `ai_context/conventions.md §Cross-File Alignment` (sub-agent dispatch tail-position rule, decisions.md #16) — reply in `conversation_language`; no disk writes expected from verify sub-agents (they are read-only by contract).
 
-b. **Drift sanity** — `python3 scripts/holo_update_check.py --target . --plugin-root . --check` should report `total_drift = 0` (this skill does not introduce structural drift; if it does, something is wrong).
+### a. Scripted fast-fail (always runs)
 
-c. **Import sanity** — `python3 -c "import sys; sys.path.insert(0, 'scripts'); import holo_update_check; import sentinel_parse"` exits 0.
+These checks are cheap and deterministic; any failure here means the apply phase broke something structural and the user should likely rollback before proceeding.
 
-d. **Print wrap-up**:
+1. **Sentinel integrity**: `python3 scripts/sentinel_parse.py --self-test` (12-group regression). Failure → flag `axis: sentinel — script self-test FAILED`.
+2. **Sentinel parse on touched files**: for each ai_context file touched by this run, re-parse via `scripts/sentinel_parse.py`'s `parse(path)`; failure → flag `axis: sentinel — <path> parse FAILED`. The Edits in Step 7 are confined to gap-territory so this should not break sentinels; if it does, something went wrong.
+3. **Drift sanity**: `python3 scripts/holo_update_check.py --target . --plugin-root . --json` produces a JSON dict where every finding-category list is empty (`agents_sync.stale/missing/orphan = []`, `missing_template = []`, `missing_section = []`, `missing_field = []`, `gitignore_missing_lines = []`, `claude_agents_lang_drift = []`, `missing_l1_directive = []`, `l1_directive_drift = []`, `lang_mirror_drift = []`, `legacy_skip_marker = []`, `sentinel_layout_drift = []`). Any non-empty list → flag `axis: drift — <category>: <N> findings` with the JSON snippet. (The no-arg invocation is the script's check mode; `--fix` enables the auto-fix branch — this skill does NOT pass `--fix` here.)
+4. **Import sanity**: `python3 -c "import sys; sys.path.insert(0, 'scripts'); import holo_update_check; import sentinel_parse"` exits 0. Failure → flag `axis: import — <error>`.
+5. **External-reference sanity** — for each pruned `decisions.md` entry, grep the repo (excluding `logs/` + `docs/todo_list_archived.md`) for `decisions.md #N` references where `N` is the deleted entry's number; flag any that now point at a non-existent entry. (Compress preserves numbers — this is empty for compress-only runs; prune with "leave dangling refs" picked produces expected flagged refs that DO NOT count as a verify failure.)
+
+Any failure in scripts 1–4 → print the failure summary and jump directly to the **rollback ask** in Step 8c without dispatching the LLM sub-agents (their work is moot if the apply phase is structurally broken).
+
+### b. LLM multi-axis verify (parallel sub-agents)
+
+**Scope**: compress-phase entries only; prune-phase deletions are covered by Step 8a's external-ref grep (#5). The three axes below (semantic preservation / information density / compactness compliance) are defined for *compressed* entries — they have no meaning on deleted entries, so prune-phase changes do not enter this LLM verify.
+
+**Threshold**: dispatch when `compress entries ≥ 5`. Below that, the coordinator runs the three LLM checks inline serially (small-batch overhead from sub-agent dispatch outweighs parallelism gain).
+
+Three sub-agents dispatched in parallel, each read-only (no Edits, no Writes). Each sub-agent receives:
+- The snapshot dir path (`<snapshot_root>/<...>_compress-ai-context-compress/`; `<snapshot_root>` resolved per `ai_context/skills_config.md ## File snapshots`, default `logs/file_snapshots/`).
+- The current state of the ai_context + docs files touched this round.
+- The §Compactness Requirements blockquote.
+- The language-axes directive at the **tail** of its prompt.
+
+**Sub-agent 1 — semantic preservation**: read snapshot copy of each touched ai_context file + current state. For each compressed entry, judge: did the compression drop any fact / constraint / decision / rationale that is NOT now reflected in either (a) the linked docs target or (b) the surviving compressed body? Flag any drop as `axis: semantic — <file>:<entry-id> dropped: <quote of dropped content>`.
+
+**Sub-agent 2 — information density**: read current state of touched ai_context entries. For each compressed entry, judge: is the body over-compressed to the point of losing actionable meaning (e.g. shrunk to "see docs" with no decision summary, or a single sentence too abstract to navigate)? The contract is `≤ 5 lines aim`, NOT `1 line ceiling` — compression that ABSTRACTS without LANDING the rationale to docs is over-compression. Flag: `axis: density — <file>:<entry-id> over-compressed: <reason>`.
+
+**Sub-agent 3 — compactness compliance**: read current state of touched ai_context entries against `ai_context/conventions.md §Compactness Requirements` 4 rules + the §Format pointer requirement + `docs/architecture/<topic>.md` existence + section presence. For each compressed entry, judge: (i) does the entry end with a `→ <pointer>` line? (ii) does the pointer target exist? (iii) if the pointer names a section (`→ docs/architecture/<topic>.md §<section>`), does that section exist in the target? Flag: `axis: compliance — <file>:<entry-id> <which-rule-failed>`.
+
+Coordinator aggregates the three sub-agent reports into a single findings list.
+
+### c. Rollback ask (only when any axis flagged)
+
+If steps a–b produced **any** flagged finding (including expected dangling-refs from prune option 2; the user still gets to decide acceptance):
+
+Print the consolidated findings list, grouped by axis, then ask via **<ask tool>** — one question, three options:
+
+Question: `<N> verification findings flagged across <M> axes. How to handle?`
+
+1. **Accept — keep changes as-is, warning only (recommended when findings are intentional / minor)** — the round stays landed; flagged findings echoed in the wrap-up summary as warnings; user follows up later if needed.
+2. **Partial rollback — restore specific entries from snapshot** — wait for the user's per-entry instruction (e.g. "rollback decisions.md #14 + #15"); coordinator `cp` the specified entries' enclosing files from the snapshot dir back to the working tree, refreshing the affected files entirely (snapshot copies the whole file, not entry-level). Print which files were restored. After partial rollback, re-run **Step 8a scripted fast-fail only** (cheap re-validation) to confirm no new structural break; if scripted checks pass, proceed to wrap-up; if they fail, surface the failure and let the user decide.
+3. **Full rollback — restore all touched files from snapshot** — `cp` the entire snapshot dir contents back over the working tree (or use the snapshot helper's restore primitive if one exists); the compress phase is effectively reverted. Prune-phase changes (if any) stay landed — they have a separate snapshot. Print `COMPRESS phase fully rolled back from snapshot <path>`. Skip directly to the wrap-up.
+
+**No-findings path**: if both 8a and 8b are clean, print `✓ all verification axes clean` and proceed directly to wrap-up (no ask needed).
+
+### d. Wrap-up
 
 ```
 ✓ /compress-ai-context complete.
 Prune: <N> pruned / <M> kept / <K> skipped (snapshot: <path>)
 Compress: <X> entries compressed across <Y> files (snapshot: <path>)
-Follow-up todo: T-PRUNE-DANGLING-REFS-<YYYYMMDD> (if any case picked option 1)
+Completion gate: ✓ no residue (or: ✗ N residual — see Step 7d list)
+Verify: <V> axes checked, <F> findings flagged (action: accept / partial rollback <files> / full rollback)
+Follow-up todo: T-PRUNE-DANGLING-REFS-<YYYYMMDD> (if any prune case picked option 1)
 This skill does not commit. To persist, run /commit.
 ```
 
-If `prune phase = no-op` (Step 1 = no, or Step 2 = 0 stale) and `compress phase = 0 findings`, print one line `nothing to do — ai_context is within the compactness contract` and stop without snapshots.
+If `prune phase = no-op` (Step 1 = no, or Step 2 = 0 stale) AND `compress phase = 0 findings` (Step 5 found nothing bloated), print one line `nothing to do — ai_context is within the compactness contract` and stop without snapshots.
 
 Do not enter `/go`, do not invoke any other skill, do not stage or commit any change.
 
 ## Constraints
 
 - **No commit / no push** (persistence delegated to `/commit`).
-- **No touching code / schema / `.gitignore` / `plugin.json` / `logs/` / `templates/`** — out of scope; touches limited to `ai_context/*.md` + `docs/architecture/<topic>.md` + `docs/todo_list.md` (only when "Auto-prune + create follow-up todo" was picked).
-- **Sentinel-block protection is load-bearing** — every parse goes through `scripts/sentinel_parse.py`; this skill operates only on gap-territory content. Sentinel-bearing blocks are plugin-canonical (owned by `/holo:update`); editing them is out of scope.
-- **Snapshot-on-apply, not pre-emptively** — `take_snapshot` is invoked once per phase, **immediately before** that phase's first `Edit`. Skill startup does NOT snapshot.
-- **No batched confirm for stale + no live refs** — the safety net is the snapshot, not user confirmation. The only ask for the prune phase is the per-case 3-option ask for `stale + has live refs`.
+- **No touching code / schema / `.gitignore` / `plugin.json` / `logs/` / `templates/`** — out of scope; touches limited to `ai_context/*.md` + `docs/architecture/<topic>.md` (+ `docs/architecture/README.md` Contents when a new doc is created) + `docs/todo_list.md` (only when "Auto-prune + create follow-up todo" was picked).
+- **Sentinel-block protection is load-bearing** — every parse goes through `scripts/sentinel_parse.py`; this skill operates only on gap-territory content. Sentinel-bearing blocks are plugin-canonical (owned by `/holo:update`); editing them is out of scope. Step 8a re-parses every touched file to catch any accidental sentinel break.
+- **Snapshot-on-plan-freeze, not snapshot-on-apply** — `take_snapshot` is invoked once per phase, **after that phase's plan is frozen (end of Step 3 for prune; end of Step 6 for compress) and before any `Edit`**, covering all files in the frozen plan in a single call. Skill startup does NOT snapshot. Sub-agents in Step 7b do NOT call `take_snapshot` — the snapshot precedes their dispatch.
+- **Coordinator owns shared-file writes** — sub-agents (Step 5b scan / Step 7b apply) write only to their assigned ai_context file. Docs / new-doc / `docs/architecture/README.md` Contents writes are coordinator-serial in Step 7c. This is a load-bearing invariant against parallel-writer races on shared docs targets.
+- **Sub-agents do NOT call `take_snapshot` and do NOT write to shared files** — Step 5b scan sub-agents, Step 7b apply sub-agents, and Step 8b verify sub-agents are all forbidden from invoking `take_snapshot` (snapshot is coordinator-driven at the end of each phase's plan-freeze, in Step 4a / Step 7a) and from writing to shared files (`docs/`, `README.md`, `docs/architecture/README.md`, etc.). Step 7b sub-agents write only to their assigned ai_context file; Step 8b sub-agents are read-only by contract.
+- **Completion contract: compress Step 7d re-scan** — after Step 7 apply, the coordinator re-runs the Step 5 trigger (file > 150 lines OR any entry > 5 lines). Residual bloated entries → fail loudly; do not silently exit. This gate makes "compressed only a small subset" failures visible.
+- **No batched confirm for stale + no live refs** — the safety net is the snapshot + Step 8 verify + rollback ask, not user pre-confirmation. The only ask in the prune phase is the per-case 3-option ask for `stale + has live refs`. The only ask in the compress phase is the Step 6 simple-plan 3-option ask + the conditional Step 8c rollback ask.
+- **No per-entry preview in Step 6** — the safety net is the snapshot + Step 8 multi-axis verify + rollback ask, not preview-then-confirm. Step 6 prints a simple plan report (per-entry one-liner: id + classification + docs target) without body content. Reverting to full per-entry preview is a contract regression.
+- **Sub-agent dispatch thresholds** — Step 5/7 scatter mode requires `total_bloated ≥ 8`; Step 8b multi-axis verify requires `compress entries ≥ 5`. Below these, the coordinator runs the phase inline serially. Thresholds exist to avoid dispatch overhead on small jobs.
 - **No numbering check / no auto-reorder** — `decisions.md` global-append-only numbering is enforced by `decisions.md §Format` rule text only; this skill does not validate, fix, or rearrange numbers.
 - **Compactness contract is owned by `conventions.md §Compactness Requirements`** — this skill body MUST NOT re-author the rules. Edits to the contract rule itself happen via `/go` editing `conventions.md`, not via this skill.
-- **No fan-out / no multi-agent review / no PRE-POST log** — single-pass scan-and-write per phase; auditing is `/full-review`'s job. `logs/change_logs/` is `/go`-only.
+- **No fan-out / no PRE-POST log** — auditing of cross-file alignment is `/full-review`'s job. `logs/change_logs/` is `/go`-only. The Step 8 multi-axis verify is THIS round's verify (scoped to the touched file set), not a cross-repo review.

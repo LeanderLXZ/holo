@@ -117,11 +117,32 @@ smart-merge 临时工作空间，由 `## Reconcile core` SOP
 值与 `target_root`（仓根，**不是** skill CWD）拼接。本段缺失或
 `(none)` → 回退到
 `${TMPDIR:-/tmp}/holo-tmp-<YYYY-MM-DD>_<HHMMSS>/`。区别于
-`logs/file_snapshots/`（用户可恢复的持久备份）。完整设计：
+`## File snapshots`（用户可恢复的持久备份）。完整设计：
 `docs/architecture/smart-merge.md`。
 <!-- holo:section end -->
 
 - Smart-merge tmp root: `./tmp/holo/`
+
+## File snapshots <!-- holo:heading -->
+
+<!-- holo:section start -->
+用户可恢复的持久备份，由 `take_snapshot()`（位于
+`scripts/holo_update_check.py`）**在任何覆写之前**写入 —— sentinel
+块内容漂移自动修复（`/holo:update` Reconcile.Step 5a）、init 期
+CONFLICT 覆写路径（`/holo:init` Reconcile.Step 3）和
+`/compress-ai-context` Step 4a / 7a 的 plan-freeze 快照都写到这里。
+布局：`<root>/<YYYY-MM-DD>_<HHMMSS>_<slug>/<original-path>`。bullet
+值与 `target_root`（仓根，**不是** skill CWD）拼接；绝对路径原样
+返回，相对路径拼接后做 `normpath` 规范化（用户若有意写入 `../`
+前缀可逃出 `target_root` —— 仓外位置不在本仓 `.gitignore` 覆盖
+范围内，用户自负其责）。本段缺失或 `(none)` → 优雅回退到
+`<target_root>/logs/file_snapshots/`。区别于 `## Tmp directory`
+（smart-merge 临时 staging，OS 清理安全）。完整设计：
+`docs/architecture/drift-detection.md` §File snapshot path
+resolution。
+<!-- holo:section end -->
+
+- File snapshot root: `./logs/file_snapshots/`
 
 ## Language <!-- holo:heading -->
 

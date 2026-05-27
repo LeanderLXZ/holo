@@ -123,11 +123,33 @@ SOP (`commands/update.md`) for translation template trees and Agent 1
 staging. Bullet value joins with `target_root` (repo root, **not**
 skill CWD). Section absent or `(none)` → fallback to
 `${TMPDIR:-/tmp}/holo-tmp-<YYYY-MM-DD>_<HHMMSS>/`. Distinct from
-`logs/file_snapshots/` (persistent user-restorable backups). Full
+`## File snapshots` (persistent user-restorable backups). Full
 design: `docs/architecture/smart-merge.md`.
 <!-- holo:section end -->
 
 - Smart-merge tmp root: `./tmp/holo/`
+
+## File snapshots <!-- holo:heading -->
+
+<!-- holo:section start -->
+Persistent user-restorable backups taken by `take_snapshot()` (in
+`scripts/holo_update_check.py`) **before any overwrite** —
+sentinel-block content drift auto-fix (`/holo:update` Reconcile.Step 5a),
+init-time CONFLICT overwrite path (`/holo:init` Reconcile.Step 3),
+and `/compress-ai-context` Steps 4a / 7a plan-freeze snapshots all
+write here. Layout: `<root>/<YYYY-MM-DD>_<HHMMSS>_<slug>/<original-path>`.
+Bullet value joins with `target_root` (repo root, **not** skill CWD);
+absolute paths are returned as-is, and relative paths are normalized
+post-join (a `../` prefix can escape `target_root` if the user
+intentionally configures one — out-of-repo locations are NOT covered
+by the repo's `.gitignore`; use at your own risk). Section absent or
+`(none)` → graceful fallback to `<target_root>/logs/file_snapshots/`.
+Distinct from `## Tmp directory` (transient smart-merge staging,
+OS-cleanup-safe). Full design:
+`docs/architecture/drift-detection.md` §File snapshot path resolution.
+<!-- holo:section end -->
+
+- File snapshot root: `./logs/file_snapshots/`
 
 ## Language <!-- holo:heading -->
 

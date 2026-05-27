@@ -1,6 +1,6 @@
 ---
 name: check-review
-description: Re-check a review report — read the latest report under logs/review_reports/ for the specified model, verify each finding / risk / open question is still genuinely present, attach evidence (file + line) + draft landing plan. $ARGUMENTS = model filter keyword (claude / codex / gpt / specific slug; default takes the globally latest). Does not write or change code; user confirms, then invoke /go. Triggers: re-check review / re-check codex review / check-review.
+description: Re-check the latest review report under logs/review_reports/ — verify each H/M/L finding + OQ is still genuinely present, attach file:line evidence + draft landing plan. $ARGUMENTS = model keyword (claude / codex / gpt / specific slug; default = globally latest). Read-only; user confirms then /go. Triggers: re-check review / re-check codex review / check-review.
 ---
 
 > **Language**: per `ai_context/skills_config.md §Language` — disk-bound output (logs / docs / commit messages / code comments / files written) uses `content_language`; user-facing surface (chat prose / `AskUserQuestion` prompts and option labels / progress-tool entry `content` / status lines / strategy declarations / findings rendered in chat) uses `conversation_language`. Code identifiers, file paths, field names, frontmatter keys, and structural prefixes (`Step N:`, `LOG:`, etc.) stay English regardless.

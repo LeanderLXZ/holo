@@ -1,6 +1,6 @@
 ---
 name: full-review
-description: Whole-repo alignment audit — scan ai_context / docs / schema / prompts / code / sample artifacts, find cross-file inconsistencies, legacy residue, doc-vs-implementation drift, state-machine gating gaps, latent bugs. $ARGUMENTS = focus / extra concerns for this round (optional). Findings are sorted by severity and archived to logs/review_reports/. Audit only, no code changes; to land changes → /go; for a single change → /post-check. Triggers: full repo review / alignment audit / full-review / run a review pass.
+description: Whole-repo alignment audit — scan ai_context / docs / schema / prompts / code / sample artifacts for cross-file inconsistencies, drift, gating gaps, latent bugs. $ARGUMENTS = focus / extra concerns (optional). Findings sorted by severity, archived to logs/review_reports/. Audit only; to land → /go; for single change → /post-check. Triggers: full repo review / alignment audit / full-review / run a review pass.
 ---
 
 > **Language**: per `ai_context/skills_config.md §Language` — disk-bound output (the review report file at `logs/review_reports/...`, the commit landing it, code-comment-style notes) uses `content_language`; user-facing surface (chat prose / the in-conversation report / status lines / findings rendered in chat) uses `conversation_language`. Code identifiers, file paths, field names, frontmatter keys, and structural prefixes (`H1`, `M1`, `OQ1`, `REVIEWED-PASS`, etc.) stay English regardless.

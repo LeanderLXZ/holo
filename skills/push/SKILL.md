@@ -1,6 +1,6 @@
 ---
 name: push
-description: Fast-forward push a specified local branch to its remote — resolve branch → verify existence → check ahead/behind → clean push. $ARGUMENTS = branch name (default = current branch `git rev-parse --abbrev-ref HEAD`, **not** main). Detached HEAD → fail loudly. No --force / no --no-verify / no pushing protected branches; no commit / no merge / no rebase. Triggers: push / push it / push up / /push <branch>.
+description: Fast-forward push a specified local branch to its remote — resolve branch → verify existence → check ahead/behind → clean push. $ARGUMENTS = branch name (default = current branch, NOT main). Detached HEAD → fail loudly. No --force / no --no-verify / no pushing protected branches; no commit / no merge / no rebase. Triggers: push / push it / push up / /push <branch>.
 ---
 
 > **Language**: per `ai_context/skills_config.md §Language` — disk-bound output (logs / docs / commit messages / code comments / files written) uses `content_language`; user-facing surface (chat prose / `AskUserQuestion` prompts and option labels / progress-tool entry `content` / status lines / strategy declarations / findings rendered in chat) uses `conversation_language`. Code identifiers, file paths, field names, frontmatter keys, and structural prefixes (`Step N:`, `LOG:`, etc.) stay English regardless.
