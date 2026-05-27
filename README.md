@@ -1,13 +1,4 @@
-# HOLO <!-- holo:heading -->
-
-HOLO is a Claude Code plugin that pairs an on-disk AI working-memory framework with a workflow skill suite — the two together make AI-paired sessions resumable across days, weeks, and maintainers.
-
-<!-- holo:section start -->
-Start here:
-
-- `ai_context/` — compressed handoff for AI sessions
-- `docs/` — long-form documentation
-<!-- holo:section end -->
+# HOLO
 
 <p align="center">
   <img src="assets/banner.png" alt="HOLO — Claude Code Plugin: a disciplined four-step loop (discuss, land, review, ship) for AI-paired work" width="820">
@@ -17,6 +8,8 @@ Start here:
   <img src="https://img.shields.io/badge/Claude%20Code-plugin-7857ED" alt="Claude Code Plugin">
   <a href="LICENSE"><img src="https://img.shields.io/github/license/LeanderLXZ/holo?color=blue" alt="License: MIT"></a>
 </p>
+
+HOLO is a Claude Code plugin that pairs an on-disk AI working-memory framework with a workflow skill suite — the two together make AI-paired sessions resumable across days, weeks, and maintainers.
 
 HOLO turns Claude Code into a structured engineering loop. Every
 change moves through **discuss → land → review → ship**, with each
@@ -292,7 +285,7 @@ A minimal sequence following the implementation loop:
 ```text
 1. /plan                            # discuss the change, no writes
 2. /todo-add                        # record the decision into todo_list
-3. /go add cache layer to fetcher   # land: edits + cross-file review + commit
+3. /go                              # land: edits + cross-file review + commit
 4. /post-check                      # verify the result against the PRE log
 5. /fix                             # triage findings; delegate to /go or /do
 6. /push                            # fast-forward push current branch
