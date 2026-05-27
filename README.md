@@ -106,12 +106,9 @@ your-project/
 │   ├── conventions.md             # Cross-file alignment table + writing rules
 │   ├── project_background.md      # Why this project exists — goals, scope, stakeholders
 │   ├── requirements.md            # Mirrors docs/requirements.md (lockstep)
-│   ├── read_scope.md              # What NOT to load by default
-│   ├── current_status.md          # Snapshot of current state — what's done, what's in flight
 │   ├── architecture.md            # How the system is built — modules, boundaries, key design
 │   ├── decisions.md               # Durable architecture-level decisions log ("why")
-│   ├── next_steps.md              # Roadmap — planned directions and priorities
-│   ├── handoff.md                 # Quick context for the next session — mental model + what user cares about
+│   ├── handoff.md                 # Current state + next steps + user preferences (3-section table layout)
 │   └── skills_config.md           ★ Per-project anchors read by skills — see §Configuration
 ├── docs/
 │   ├── requirements.md            # User-facing functional spec

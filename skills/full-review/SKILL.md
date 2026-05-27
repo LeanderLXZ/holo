@@ -68,7 +68,7 @@ First read `ai_context/` and `docs/` to follow the current project truth, then r
 - Is there field name drift or schema-field / code-field mismatch
 - Are programmatic checks actually no-ops, missing checks, empty checks
 - Do `.gitignore`, local artifacts, tracked files contradict each other
-- Do committed samples under skills_config.md `## Example artifact directories` match `ai_context/current_status.md`, README, docs descriptions
+- Do committed samples under skills_config.md `## Example artifact directories` match `ai_context/handoff.md §Current State`, README, docs descriptions
 - Is there content claimed externally as "done / verified" that the repo state does not actually support
 
 ## Audit requirements

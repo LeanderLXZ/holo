@@ -41,15 +41,13 @@ field names stay English regardless.
 At the beginning of **every new session**, read the entire `ai_context/`
 folder in the order specified by `ai_context/instructions.md`:
 
-1. `conventions.md`
+1. `instructions.md`
 2. `project_background.md`
 3. `requirements.md`
-4. `read_scope.md`
-5. `current_status.md`
-6. `architecture.md`
-7. `decisions.md`
-8. `next_steps.md`
-9. `handoff.md`
+4. `architecture.md`
+5. `conventions.md`
+6. `decisions.md`
+7. `handoff.md`
 
 After finishing, **stop and wait for the user's instruction.** Do not
 start modifying code, schemas, or docs on your own initiative.
@@ -58,7 +56,8 @@ start modifying code, schemas, or docs on your own initiative.
 ## What Not To Load By Default <!-- holo:heading -->
 
 <!-- holo:section start -->
-See `ai_context/read_scope.md` for the project-specific list.
+See `ai_context/instructions.md` §Read Scope for the project-specific
+list.
 
 General rule: avoid scanning large raw inputs, full conversation
 histories, full log directories, generated artifacts, databases, vector

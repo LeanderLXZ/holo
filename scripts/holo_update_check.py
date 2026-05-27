@@ -246,8 +246,9 @@ def agents_sync_check(plugin_root: str, target_root: str) -> dict:
         if not os.path.exists(target):
             missing.append(item)
             return
-        if open(target, encoding="utf-8").read() != expected_mirror_content(source_path, name, source_type):
-            stale.append(item)
+        with open(target, encoding="utf-8") as f:
+            if f.read() != expected_mirror_content(source_path, name, source_type):
+                stale.append(item)
 
     for cmd in sorted(glob.glob(f"{plugin_root}/commands/*.md")):
         name = os.path.splitext(os.path.basename(cmd))[0]

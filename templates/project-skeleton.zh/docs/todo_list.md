@@ -43,8 +43,10 @@
 记录**已计划但尚未完成**的具体工程任务。
 与兄弟文件区分：
 
-- `ai_context/next_steps.md` —— 架构方向与高层路线图。
-- `ai_context/current_status.md` —— 当前项目状态快照。
+- `ai_context/handoff.md §Next Steps` —— 架构方向与高层路线图
+  （按优先级的 2 列表格）。
+- `ai_context/handoff.md §Current State` —— 当前项目状态快照
+  （按方面的 2 列表格）。
 - `logs/change_logs/` —— 历史（带时间戳，append-only）。
 - `docs/architecture/` —— 正式架构文档。
 - `docs/todo_list_archived.md` —— 已完成 / 已废弃任务的精简归档
@@ -91,7 +93,7 @@ any node ─────────────────(abandoned)───
 
 ### 不记录什么
 
-✗ 架构方向 / 高层路线图 → `ai_context/next_steps.md`。
+✗ 架构方向 / 高层路线图 → `ai_context/handoff.md §Next Steps`（2 列表格）。
 ✗ 已完成 / 已废弃任务 → 移到 `docs/todo_list_archived.md`（精简）。
 ✗ 临时调试笔记 / 思考过程中的分析 → 放到对话或 plan 里，
   不要持久化。
@@ -127,8 +129,8 @@ Discussing）。新条目必须包含 "What to record" 中的字段，
 2. 如果该任务产生了持久结论 / 新的架构
    决策 / 可复用洞见，写一份
    `logs/change_logs/YYYY-MM-DD_HHMMSS_slug.md`。
-3. 如果完成会改变 `ai_context/` 中的持久事实（current_status
-   / decisions / next_steps），相应更新。
+3. 如果完成会改变 `ai_context/` 中的持久事实（`handoff.md` 的
+   Current State / Next Steps 表，或 `decisions.md`），相应更新。
 4. 刷新 Index。
 
 **任务废弃**：写一份 `logs/change_logs/` 条目说明原因，然后

@@ -31,7 +31,7 @@ Read the selected report in full; break out every entry from `Findings` (by High
 
 ## 2. Load the sources of truth
 
-- Core `ai_context/` files: conventions / requirements / current_status / architecture / decisions (if this project's `ai_context/` structure differs, fall back to every `.md` file)
+- Core `ai_context/` files: conventions / requirements / architecture / decisions / handoff (if this project's `ai_context/` structure differs, fall back to every `.md` file)
 - `docs/requirements.md`, `docs/architecture/`
 - Code files + line numbers referenced in the report: read the current code directly; do not rely on the report's quoted excerpts
 - If the report timestamp is older and commits happened since: `git log --since={report timestamp} --oneline` for a quick scan to identify entries that may already be fixed

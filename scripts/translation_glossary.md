@@ -104,10 +104,10 @@ Concrete operations the AI or user performs.
 | 跨文档 | cross-file | `ai_context/conventions.md §Cross-File Alignment`. |
 | 跨范围 | cross-range / out-of-scope | A finding "spans beyond this round's scope". |
 | 候选 | candidate | Pre-fill candidate (e.g. `/holo:init` Step 0.3 project-name candidates). |
-| 默认优先级 | Default Priority | `ai_context/read_scope.md` H2 — files to load first at session start. |
-| 默认不读 | Do Not Read By Default | `ai_context/read_scope.md` H2 — heavy / write-mostly directories to skip by default. |
-| 何时深入阅读 | When To Read Deeper | `ai_context/read_scope.md` H2 — escalation triggers from default scope. |
-| 实用规则 | Practical Rule | `ai_context/read_scope.md` H2 — targeted-read principle. |
+| 默认优先级 | Default priority | `ai_context/instructions.md §Read Scope` bold sub-rule — files to load first at session start. |
+| 默认不读 | Do not read by default | `ai_context/instructions.md §Read Scope` bold sub-rule — heavy / write-mostly directories to skip by default. |
+| 何时深入阅读 | When to read deeper | `ai_context/instructions.md §Read Scope` bold sub-rule — escalation triggers from default scope. |
+| 实用规则 | Practical rule | `ai_context/instructions.md §Read Scope` bold sub-rule — targeted-read principle. |
 
 ---
 
@@ -134,21 +134,24 @@ Markdown / file structure vocabulary.
 | 项目符号列表 / 项目列表 | bulleted list | `- ...` |
 | 代码块 / 围栏 | code block / fence | Triple-backtick blocks. |
 | 缩进 | indentation | 2 / 3 / 4 space markdown indents. |
-| 交接 | Handoff | `ai_context/handoff.md` H1 — final entry in `ai_context/` reading order; hands off mental model + quick-start to next session. |
-| 思维模型 | Mental Model | `ai_context/handoff.md` H2 — human-readable version of `current_status.md`. |
-| 快速上手 | Quick Start | `ai_context/handoff.md` H2 — 3–6 step quick-orientation list. |
-| 常用操作命令 | Operational Commands | `ai_context/handoff.md` H2 — project's most-used CLI / build / test / deploy commands. |
+| 交接 | Handoff | `ai_context/handoff.md` H1 — final entry in `ai_context/` reading order; snapshots Current State + Next Steps + What The User Cares About. |
+| 当前状态 | Current State | `ai_context/handoff.md` H2 — 2-col table (Aspect / Detail) snapshotting Project Stage / What Exists / Current Gaps / Rules In Effect. |
+| 下一步 | Next Steps | `ai_context/handoff.md` H2 — 2-col table (Priority / Items) for High / Medium / Later direction-level work. |
 | 用户在意的事 | What The User Cares About | `ai_context/handoff.md` H2 — soft preferences / taste rules outside formal requirements. |
+| 方面 | Aspect | `handoff.md §Current State` table column header (table cell rendering label). |
+| 详情 | Detail | `handoff.md §Current State` table column header (table cell rendering label). |
+| 优先级 | Priority | `handoff.md §Next Steps` table column header (table cell rendering label). |
+| 条目 | Items | `handoff.md §Next Steps` table column header (table cell rendering label). |
 | 入口点 | Entry Point | `ai_context/instructions.md` H2 — initial loading scope (`ai_context/` itself). |
 | 项目焦点 | Project Focus | `ai_context/instructions.md` H2 — single highest-signal pointer summarizing project's primary engineering focus. |
 | TODO 清单 | TODO List | `ai_context/instructions.md` H2 — pointer block to `docs/todo_list.md`. Distinct from §8 `## TODO List` as a heading literal — this entry is the translated H2 form when used as content-language section header. |
 | 日志记录 | Logging | `ai_context/instructions.md` H2 — section about per-change `logs/change_logs/` contract. **Distinct from `conventions.md §Logging` anchor**: that one stays English (§-referenced protocol anchor); this one is a display-only H2 in instructions.md. |
-| 阅读范围 | Read Scope | `ai_context/read_scope.md` H1 — default-load / default-skip / when-to-escalate scope contract. |
+| 阅读范围 | Read Scope | `ai_context/instructions.md` H2 — default-load / default-skip / when-to-escalate scope contract. |
 | AI 上下文 | AI Context | `ai_context/README.md` H1 — compressed handoff index for future AI sessions. |
 | 给后续 AI 智能体的指引 | Instructions For Future AI Agents | `ai_context/instructions.md` H1 — index header for AI-agent-facing instructions. |
 | 语言 | Language | CLAUDE.md / AGENTS.md H2 — block with hardcoded `content_language` + `conversation_language` literal bullets (read-cache per `ai_context/decisions.md` §Language Configuration #17; no longer a pointer paragraph). **Distinct from `skills_config.md §Language` anchor**: that one stays English (§-referenced protocol anchor); this CLAUDE/AGENTS H2 is display-only. |
 | 会话开始：通读 ai_context/ 一次 | Session Start: Read ai_context/ Once | CLAUDE.md / AGENTS.md H2 — session-start reading routine. |
-| 默认不加载的内容 | What Not To Load By Default | CLAUDE.md / AGENTS.md H2 — pointer to `read_scope.md`. |
+| 默认不加载的内容 | What Not To Load By Default | CLAUDE.md / AGENTS.md H2 — pointer to `instructions.md §Read Scope`. |
 | 与 AGENTS.md 保持同步 | Sync with AGENTS.md | CLAUDE.md H2 — pair-doc sync rule. Pair literal — the `AGENTS.md` token stays English (filename). |
 | 与 CLAUDE.md 保持同步 | Sync with CLAUDE.md | AGENTS.md H2 — pair-doc sync rule. Pair literal — the `CLAUDE.md` token stays English (filename). |
 | 用途 | Purpose | `docs/todo_list.md` `## File guide` H3 — what the file records. |

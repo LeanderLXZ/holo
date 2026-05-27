@@ -13,6 +13,11 @@
 
 set -u
 
+# Always-exit-0 contract is enforced at the program level, not via
+# control flow — any intermediate failure (awk error, missing tool,
+# unset variable under set -u) still exits 0 via the trap.
+trap 'exit 0' EXIT
+
 branch=$(git branch --show-current 2>/dev/null)
 if [ -z "$branch" ]; then
     # `git branch --show-current` is empty for both detached HEAD AND

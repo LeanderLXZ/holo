@@ -37,15 +37,13 @@
 在**每个新会话**开始时，按 `ai_context/instructions.md` 指定的
 顺序通读整个 `ai_context/` 目录：
 
-1. `conventions.md`
+1. `instructions.md`
 2. `project_background.md`
 3. `requirements.md`
-4. `read_scope.md`
-5. `current_status.md`
-6. `architecture.md`
-7. `decisions.md`
-8. `next_steps.md`
-9. `handoff.md`
+4. `architecture.md`
+5. `conventions.md`
+6. `decisions.md`
+7. `handoff.md`
 
 读完后，**停下来等待用户指令。** 不要自行开始修改代码、schema 或
 文档。
@@ -54,7 +52,7 @@
 ## 默认不加载的内容 <!-- holo:heading -->
 
 <!-- holo:section start -->
-参见 `ai_context/read_scope.md` 中本项目专属的清单。
+参见 `ai_context/instructions.md` §阅读范围 中本项目专属的清单。
 
 通用规则：除非任务明确要求，否则不要扫描大型原始输入、完整对话
 历史、整个日志目录、生成产物、数据库、向量库及索引。

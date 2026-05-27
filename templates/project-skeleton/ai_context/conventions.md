@@ -74,12 +74,25 @@ for the source of truth.
 ## Cross-File Alignment <!-- holo:heading -->
 
 <!-- holo:section start -->
-When a concept changes, update every file in its row. Start with an
-empty table; add a row each time you discover a downstream file that
-must move in lockstep with an upstream change. Table cells list lockstep
-files only — a comma-separated file list (with anchors when useful), not
-an inline how-to; implementation detail belongs in the target file's
-own maintenance comments.
+**Hint / index for PRE-plan, not an exhaustive contract.** Add a row
+only when the lockstep dependency is **non-obvious from grep / Read
+on demand** — anything an AI can rediscover by scanning the codebase
+at task time stays out. When in doubt, omit; bloat costs more than
+misses (a missed row surfaces as a PRE-plan grep find; a bloated row
+degrades every read).
+
+Per-cell discipline — each cell ≤ 1 line / ≤ ~120 chars:
+
+- **Allow**: changed concept (left), comma-separated file list with
+  anchors (right), at most one short non-obvious qualifier sentence.
+- **Forbid**: rationale prose, retirement history ("X retired by Y on
+  date"), implementation detail (regex names, dataclass surfaces,
+  script function names), "why this row exists" notes, inline
+  step-by-step. **Delete** such content; do NOT migrate it to
+  `docs/architecture/` (moving bloat between directories does not fix
+  the bloat).
+
+Framing rationale: `ai_context/decisions.md §Skill Implementation #25`.
 
 Table shape (header only — fill rows in the gap below):
 

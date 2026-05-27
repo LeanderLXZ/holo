@@ -316,7 +316,7 @@ Todo bucket item from /fix (source review: <path>):
 
 Then invoke **<skill tool>** with target = `todo-add` and `$ARGUMENTS = next` (OQs deferred to todo use `$ARGUMENTS = discuss` since they carry open decisions; H/M/L deferred to todo use `next`). The skill body of `/todo-add` will handle UPDATE-vs-CREATE semantic match per its own contract; the fenced block above becomes the canonical session-context Step 2 reads.
 
-> **Important**: do NOT bypass `/todo-add` and write directly to `docs/todo_list.md`. The Index refresh + UPDATE-vs-CREATE semantic match + preview-and-confirm are part of `/todo-add`'s contract; bypassing them violates `ai_context/conventions.md §Cross-File Alignment` (row: "Skill bodies cite the section by name (`## Activity sources.<block>.<field>`)…").
+> **Important**: do NOT bypass `/todo-add` and write directly to `docs/todo_list.md`. The Index refresh + UPDATE-vs-CREATE semantic match + preview-and-confirm are part of `/todo-add`'s contract; bypassing them violates `ai_context/conventions.md §Cross-File Alignment` (row: "Todo entry format — owner `templates/.../todo_list.md` File guide + consumer `/todo-add`").
 
 If `/todo-add` for any item is cancelled by the user (per its Step 5 Cancel option), continue to the next item — do not abort `/fix`. After all todo items have been processed, proceed to Step 5.
 

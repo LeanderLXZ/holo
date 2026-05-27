@@ -58,13 +58,13 @@ Scan the recent conversation turns and identify "what the user just decided / di
 
 1. **Semantic match against `ai_context/` + `docs/` files.** Map the topic to its natural home:
    - project goal / scope / stakeholders → `ai_context/project_background.md` + matching `docs/` section if present
-   - current state snapshot → `ai_context/current_status.md`
+   - current state snapshot → `ai_context/handoff.md §Current State` (2-col table)
    - architecture decisions → `ai_context/architecture.md` + `docs/architecture/<topic>.md`
    - durable engineering decisions ("why" rationale) → `ai_context/decisions.md` (append entry; do **not** renumber)
    - user-visible requirements → `docs/requirements.md` (long-form) + `ai_context/requirements.md` (summary line) — lockstep pair
    - planned-but-unfinished tasks → **redirect to `/todo-add`**, this skill does not touch `docs/todo_list.md`
-   - mental model / quick-start / user-cares / operational commands → `ai_context/handoff.md`
-   - roadmap / next directions → `ai_context/next_steps.md`
+   - user preferences / taste rules → `ai_context/handoff.md §What The User Cares About`
+   - roadmap / next directions → `ai_context/handoff.md §Next Steps` (2-col table)
 
 2. **Cross-file alignment surfacing.** Consult `ai_context/conventions.md §Cross-File Alignment` and surface any lockstep pairs touched by the candidate (e.g. `docs/requirements.md` + `ai_context/requirements.md`; `docs/architecture/<topic>.md` + `ai_context/architecture.md`). Patch each member of the pair, not just one side. When the alignment table absent, judge by intuition — the canonical pairs above are the ones that recur.
 

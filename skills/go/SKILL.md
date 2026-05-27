@@ -190,9 +190,9 @@ By here, Step 3 / 4 / 5 have written content into docs and code. **This step onl
 
 **ai_context durable maintenance**:
 
-- `ai_context/current_status.md`: does the current-state line need updating
-- `ai_context/next_steps.md`: do new directions / blockers from this round need to be logged
-- `ai_context/handoff.md`: does the next session need a one-liner handoff
+- `ai_context/handoff.md §Current State` (2-col table): does a row's cell value need updating (Project Stage / What Exists / Current Gaps / Rules In Effect)
+- `ai_context/handoff.md §Next Steps` (2-col table): do new directions / blockers from this round need to be logged in a priority row (High / Medium / Later)
+- `ai_context/handoff.md §What The User Cares About`: does the next session need a new preference / taste-rule bullet
 
 **todo_list maintenance**:
 

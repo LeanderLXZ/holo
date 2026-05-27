@@ -22,19 +22,47 @@ Sentinel 纪律（参见 CLAUDE.md §plugin 管理段）：sentinel `<!-- holo:s
 ## 阅读顺序 <!-- holo:heading -->
 
 <!-- holo:section start -->
-1. `conventions.md`
+1. `instructions.md`（本文件）
 2. `project_background.md`
 3. `requirements.md`
-4. `read_scope.md`
-5. `current_status.md`
-6. `architecture.md`
-7. `decisions.md`
-8. `next_steps.md`
-9. `handoff.md`
+4. `architecture.md`
+5. `conventions.md`
+6. `decisions.md`
+7. `handoff.md`
 
 Dilution self-check（何时重读哪个文件）写在 `CLAUDE.md` /
 `AGENTS.md`。
 <!-- holo:section end -->
+
+## 阅读范围 <!-- holo:heading -->
+
+<!-- holo:section start -->
+默认先读什么 / 默认跳过什么 / 何时读得更深。
+
+**默认优先级** —— 启动会话时优先读（`ai_context/` 永远最先读）。
+随项目演进，把专属的"小而高信号"目录追加到下方 user-territory 列表。
+
+**默认不读** —— 大型或以写为主的目录：`logs/change_logs/`（完整
+历史）、`logs/review_reports/`（过往审计快照）、`logs/file_snapshots/`
+（smart-merge 备份归档）。仅当任务明确要求时才加载。把项目专属的
+跳过路径追加到下方 user-territory 列表。
+
+**何时深入阅读** —— 用户明确要求；任务依赖来自更重源的特定证据；
+`ai_context/` 中的压缩上下文不足以回答当前问题；某个冲突需要
+provenance 校验。
+
+**实用规则** —— 优先做定向读取：具体文件、最小摘录、先看摘要。
+避免扫描整个大目录、加载全部会话历史、读取全部 logs，或将源内容
+大段粘进回答。
+<!-- holo:section end -->
+
+项目专属默认优先级路径（例如顶层 `README.md`）：
+
+- _(none yet — delete this marker once content is added)_
+
+项目专属默认跳过路径：
+
+- _(none yet — delete this marker once content is added)_
 
 ## 更新预期 <!-- holo:heading -->
 

@@ -14,7 +14,8 @@ guiding principles, and the build order. Future AI sessions read this
 to understand the project's intent before touching code.
 
 Keep this file short and stable. Volatile details (current state,
-roadmap) belong in `current_status.md` and `next_steps.md`.
+roadmap) belong in `handoff.md` (`§Current State` table + `§Next Steps`
+table).
 <!-- holo:section end -->
 
 ## Goal <!-- holo:heading -->

@@ -1,6 +1,6 @@
 ---
 name: compress-ai-context
-description: Maintenance skill — scans 6 ai_context files (decisions / conventions / requirements / architecture / handoff / next_steps), optionally prunes stale entries (LLM-judged + per-case 3-option ask for `stale + has live refs`), then compresses bloated entries with rationale landing in docs/architecture/<topic>.md. Coordinator + scatter-gather flow with hard contracts: MUST scatter when total_bloated ≥ 8 (Step 5b); Step 5d plan coverage invariant — every bloated entry MUST be in proposed_edits OR in deferred-with-rationale (visible to user at Step 6); Step 6 ask defaults to "Compress all M planned" with Tweak as explicit per-entry deferral opt-out; Step 7d completion gate splits residue into deferred-by-design (acceptable) vs missed-by-coordinator (hard fail). Sentinel-aware via sentinel_parse.py; snapshot-on-plan-freeze via take_snapshot (one per phase, before any Edit); multi-axis verify (semantic / density / compliance) + 3-option rollback ask. Reuses conventions.md §Compactness Requirements (does NOT re-author rules). No commit / no push. Triggers: /compress-ai-context / compress ai_context / prune stale ai_context entries.
+description: Maintenance skill — scans 5 ai_context files (decisions / conventions / requirements / architecture / handoff), optionally prunes stale entries (LLM-judged + per-case 3-option ask for `stale + has live refs`), then compresses bloated entries with rationale landing in docs/architecture/<topic>.md. Coordinator + scatter-gather flow with hard contracts: MUST scatter when total_bloated ≥ 8 (Step 5b); Step 5d plan coverage invariant — every bloated entry MUST be in proposed_edits OR in deferred-with-rationale (visible to user at Step 6); Step 6 ask defaults to "Compress all M planned" with Tweak as explicit per-entry deferral opt-out; Step 7d completion gate splits residue into deferred-by-design (acceptable) vs missed-by-coordinator (hard fail). Sentinel-aware via sentinel_parse.py; snapshot-on-plan-freeze via take_snapshot (one per phase, before any Edit); multi-axis verify (semantic / density / compliance) + 3-option rollback ask. Reuses conventions.md §Compactness Requirements (does NOT re-author rules). Ends with opt-in /commit ask (Step 9; no push regardless). Triggers: /compress-ai-context / compress ai_context / prune stale ai_context entries.
 ---
 
 > **Language**: per `ai_context/skills_config.md §Language` — disk-bound output (prune deletions, compress patches, snapshot files copied, follow-up todo entry written into `docs/todo_list.md`, the trailing reminder line if redirected to a file) uses `content_language`; user-facing surface (chat prose / `AskUserQuestion` prompts and option labels / progress-tool entry `content` / scan summary printed in chat / per-entry preview wrappers / final wrap-up status line) uses `conversation_language`. Code identifiers, file paths, field names, frontmatter keys, section headings (`## Decisions`, `### [T-XXX]`), and structural prefixes (`Step N:`, `PRUNE:`, `COMPRESS:`, `SNAPSHOT:`, etc.) stay English regardless.
@@ -31,9 +31,9 @@ Sentinel-aware throughout (won't touch plugin-canonical territory).
 
 > **Language**: progress-tool entries (`content` field) are user-facing — write them in `conversation_language` per `ai_context/skills_config.md §Language`. The `Step N:` prefix stays English (structural label); subtitle text after the colon translates to `conversation_language`. Same rule applies to sub-task entries `Step Na:` / `Step Nb:` / ….
 
-The flow below is split into `## Step 0:` ~ `## Step 8:`.
+The flow below is split into `## Step 0:` ~ `## Step 9:`.
 
-**Before entering Step 0**: call **<progress tool>** to pre-register all of Step 0 ~ Step 8 (one entry per step, `content` = `Step N: <sub-section title>`, `status` = `pending` for all). This is a hard requirement — **do not proceed without calling <progress tool>**.
+**Before entering Step 0**: call **<progress tool>** to pre-register all of Step 0 ~ Step 9 (one entry per step, `content` = `Step N: <sub-section title>`, `status` = `pending` for all). This is a hard requirement — **do not proceed without calling <progress tool>**.
 
 Each time you enter a step: call **<progress tool>** to flip the current step to `in_progress` (mark the previous step `completed` in the same call), then do the real work. **Do not skip the call across step boundaries**. Progress is rendered directly by the <progress tool> UI — **do not print `[/compress-ai-context] Step N: ...` style progress lines in the conversation**.
 
@@ -77,9 +77,9 @@ Default = option 1 (no). Most invocations are pure compression. The prune phase 
 
 > **Language**: user-facing — render the scan summary printed to the conversation (file count + candidate count + per-file finding count) in `conversation_language` per `ai_context/skills_config.md §Language`. Structural labels (`file:`, `entry:`, `verdict:`) stay English; only summary prose translates.
 
-For each of the 6 ai_context files
+For each of the 5 ai_context files
 (`decisions.md` / `conventions.md` / `requirements.md` /
-`architecture.md` / `handoff.md` / `next_steps.md`):
+`architecture.md` / `handoff.md`):
 
 1. **Parse via `scripts/sentinel_parse.py`** (`parse(path) -> ParsedFile`). Consider **only gap-territory content** (`ParsedFile.preamble_user_gaps` + each `Section.user_gaps`). **Skip plugin-canonical territory** (`preamble_plugin_blocks` + each `Section.plugin_blocks`) — that content is owned by `/holo:update`, out of scope for this skill.
 
@@ -88,8 +88,7 @@ For each of the 6 ai_context files
    - `conventions.md` — Cross-File Alignment row lists files that no longer exist; row's lockstep relationship references removed flow.
    - `requirements.md` — paired `docs/requirements.md §N` section absent; requirement references a removed feature.
    - `architecture.md` — referenced `docs/architecture/<topic>.md` / module / file absent.
-   - `handoff.md` — referenced command / skill no longer in `commands/` or `skills/`.
-   - `next_steps.md` — referenced todo already in `docs/todo_list_archived.md ## Completed` or `## Abandoned`.
+   - `handoff.md` — referenced command / skill no longer in `commands/` or `skills/`; `## Next Steps` table row references a todo already in `docs/todo_list_archived.md ## Completed` / `## Abandoned`.
 
 3. **LLM semantic judgment** (the main driver): for each entry, read it and judge — is it still aligned with the current architecture / requirements? Was the decision overturned by a later decision (search `ai_context/decisions.md` for newer #N entries on the same topic)? Has the referenced module / file / flow been removed or restructured? Heuristics from #2 raise candidates for inspection; LLM decides the actual `stale` verdict.
 
@@ -103,8 +102,7 @@ PRUNE scan:
 - ai_context/conventions.md: 34 rows scanned, 0 stale
 - ai_context/requirements.md: 16 entries scanned, 1 stale (1 orphan, 0 with live refs)
 - ai_context/architecture.md: 12 entries scanned, 0 stale
-- ai_context/handoff.md: 4 sections scanned, 0 stale
-- ai_context/next_steps.md: 8 bullets scanned, 0 stale
+- ai_context/handoff.md: 3 sections scanned, 0 stale
 Total: 3 stale candidates (1 orphan, 2 with live refs)
 ```
 
@@ -126,7 +124,7 @@ Question: `Stale entry "<file>:<entry-id-or-title>" still has N live ref(s) at <
 
 ## Step 4: Prune apply
 
-> **Language**: disk-bound — pruned-entry deletions land in 6 ai_context files; follow-up todo (if any case picked option 1) lands in `docs/todo_list.md`. All disk writes use `content_language` per `ai_context/skills_config.md §Language`. Snapshot files are byte-copies of the source files (no language transformation).
+> **Language**: disk-bound — pruned-entry deletions land in 5 ai_context files; follow-up todo (if any case picked option 1) lands in `docs/todo_list.md`. All disk writes use `content_language` per `ai_context/skills_config.md §Language`. Snapshot files are byte-copies of the source files (no language transformation).
 
 > **Compactness Requirements**: any new content this step writes (the bundled follow-up todo entry created when "Auto-prune + create follow-up todo" was picked) follows the universal contract —
 > - Shorter is better than longer. Each entry is a summary, not a detail dump.
@@ -136,7 +134,7 @@ Question: `Stale entry "<file>:<entry-id-or-title>" still has N live ref(s) at <
 
 a. **Snapshot-on-plan-freeze**: by the end of Step 3 the prune plan is frozen (which entries delete + whether a follow-up todo is needed). Before any `Edit`, call `take_snapshot(target_root, slug='compress-ai-context-prune', file_paths=[touched ai_context files + docs/todo_list.md if a follow-up todo will land])` **once**, covering all files in the frozen plan. Not pre-emptively at skill startup, and not piecemeal per-Edit. Snapshot root is resolved by the helper from `ai_context/skills_config.md ## File snapshots` (default `<target_root>/logs/file_snapshots/`); callers do not pass the root, the helper reads it. Capture the returned snapshot dir path for the wrap-up.
 
-b. **Apply each pruned entry via `Edit`** (one `Edit` per entry; no batched `replace_all`). For `decisions.md` entries: do NOT renumber surviving entries (per `decisions.md §Format` global-append-only rule); just delete the offending block. For `conventions.md` rows: delete the table row only. For all 6 files: also remove any redundant surrounding `---` separator or trailing blank line if the surrounding structure breaks. Prune-phase apply stays coordinator-serial (no sub-agent dispatch) — prune touches at most a handful of entries per file and the safety bias dominates parallelism gain.
+b. **Apply each pruned entry via `Edit`** (one `Edit` per entry; no batched `replace_all`). For `decisions.md` entries: do NOT renumber surviving entries (per `decisions.md §Format` global-append-only rule); just delete the offending block. For `conventions.md` rows: delete the table row only. For all 5 files: also remove any redundant surrounding `---` separator or trailing blank line if the surrounding structure breaks. Prune-phase apply stays coordinator-serial (no sub-agent dispatch) — prune touches at most a handful of entries per file and the safety bias dominates parallelism gain.
 
 c. **Create bundled follow-up todo** (only if ≥ 1 case picked "Auto-prune + create follow-up todo"): append ONE new entry to `docs/todo_list.md ## Next` with slug like `T-PRUNE-DANGLING-REFS-<YYYYMMDD>`, body listing each dangling ref as a change-manifest bullet (file:line + short context). Update the top `## Index` Next sub-table per `docs/todo_list.md "## File guide → Index maintenance"` rules.
 
@@ -156,10 +154,10 @@ SNAPSHOT: <snapshot_root>/<YYYY-MM-DD_HHMMSS>_compress-ai-context-prune/   (defa
 
 **Trigger** (per file): file > 150 lines OR any single entry > 5 lines. Files matching neither are skipped silently.
 
-a. **Coordinator pre-scan**: parse each of the 6 ai_context files via `scripts/sentinel_parse.py` (gap-territory only, same as Step 2). Produce a **stable bloated-id list** `bloated_ids = [(file_path, entry_id), ...]` using the thresholds **verbatim from `ai_context/conventions.md §Compactness Requirements`** (entry > 5 lines OR file body > 150 lines — DO NOT raise the thresholds locally "to limit scope"; the coordinator both counts and acts on this list, so any local threshold relaxation trivially defeats the Step 5d coverage invariant on a smaller set). Set `<total_bloated> = len(bloated_ids)`. The list (not just the count) is the union anchor consumed by Step 5d's coverage invariant; entry-id is whatever stable identifier the file's format provides (`decisions.md` #N / `conventions.md §<section>` / `requirements.md` #N / `architecture.md §<section>` / `handoff.md §<section>.<bullet-keyword>` / `next_steps.md §<priority>.<num>`).
+a. **Coordinator pre-scan**: parse each of the 5 ai_context files via `scripts/sentinel_parse.py` (gap-territory only, same as Step 2). Produce a **stable bloated-id list** `bloated_ids = [(file_path, entry_id), ...]` using the thresholds **verbatim from `ai_context/conventions.md §Compactness Requirements`** (entry > 5 lines OR file body > 150 lines — DO NOT raise the thresholds locally "to limit scope"; the coordinator both counts and acts on this list, so any local threshold relaxation trivially defeats the Step 5d coverage invariant on a smaller set). Set `<total_bloated> = len(bloated_ids)`. The list (not just the count) is the union anchor consumed by Step 5d's coverage invariant; entry-id is whatever stable identifier the file's format provides (`decisions.md` #N / `conventions.md §<section>` / `requirements.md` #N / `architecture.md §<section>` / `handoff.md §<section>.<row-label-or-bullet-keyword>`).
 
 b. **Dispatch decision (hard contract — coordinator inline mode is forbidden above threshold)**:
-   - `<total_bloated> ≥ 8` → **MUST scatter**: dispatch up to 6 sub-agents in parallel, one per file that has ≥ 1 bloated entry. Each sub-agent receives: (i) its file path; (ii) the gap-territory content; (iii) the §Compactness Requirements contract; (iv) the classification rubric (a)/(b)/(c) below; (v) the language-axes directive at the **tail** of its prompt per `ai_context/conventions.md §Cross-File Alignment` (sub-agent dispatch tail-position rule, decisions.md #16). Sub-agents must read `ai_context/conventions.md §Compactness Requirements` before classifying. The coordinator MAY NOT choose inline mode at this threshold "to save context" or "because I already have the files in scope" — that reasoning is exactly the [decisions.md #19](../../ai_context/decisions.md) anti-pattern (single-pass-incomplete from main-agent context exhaustion) the scatter-gather architecture was introduced to defeat. If the coordinator nonetheless lacks parallel-dispatch capability in its runtime (e.g. a non-Claude harness that cannot fan out sub-agents), it MUST surface that as an explicit one-line declaration `scatter-mode unavailable: <runtime reason>` BEFORE entering inline fallback, so the user can see the deviation and decide. **Valid runtime-reason** = structural unavailability the runtime cannot fix mid-run (e.g. `harness lacks Task/sub-agent dispatch primitive`; `parallel-tool-use disabled in this client`; `sub-agent quota exhausted for this session`). **Invalid runtime-reason** (= disguised coordinator preference; coordinator MUST NOT use these) = `I have all files in context already`; `context budget too tight`; `to save tokens / API cost`; `dispatch is slow`. If the runtime has the primitive at all, scatter is mandatory above threshold — efficiency reasoning is exactly the anti-pattern.
+   - `<total_bloated> ≥ 8` → **MUST scatter**: dispatch up to 5 sub-agents in parallel, one per file that has ≥ 1 bloated entry. Each sub-agent receives: (i) its file path; (ii) the gap-territory content; (iii) the §Compactness Requirements contract; (iv) the classification rubric (a)/(b)/(c) below; (v) the language-axes directive at the **tail** of its prompt per `ai_context/conventions.md §Cross-File Alignment` (sub-agent dispatch tail-position rule, decisions.md #16). Sub-agents must read `ai_context/conventions.md §Compactness Requirements` before classifying. The coordinator MAY NOT choose inline mode at this threshold "to save context" or "because I already have the files in scope" — that reasoning is exactly the [decisions.md #19](../../ai_context/decisions.md) anti-pattern (single-pass-incomplete from main-agent context exhaustion) the scatter-gather architecture was introduced to defeat. If the coordinator nonetheless lacks parallel-dispatch capability in its runtime (e.g. a non-Claude harness that cannot fan out sub-agents), it MUST surface that as an explicit one-line declaration `scatter-mode unavailable: <runtime reason>` BEFORE entering inline fallback, so the user can see the deviation and decide. **Valid runtime-reason** = structural unavailability the runtime cannot fix mid-run (e.g. `harness lacks Task/sub-agent dispatch primitive`; `parallel-tool-use disabled in this client`; `sub-agent quota exhausted for this session`). **Invalid runtime-reason** (= disguised coordinator preference; coordinator MUST NOT use these) = `I have all files in context already`; `context budget too tight`; `to save tokens / API cost`; `dispatch is slow`. If the runtime has the primitive at all, scatter is mandatory above threshold — efficiency reasoning is exactly the anti-pattern.
    - `<total_bloated> < 8` → **inline mode permitted**: coordinator runs the per-entry classification serially. No sub-agent dispatch.
 
 c. **Per-entry classification** (executed by sub-agent in scatter mode, by coordinator in inline mode):
@@ -184,9 +182,8 @@ COMPRESS scan:
 - ai_context/architecture.md: 4 entries scanned, 1 bloated (1 already-covered)
 - ai_context/conventions.md: 6 entries scanned, 0 bloated
 - ai_context/requirements.md: 3 entries scanned, 0 bloated
-- ai_context/handoff.md: 5 entries scanned, 0 bloated
-- ai_context/next_steps.md: 2 entries scanned, 0 bloated
-Total: 4 bloated entries across 2 files (scatter mode: 6 sub-agents dispatched / inline mode)
+- ai_context/handoff.md: 3 sections scanned, 0 bloated
+Total: 4 bloated entries across 2 files (scatter mode: 5 sub-agents dispatched / inline mode)
 Scan thresholds used: entry > 5 lines OR file > 150 lines (verbatim from ai_context/conventions.md §Compactness Requirements; coordinator MUST NOT raise these locally)
 Docs landings: docs/architecture/section-version-sentinel.md (+rationale block); docs/architecture/smart-merge.md (+rationale block); (NEW) docs/architecture/<topic>.md
 ```
@@ -244,7 +241,7 @@ The `<ask tool>`'s auto-appended "Other" fallback covers free-form responses (e.
 
 a. **Snapshot-on-plan-freeze**: by the end of Step 6 the compress plan is frozen (per-file entry list + docs landing schedule + new-doc files + `docs/architecture/README.md` Contents flag). Before any `Edit`, call `take_snapshot(target_root, slug='compress-ai-context-compress', file_paths=[every ai_context file touched + every docs/ landing target + every new-doc path + docs/architecture/README.md if Contents update is scheduled])` **once**, covering all files in the frozen plan. Not piecemeal per-sub-agent, not piecemeal per-Edit. Snapshot root resolved from `ai_context/skills_config.md ## File snapshots` (default `logs/file_snapshots/`). Capture the returned snapshot dir path for the wrap-up.
 
-b. **Sub-agent apply (parallel, ai_context only)**: dispatch one sub-agent per ai_context file that has ≥ 1 entry in the compress plan (max 6 in parallel; threshold same as Step 5b — scatter mode dispatches sub-agents, inline mode runs Step 7b coordinator-side serially). Each sub-agent receives:
+b. **Sub-agent apply (parallel, ai_context only)**: dispatch one sub-agent per ai_context file that has ≥ 1 entry in the compress plan (max 5 in parallel; threshold same as Step 5b — scatter mode dispatches sub-agents, inline mode runs Step 7b coordinator-side serially). Each sub-agent receives:
    - Its file path + the exact list of `(entry-id, classification, compressed_body)` triples for that file (from the frozen plan).
    - The §Compactness Requirements blockquote copied verbatim into its prompt.
    - The instruction: **only Edit your assigned ai_context file**; do NOT Edit docs/, README.md, or any file outside your scope. Use one `Edit` per entry (no batched `replace_all`).
@@ -257,7 +254,7 @@ c. **Coordinator apply (serial, docs / new-doc / Contents)**: after all sub-agen
    - If any new-doc was created and `docs/architecture/README.md` exists: one `Edit` updating its Contents index, inserting the new entry per the file's existing alphabetical / topical order.
    Serial execution is deliberate — multiple parallel writers on the same docs file would last-writer-wins; serialization is the simplest correct path and docs edits are cheap.
 
-d. **Completion gate (re-scan + residue classification)**: re-run the Step 5 trigger check across the 6 ai_context files (file > 150 lines OR any single entry > 5 lines). If any bloated entry remains, **classify each residual against Step 6's frozen `deferred` list** (the list the user saw + approved at Step 6 ask option 1):
+d. **Completion gate (re-scan + residue classification)**: re-run the Step 5 trigger check across the 5 ai_context files (file > 150 lines OR any single entry > 5 lines). If any bloated entry remains, **classify each residual against Step 6's frozen `deferred` list** (the list the user saw + approved at Step 6 ask option 1):
    - **deferred-by-design**: residual entry-id appears in Step 6's `deferred` list. The user already saw + accepted its rationale at Step 6. This is **NOT a gate failure** — print one line `residue: <N> entries deferred-by-design per Step 6 plan (acceptable):` followed by the list, then continue to wrap-up. Does not block Step 8.
    - **missed-by-coordinator**: residual entry-id is NOT in Step 6's `deferred` list — meaning it was in `proposed_edits` (user expected it to be compressed) but the Step 7b sub-agent / coordinator apply failed to actually shrink it below the 5-line / 150-line trigger. This IS a hard gate failure. Print `COMPRESS completion-gate FAILED — <N> entries planned but not compressed:` followed by the residual list (file:entry-id + reason: file-still-too-long / entry-still-too-long + which sub-agent / Edit was responsible if known). The user can choose: (i) re-run `/compress-ai-context` (will pick up the residue); (ii) accept the residue (acknowledging the apply phase under-delivered, the entry stays bloated until next round); (iii) roll back via Step 8's rollback ask.
    - **Why split**: the previous unified "any residue = FAIL" framing made it impossible to distinguish "user-approved deferral" from "coordinator silently dropped the entry from the apply phase" — both surface the same way, so the FAIL became background noise and gate-fail messages got dismissed as "by-design" even when they weren't. Splitting at this gate is the structural counterpart to Step 6's `deferred` list invariant: the same list governs both "what the user agreed to skip" (Step 6) and "what counts as acceptable residue here" (Step 7d).
@@ -335,16 +332,30 @@ Compress: <X> entries compressed across <Y> files (snapshot: <path>)
 Completion gate: ✓ no residue (or: ✗ N residual — see Step 7d list)
 Verify: <V> axes checked, <F> findings flagged (action: accept / partial rollback <files> / full rollback)
 Follow-up todo: T-PRUNE-DANGLING-REFS-<YYYYMMDD> (if any prune case picked option 1)
-This skill does not commit. To persist, run /commit.
 ```
 
-If `prune phase = no-op` (Step 1 = no, or Step 2 = 0 stale) AND `compress phase = 0 findings` (Step 5 found nothing bloated), print one line `nothing to do — ai_context is within the compactness contract` and stop without snapshots.
+If `prune phase = no-op` (Step 1 = no, or Step 2 = 0 stale) AND `compress phase = 0 findings` (Step 5 found nothing bloated), print one line `nothing to do — ai_context is within the compactness contract` and stop without snapshots (skip Step 9 too — mark its progress entry directly `completed`).
 
-Do not enter `/go`, do not invoke any other skill, do not stage or commit any change.
+Do not enter `/go` or invoke any skill other than the user-confirmed `/commit` handoff in Step 9.
+
+## Step 9: Commit ask
+
+> **Language**: user-facing — render the `<ask tool>` prompt and option labels in `conversation_language` per `ai_context/skills_config.md §Language`. Structural label `Step 9` stays English; only question prose translates.
+
+**Skip wholesale** (mark progress-tool entry directly `completed` + print one line `Step 9 skipped (reason: no on-disk changes)`) when the run produced no on-disk changes — i.e. Step 8d wrap-up hit the "nothing to do" branch, OR Step 8c chose Full rollback. Partial rollback still leaves some changes landed, so Step 9 still runs.
+
+Ask via **<ask tool>** — one question, two options:
+
+Question: `Commit the changes from this round?`
+
+1. **Yes — invoke /commit (recommended)** — hand off to `/commit`; it handles staging, split-by-logical-unit, and message style per project convention.
+2. **No — leave changes unstaged** — print one line `Changes left in working tree; run /commit when ready.` and stop.
+
+This is the only commit handoff; no push regardless of answer.
 
 ## Constraints
 
-- **No commit / no push** (persistence delegated to `/commit`).
+- **No push** — commit is opt-in via Step 9's user-confirmed `/commit` handoff; this skill never pushes.
 - **No touching code / schema / `.gitignore` / `plugin.json` / `logs/` / `templates/`** — out of scope; touches limited to `ai_context/*.md` + `docs/architecture/<topic>.md` (+ `docs/architecture/README.md` Contents when a new doc is created) + `docs/todo_list.md` (only when "Auto-prune + create follow-up todo" was picked).
 - **Sentinel-block protection is load-bearing** — every parse goes through `scripts/sentinel_parse.py`; this skill operates only on gap-territory content. Sentinel-bearing blocks are plugin-canonical (owned by `/holo:update`); editing them is out of scope. Step 8a re-parses every touched file to catch any accidental sentinel break.
 - **Snapshot-on-plan-freeze, not snapshot-on-apply** — `take_snapshot` is invoked once per phase, **after that phase's plan is frozen (end of Step 3 for prune; end of Step 6 for compress) and before any `Edit`**, covering all files in the frozen plan in a single call. Skill startup does NOT snapshot. Sub-agents in Step 7b do NOT call `take_snapshot` — the snapshot precedes their dispatch.

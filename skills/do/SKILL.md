@@ -17,7 +17,7 @@ Execute per the discussion above. `/do` is the default path for landing already-
 
 If the change surface widens past `/do`'s envelope mid-flight (≥ 3 files / cross-file alignment needed), exit and re-enter via `/go` — `/do` does **NOT** mid-flight escalate.
 
-**Anti-pattern (hard).** `/do` does NOT call `/go` / `/post-check` / `/full-review` / `/commit` / `/update-docs`. The Step 3 commit is a raw `git add` + `git commit`, not a delegated invocation. `/do` does NOT switch branches, open worktrees, stash / pop, or fan out to other branches. `/do` does NOT maintain `ai_context/` durable state (`current_status.md` / `next_steps.md` / `handoff.md` / `decisions.md`) or `docs/todo_list.md` — those are `/go` Step 6's job.
+**Anti-pattern (hard).** `/do` does NOT call `/go` / `/post-check` / `/full-review` / `/commit` / `/update-docs`. The Step 3 commit is a raw `git add` + `git commit`, not a delegated invocation. `/do` does NOT switch branches, open worktrees, stash / pop, or fan out to other branches. `/do` does NOT maintain `ai_context/` durable state (`handoff.md` / `decisions.md`) or `docs/todo_list.md` — those are `/go` Step 6's job.
 
 ## Progress reporting
 
@@ -189,6 +189,6 @@ Options (exactly two, recommended option first):
 - **No delegated skills**: `/do` does NOT call `/go` / `/post-check` / `/full-review` / `/commit` / `/update-docs`. The Step 3 commit is raw `git add` + `git commit`, not a delegated invocation.
 - **No environment takeover**: `/do` does NOT switch branches, open worktrees, stash / pop, run background-process probes, or fan out to other branches. Cross-branch sync → `/forward` (user-invoked, separately, after `/do`).
 - **No mid-flight escalation**: `/do` does NOT mid-flight escalate to `/go`. If the scope widens, exit cleanly and re-enter via `/go`.
-- **No durable-doc maintenance**: `/do` does NOT touch `ai_context/current_status.md` / `next_steps.md` / `handoff.md` / `decisions.md` unless the discussion is explicitly about those files. Durable maintenance is `/go` Step 6's job.
+- **No durable-doc maintenance**: `/do` does NOT touch `ai_context/handoff.md` / `decisions.md` unless the discussion is explicitly about those files. Durable maintenance is `/go` Step 6's job.
 - **No todo bookkeeping**: `/do` does NOT maintain `docs/todo_list.md` (no entry move to archived, no Index refresh). Use `/todo-add` or `/go` for todo bookkeeping.
 - **No backfill of pre-existing logs**: pre-existing `logs/change_logs/*.md` files are NOT retroactively assigned a `Type` field. Only new logs from `/go` (`Type: GO`) and `/do` (`Type: DO`) onward carry the field.

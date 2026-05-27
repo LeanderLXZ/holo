@@ -269,7 +269,7 @@ For each entry in `<dir_classifications>` (from Step 3), use `Edit` to append to
 **Hard rule exemption**: this sub-step is DETERMINISTIC AI-INFER from Step 1.2 probe results — no ask, no discretion. The must-ask rule does NOT apply here.
 
 - **Top-Level Structure of `architecture.md`**: expand the top-level directory inventory from Step 1.2 into `- \`<dir>/\` — <inferred description / leave blank for user to fill>` form (leave `<...>` for inferred description so the user can supplement). **Note**: when Step 6 Round 4 Q1 picks `Auto-scan` or `Manual input` for `architecture.md`, this Step 5.4 seed remains as the baseline; Round 4 then fills the other sections with AI survey or user prose on top. When Round 4 Q1 picks `Skip for now`, this Step 5.4 baseline IS the architecture.md content for the Top-Level Structure section — other sections retain their `_(none yet — ...)_` markers from the template.
-- **Default Priority of `read_scope.md`**: auto-include existing `docs/` / top-level README.md (if any). When literally nothing is inferrable, leave the section with its template `_(none yet — ...)_` marker — do NOT replace with an empty list.
+- **Default priority of `instructions.md §Read Scope`**: auto-include existing `docs/` / top-level README.md (if any) as bullets under the "Project-specific default-priority paths" user-territory list. When literally nothing is inferrable, leave the list with its template `_(none yet — ...)_` marker — do NOT replace with an empty list.
 
 ## Step 6: Doc bootstrap questions (Round 4)
 

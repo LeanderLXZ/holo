@@ -45,9 +45,10 @@
 Records **planned-but-unfinished** concrete engineering tasks.
 Distinct from sibling files:
 
-- `ai_context/next_steps.md` — architectural direction and high-level
-  roadmap.
-- `ai_context/current_status.md` — current project state snapshot.
+- `ai_context/handoff.md §Next Steps` — architectural direction and
+  high-level roadmap (2-col table by priority).
+- `ai_context/handoff.md §Current State` — current project state
+  snapshot (2-col table by aspect).
 - `logs/change_logs/` — history (timestamped, append-only).
 - `docs/architecture/` — formal architecture documents.
 - `docs/todo_list_archived.md` — slim archive of completed / abandoned
@@ -100,7 +101,7 @@ Segment semantics:
 
 ### What NOT to record
 
-✗ Architectural direction / high-level roadmap → `ai_context/next_steps.md`.
+✗ Architectural direction / high-level roadmap → `ai_context/handoff.md §Next Steps` (2-col table).
 ✗ Completed / abandoned tasks → move to `docs/todo_list_archived.md` (slim).
 ✗ Temporary debug notes / mid-thought analysis → conversation or plan,
   not persistent.
@@ -137,8 +138,8 @@ segment is filled only when the task actually starts.
 2. If the task produced durable conclusions / new architecture
    decisions / reusable insight, write a
    `logs/change_logs/YYYY-MM-DD_HHMMSS_slug.md`.
-3. If completion changes durable facts in `ai_context/` (current_status
-   / decisions / next_steps), update those.
+3. If completion changes durable facts in `ai_context/` (`handoff.md`
+   Current State / Next Steps tables, or `decisions.md`), update those.
 4. Refresh the Index.
 
 **Task abandoned**: write a `logs/change_logs/` entry stating why, then

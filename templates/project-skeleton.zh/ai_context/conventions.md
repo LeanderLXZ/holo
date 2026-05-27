@@ -69,10 +69,22 @@
 ## Cross-File Alignment <!-- holo:heading -->
 
 <!-- holo:section start -->
-当一个概念发生变化，更新其所在行的每个文件。表格初始为空；每次
-发现一个必须随上游改动同步变化的下游文件，就增加一行。表格单元
-只列 lockstep 文件 —— 是逗号分隔的文件清单（必要时带 anchor），不
-是 inline how-to；实现细节归目标文件自己的 maintenance comment。
+**面向 PRE-plan 的提示索引，不是穷举契约。** 仅当 lockstep 依赖
+**通过普通 grep / Read 在任务时现查不出来** 才加行 —— 任何 AI
+能在执行时通过扫码现场发现的依赖，不进表。拿不准时省略；
+膨胀的代价高于漏项（漏的行会被 PRE-plan grep 现场补出来；膨胀
+的行每次阅读都在拖累）。
+
+每格格律 —— 每格 ≤ 1 行 / ≤ ~120 字符：
+
+- **允许**：变更概念（左）、文件锚点列表（右）、最多一句简短的
+  非显然限定语。
+- **禁止**：理由散文、退役历史（"X 在某日被 Y 退役"）、实现细节
+  （regex 名 / dataclass 字段 / script 函数名）、"为什么有这行"
+  笔记、内嵌 step-by-step。这类内容应 **删除**，**不要** 迁移到
+  `docs/architecture/`（膨胀换房间并不能解决膨胀）。
+
+定位依据：`ai_context/decisions.md §Skill Implementation #25`。
 
 下方表格的形状（仅表头 —— 用户在下方 gap 内补行）：
 

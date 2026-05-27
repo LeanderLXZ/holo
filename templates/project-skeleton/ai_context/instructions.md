@@ -24,19 +24,51 @@ Only act on explicit user requests.
 ## Reading Order <!-- holo:heading -->
 
 <!-- holo:section start -->
-1. `conventions.md`
+1. `instructions.md` (this file)
 2. `project_background.md`
 3. `requirements.md`
-4. `read_scope.md`
-5. `current_status.md`
-6. `architecture.md`
-7. `decisions.md`
-8. `next_steps.md`
-9. `handoff.md`
+4. `architecture.md`
+5. `conventions.md`
+6. `decisions.md`
+7. `handoff.md`
 
 Dilution self-check (when to re-read which file) lives in `CLAUDE.md` /
 `AGENTS.md`.
 <!-- holo:section end -->
+
+## Read Scope <!-- holo:heading -->
+
+<!-- holo:section start -->
+What to load first / skip by default / when to escalate.
+
+**Default priority** — read at session start (`ai_context/` always
+reads first regardless). Add project-specific small-but-high-signal
+directories to the user-territory list below.
+
+**Do not read by default** — large or write-mostly directories:
+`logs/change_logs/` (full history), `logs/review_reports/` (past audit
+snapshots), `logs/file_snapshots/` (smart-merge backup archive). Load
+only when the task explicitly requires them. Add project-specific
+skip paths to the user-territory list below.
+
+**When to read deeper** — user explicitly asks; the task depends on
+specific evidence from a heavier source; compressed context in
+`ai_context/` is insufficient; a conflict needs provenance
+verification.
+
+**Practical rule** — prefer targeted reads: specific files, minimal
+excerpts, summaries first. Avoid scanning whole directories, loading
+all session history, reading all logs, or bulk-pasting source content
+into answers.
+<!-- holo:section end -->
+
+Project-specific default-priority paths (e.g. top-level `README.md`):
+
+- _(none yet — delete this marker once content is added)_
+
+Project-specific skip-by-default paths:
+
+- _(none yet — delete this marker once content is added)_
 
 ## Update Expectations <!-- holo:heading -->
 

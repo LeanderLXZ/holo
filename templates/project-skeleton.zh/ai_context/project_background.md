@@ -14,7 +14,7 @@ Sentinel 纪律（参见 CLAUDE.md §plugin 管理段）：sentinel `<!-- holo:s
 理解项目的意图。
 
 本文件保持简短稳定。易变细节（当前状态、路线图）属于
-`current_status.md` 与 `next_steps.md`。
+`handoff.md`（`§Current State` 表 + `§Next Steps` 表）。
 <!-- holo:section end -->
 
 ## 目标 <!-- holo:heading -->
