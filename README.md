@@ -5,6 +5,7 @@
 </p>
 
 <p align="center">
+  <a href="https://github.com/LeanderLXZ/holo/releases"><img src="https://img.shields.io/badge/version-v1.6.2-blue" alt="Version"></a>
   <img src="https://img.shields.io/badge/Claude%20Code-plugin-7857ED" alt="Claude Code Plugin">
   <a href="LICENSE"><img src="https://img.shields.io/github/license/LeanderLXZ/holo?color=blue" alt="License: MIT"></a>
 </p>
@@ -74,7 +75,7 @@ and verifies that no `<...>` placeholders remain.
 | Step 0 — Language axes (asked first) | `content_language` (disk-bound output) · `conversation_language` (AI ↔ user turns) | No — drives every subsequent skill |
 | Round 1 — Project basics | project name · 1–2 sentence project goal · main branch · timezone (Q2's answer fans out to README description + `plugin.json` description + `ai_context/project_background.md §Goal`) | No — required for skill bookkeeping |
 | Round 2 — Top-level directory classification | which directories are **source** / **data-contract** / **example-artifact** / **do-not-commit** | Conditional — only asked when extra directories exist (empty / standard skeleton → round skipped automatically) |
-| Round 4 — Doc bootstrap (`architecture.md` + `requirements.md`) | per file: **Auto-scan project** / **Manual input** / **Skip for now** | Yes via "Skip for now" — leaves `_(none yet — ...)_` markers in those files for progressive fill later |
+| Round 3 — Doc bootstrap (`architecture.md` + `requirements.md`) | per file: **Auto-scan project** / **Manual input** / **Skip for now** | Yes via "Skip for now" — leaves `_(none yet — ...)_` markers in those files for progressive fill later |
 
 The two language axes shape every later skill invocation:
 
@@ -129,7 +130,7 @@ entry lives in its source file under [commands/](commands/) or
 
 ### Skills
 
-**Workflow — the daily plan-to-ship loop:**
+**Workflow — the daily plan-to-ship pipeline:**
 
 | Skill | Purpose |
 |---|---|
@@ -173,11 +174,11 @@ entry lives in its source file under [commands/](commands/) or
 
 ## Engineering loop
 
-Three interlocking loops drive the daily cadence — **planning** what
+Three interlocking pipelines drive the daily cadence — **planning** what
 to do next, **implementing** a single change, and **reviewing** after
 a batch lands.
 
-### (a) Planning loop
+### (a) Planning pipeline
 
 Decide what to do next, or retire ideas that won't make the cut:
 
@@ -213,7 +214,7 @@ mental model / architecture / decision narrative that belongs in
 `ai_context/` or `docs/` (not a queue entry), `/update-docs` lands it
 with the same preview-and-single-confirm UX.
 
-### (b) Implementation loop
+### (b) Implementation pipeline
 
 Land a single change from queue to remote:
 
@@ -247,7 +248,7 @@ through `/fix` (triage into fix / todo / skip; delegate fixes to
 `/go` or `/do`). Once clean, `/forward` is the optional sibling-branch
 sync before `/push` ships.
 
-### (c) Review loop
+### (c) Review pipeline
 
 After several commits accumulate, audit the whole repo at once:
 
@@ -280,7 +281,7 @@ Trigger this before pushing major work or releasing.
 
 ### Walkthrough
 
-A minimal sequence following the implementation loop:
+A minimal sequence following the implementation pipeline:
 
 ```text
 1. /plan                            # discuss the change, no writes
