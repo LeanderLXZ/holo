@@ -5,7 +5,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/LeanderLXZ/holo/releases"><img src="https://img.shields.io/badge/version-v1.6.2-blue" alt="Version"></a>
+  <a href="https://github.com/LeanderLXZ/holo/releases"><img src="https://img.shields.io/badge/version-v1.7.0-blue" alt="Version"></a>
   <img src="https://img.shields.io/badge/Claude%20Code-plugin-7857ED" alt="Claude Code Plugin">
   <a href="LICENSE"><img src="https://img.shields.io/github/license/LeanderLXZ/holo?color=blue" alt="License: MIT"></a>
 </p>
@@ -162,6 +162,12 @@ entry lives in its source file under [commands/](commands/) or
 | [`/recent-activity`](skills/recent-activity/SKILL.md) | Reverse-chronological timeline of recent project activity. |
 | [`/monitor`](skills/monitor/SKILL.md) | Periodic progress report for declared background processes. |
 | [`/run-prompt`](skills/run-prompt/SKILL.md) | Load a prompt file and execute its body as the current task. |
+
+**Visualization — diagram generation:**
+
+| Skill | Purpose |
+|---|---|
+| [`draw-flowchart`](skills/draw-flowchart/SKILL.md) | Draw sequential flowcharts / pipeline / process diagrams (`light` / `dark` / `mono-print` themes; SVG / PNG / HTML outputw). |
 
 ### Commands
 
