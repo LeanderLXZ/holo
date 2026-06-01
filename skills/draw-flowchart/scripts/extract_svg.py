@@ -74,7 +74,7 @@ if __name__ == "__main__":
     args = sys.argv[1:]
     if args == ["--refresh-examples"]:
         examples = Path(__file__).resolve().parent.parent / "examples"
-        for name in ("light", "dark", "mono-print"):
+        for name in ("light", "dark", "mono-print", "bridge-crossover", "fan-in-out", "content-card"):
             extract(examples / f"{name}.html", examples / f"{name}.svg")
     elif len(args) in (1, 2):
         html = Path(args[0])

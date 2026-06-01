@@ -66,7 +66,7 @@ Concrete operations the AI or user performs.
 | 拒掉 / 拒写 / 拒移入 | reject / refuse to write / refuse the move | `/todo-add` single-slot enforcement: refuse to write into In Progress when occupied. |
 | 折回 / 折叠 | fold back / collapsed | "Fold back" = collapse expanded sub-tasks back into one entry (verb). "Collapsed" = visual UI state (adjective). |
 | 展开 | expand | Expand sub-tasks under a step (TodoWrite). |
-| 渲染 | render | `/todo` renders the Index section to the user. |
+| 渲染 | render | `/todo-check` renders the Index section to the user. |
 | 优雅降级 | graceful degradation | The SessionStart hook's sole-exception clause: missing config → still emit `[git] branch:` line, exit 0. |
 | 静默 / 静默跳过 | silent / silently skip | "Silently skip the [lang] line when §Language section is absent". |
 | 强制 | enforced / mandatory | "Hard requirement" (Tier B canonical form). |

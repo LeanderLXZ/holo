@@ -5,7 +5,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/LeanderLXZ/holo/releases"><img src="https://img.shields.io/badge/version-v1.7.0-blue" alt="Version"></a>
+  <a href="https://github.com/LeanderLXZ/holo/releases"><img src="https://img.shields.io/badge/version-v1.8.0-blue" alt="Version"></a>
   <img src="https://img.shields.io/badge/Claude%20Code-plugin-7857ED" alt="Claude Code Plugin">
   <a href="LICENSE"><img src="https://img.shields.io/github/license/LeanderLXZ/holo?color=blue" alt="License: MIT"></a>
 </p>
@@ -157,7 +157,7 @@ entry lives in its source file under [commands/](commands/) or
 
 | Skill | Purpose |
 |---|---|
-| [`/todo`](skills/todo/SKILL.md) | Render the `docs/todo_list.md` index. |
+| [`/todo-check`](skills/todo-check/SKILL.md) | Render the `docs/todo_list.md` index. |
 | [`/branch-inventory`](skills/branch-inventory/SKILL.md) | Group all local + remote branches by lifecycle bucket. |
 | [`/recent-activity`](skills/recent-activity/SKILL.md) | Reverse-chronological timeline of recent project activity. |
 | [`/monitor`](skills/monitor/SKILL.md) | Periodic progress report for declared background processes. |
@@ -188,102 +188,38 @@ a batch lands.
 
 Decide what to do next, or retire ideas that won't make the cut:
 
-```mermaid
-%%{init: {'theme':'dark', 'flowchart': {'defaultRenderer': 'elk'}}}%%
-flowchart LR
-  TodoList[("todo_list")] --> Todo(["/todo"])
-  Todo --> Plan(["/plan"])
-  Plan --> TodoAdd(["/todo-add"])
-  TodoAdd -- iterate --> Plan
-  TodoAdd --> TodoList
-  Plan -- abandoned --> Archived[("todo_list_archived")]
-  TodoAdd -. finalized .-> Go(["/go"])
-  Plan -- narrative --> UpdateDocs(["/update-docs"])
-  UpdateDocs --> AiContextDocs[("ai_context + docs")]
+<p align="center">
+  <img src="assets/planning-pipeline.svg" alt="holo planning pipeline" width="825">
+</p>
 
-  classDef workflow fill:#24283b,stroke:#7aa2f7,color:#c0caf5,stroke-width:1.5px
-  classDef inventory fill:#1a1b26,stroke:#565f89,color:#a9b1d6,stroke-width:1.5px
-  classDef data fill:#1a1b26,stroke:#565f89,color:#a9b1d6,stroke-width:1.5px
-  class Plan,TodoAdd,Go,UpdateDocs workflow
-  class Todo inventory
-  class TodoList,Archived,AiContextDocs data
-```
-
-`/todo` pulls existing entries out of `todo_list` to feed discussion.
-`/plan` and `/todo-add` form a tight loop — every round of `/plan`
-records its decision via `/todo-add`, which can either iterate (feed
-back into another round of `/plan`) or finalize (hand off to `/go`).
-Abandoned ideas go straight to `todo_list_archived`. `/update-docs` is
-the prose-narrative sibling of `/todo-add` on the same `/plan`
-branch — when a `/plan` round converges into project blueprint /
-mental model / architecture / decision narrative that belongs in
-`ai_context/` or `docs/` (not a queue entry), `/update-docs` lands it
-with the same preview-and-single-confirm UX.
+`/plan` and `/todo-add` form a tight loop — each round of discussion
+becomes a queue entry that iterates or finalizes for `/go`; abandoned
+ideas archive. `/update-docs` lands narrative bound for `ai_context/`
+or `docs/` instead of the queue.
 
 ### (b) Implementation pipeline
 
 Land a single change from queue to remote:
 
-```mermaid
-%%{init: {'theme':'dark', 'flowchart': {'defaultRenderer': 'elk'}}}%%
-flowchart LR
-  TodoList[("todo_list")] --> Todo(["/todo"])
-  Todo --> Go(["/go"])
-  Go --> Logs[("logs/change_logs")]
-  Go --> Archived[("todo_list_archived")]
-  Go --> Check(["/post-check"])
-  Check -- finding --> Fix(["/fix"])
-  Fix --> Forward(["/forward"])
-  Fix --> Push(["/push"])
-  Forward --> Push
+<p align="center">
+  <img src="assets/implementation-pipeline.svg" alt="holo implementation pipeline" width="825">
+</p>
 
-  classDef workflow fill:#24283b,stroke:#7aa2f7,color:#c0caf5,stroke-width:1.5px
-  classDef review fill:#24283b,stroke:#bb9af7,color:#c0caf5,stroke-width:1.5px
-  classDef inventory fill:#1a1b26,stroke:#565f89,color:#a9b1d6,stroke-width:1.5px
-  classDef data fill:#1a1b26,stroke:#565f89,color:#a9b1d6,stroke-width:1.5px
-  class Go,Forward,Push,Fix workflow
-  class Check review
-  class Todo inventory
-  class TodoList,Logs,Archived data
-```
-
-`/todo` pulls a finalized entry from `todo_list`. `/go` implements it
-— writing to `logs/change_logs/` and archiving the entry on
-completion. `/post-check` then verifies the result; findings flow
-through `/fix` (triage into fix / todo / skip; delegate fixes to
-`/go` or `/do`). Once clean, `/forward` is the optional sibling-branch
-sync before `/push` ships.
+`/go` lands a finalized entry (logging + archiving it), `/post-check`
+verifies, and `/fix` triages any findings; `/forward` optionally syncs
+sibling branches before `/push`.
 
 ### (c) Review pipeline
 
 After several commits accumulate, audit the whole repo at once:
 
-```mermaid
-%%{init: {'theme':'dark', 'flowchart': {'defaultRenderer': 'elk'}}}%%
-flowchart LR
-  Claude(claude) --> Review(["/full-review"])
-  Codex(codex) --> Review
-  Review --> Report[("review_reports")]
-  Report --> Check(["/check-review"])
-  Check -- still real --> Fix(["/fix"]) --> Commit(["/commit"])
-  Check -. stale .-> Pass((pass))
+<p align="center">
+  <img src="assets/review-pipeline.svg" alt="holo review pipeline" width="825">
+</p>
 
-  classDef workflow fill:#24283b,stroke:#7aa2f7,color:#c0caf5,stroke-width:1.5px
-  classDef review fill:#24283b,stroke:#bb9af7,color:#c0caf5,stroke-width:1.5px
-  classDef agent fill:#1a1b26,stroke:#bb9af7,color:#a9b1d6,stroke-width:1.5px
-  classDef state fill:#1a1b26,stroke:#565f89,color:#a9b1d6,stroke-width:1.5px
-  class Fix,Commit workflow
-  class Review,Check review
-  class Claude,Codex agent
-  class Report,Pass state
-```
-
-`/full-review` dispatches scans across multiple agent runtimes
-(claude, codex, etc.) and consolidates findings into
-`review_reports/`. `/check-review` re-validates each finding against
-the current tree — anything still real flows through `/fix` (triage
-+ delegate to `/go` or `/do`) → `/commit`; anything stale passes.
-Trigger this before pushing major work or releasing.
+`/full-review` runs multi-agent scans into `review_reports/`;
+`/check-review` re-validates each finding — real ones flow through
+`/fix` → `/commit`, stale ones pass. Run it before pushing major work.
 
 ### Walkthrough
 

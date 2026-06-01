@@ -1,0 +1,173 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="825" height="276" viewBox="0 0 1500 502" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="holo implementation pipeline">
+  <style type="text/css"><![CDATA[
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap");
+text { font-family: var(--font); }
+:root {
+    --bg:             #020617;
+    --text:           #E2E8F0;
+    --label-text:     #94A3B8;
+    --action-fill:    rgba(6,78,59,0.4);
+    --action-stroke:  #34D399;
+    --agent-fill:     rgba(8,51,68,0.4);
+    --agent-stroke:   #22D3EE;
+    --terminal-fill:  rgba(30,41,59,0.5);
+    --terminal-stroke:#94A3B8;
+    --data-fill:      rgba(76,29,149,0.4);
+    --data-stroke:    #A78BFA;
+    --state-fill:     rgba(120,53,15,0.4);
+    --state-stroke:   #FBBF24;
+    --callout-fill:   rgba(251,146,60,0.25);
+    --callout-stroke: #FB923C;
+    --callout-text:   #FDBA74;
+    --flow-line:      #94A3B8;
+    --flow-loopback:  #34D399;
+    --container:      #475569;
+    --container-lbl:  #94A3B8;
+    --font: "Inter", "Söhne", -apple-system, BlinkMacSystemFont, "Segoe UI",
+            Helvetica, Arial, sans-serif;
+  }
+
+  #arrow-flow     path { fill: var(--flow-line); }
+  #arrow-loopback path { fill: var(--flow-loopback); }
+  #arrow-callout  path { fill: var(--callout-stroke); }
+
+  .container-box   { fill: none; stroke: var(--container); stroke-width: 2; stroke-dasharray: 6 6; }
+  .container-gap   { fill: var(--bg); }
+  .container-label { font-weight: 500; font-size: 16px; fill: var(--container-lbl); letter-spacing: 0.01em; }
+
+  .flow-arrow        { stroke: var(--flow-line); stroke-width: 4; fill: none;
+                       stroke-linecap: round; stroke-linejoin: round; }
+  .flow-arrow.dashed { stroke-width: 3; stroke-dasharray: 7 5; }
+  .flow-arrow.green  { stroke: var(--flow-loopback); stroke-width: 5; }
+  .loopback-arrow    { stroke: var(--flow-loopback); stroke-width: 5; fill: none;
+                       stroke-linecap: round; stroke-linejoin: round; }
+
+  .edge-label    { font-weight: 500; font-size: 18px; fill: var(--label-text); }
+  .edge-label-bg { fill: var(--bg); }
+
+  .node-label    { font-weight: 700; font-size: 18px; fill: var(--text); }
+  .node-sublabel { font-weight: 500; font-size: 12px; fill: var(--label-text); }
+  .role-action   { fill: var(--action-fill);   stroke: var(--action-stroke);   stroke-width: 1.4; }
+  .role-agent    { fill: var(--agent-fill);    stroke: var(--agent-stroke);    stroke-width: 1.4; }
+  .role-terminal { fill: var(--terminal-fill); stroke: var(--terminal-stroke); stroke-width: 1.4; }
+  .data-rect     { fill: var(--data-fill);     stroke: var(--data-stroke);     stroke-width: 2; }
+  .state-rect    { fill: var(--state-fill);    stroke: var(--state-stroke);    stroke-width: 2; }
+  .callout-box   { fill: var(--callout-fill);  stroke: var(--callout-stroke);  stroke-width: 2; }
+
+  .legend-label  { font-weight: 500; font-size: 18px; fill: var(--label-text); }
+]]></style>
+  <rect width="100%" height="100%" fill="var(--bg)" />
+
+  <defs>
+    <marker id="arrow-flow" viewBox="0 0 14 12" refX="0" refY="6"
+            markerWidth="14" markerHeight="12" markerUnits="userSpaceOnUse" orient="auto">
+      <path d="M 0 0 L 14 6 L 0 12 z" />
+    </marker>
+    <marker id="arrow-loopback" viewBox="0 0 14 12" refX="0" refY="6"
+            markerWidth="14" markerHeight="12" markerUnits="userSpaceOnUse" orient="auto">
+      <path d="M 0 0 L 14 6 L 0 12 z" />
+    </marker>
+    <marker id="arrow-callout" viewBox="0 0 14 12" refX="0" refY="6"
+            markerWidth="14" markerHeight="12" markerUnits="userSpaceOnUse" orient="auto">
+      <path d="M 0 0 L 14 6 L 0 12 z" />
+    </marker>
+  </defs>
+  <g transform="translate(0,10)">
+  <line class="flow-arrow green" x1="310" y1="70" x2="568" y2="70" marker-end="url(#arrow-loopback)" />
+  <path class="flow-arrow dashed" d="M 702,70 L 1368,70 Q 1380,70 1380,82 L 1380,146" marker-end="url(#arrow-flow)" />
+  <path class="flow-arrow dashed" d="M 886,70 Q 898,70 898,82 L 898,146" marker-end="url(#arrow-flow)" />
+  <path class="flow-arrow dashed" d="M 396,160 L 396,142 Q 396,130 408,130 L 630,130 Q 642,130 642,118 L 642,114" marker-end="url(#arrow-flow)" />
+  <line class="flow-arrow green" x1="210" y1="190" x2="292" y2="190" marker-end="url(#arrow-loopback)" />
+  <line class="flow-arrow green" x1="486" y1="190" x2="568" y2="190" marker-end="url(#arrow-loopback)" />
+  <line class="flow-arrow green" x1="702" y1="190" x2="784" y2="190" marker-end="url(#arrow-loopback)" />
+  <line class="flow-arrow green" x1="998" y1="190" x2="1080" y2="190" marker-end="url(#arrow-loopback)" />
+  <line class="flow-arrow dashed" x1="1214" y1="190" x2="1296" y2="190" marker-end="url(#arrow-flow)" />
+  <line class="flow-arrow" x1="642" y1="220" x2="642" y2="258" />
+  <path class="flow-arrow" d="M 642,258 Q 642,270 630,270 L 494,270 Q 482,270 482,282 L 482,326" marker-end="url(#arrow-flow)" />
+  <path class="flow-arrow" d="M 642,258 Q 642,270 654,270 L 790,270 Q 802,270 802,282 L 802,326" marker-end="url(#arrow-flow)" />
+  <path class="flow-arrow dashed" d="M 1154,220 L 1154,358 Q 1154,370 1166,370 L 1173,370" marker-end="url(#arrow-flow)" />
+  <path class="flow-arrow dashed" d="M 1347,370 L 1368,370 Q 1380,370 1380,358 L 1380,234" marker-end="url(#arrow-flow)" />
+  <g transform="translate(1046,176)">
+    <rect class="edge-label-bg" x="-38.28" y="-9" width="76.56" height="18" />
+    <text class="edge-label" text-anchor="middle" y="4">finding</text>
+  </g>
+  <g transform="translate(568,256)">
+    <rect class="edge-label-bg" x="-33.24" y="-9" width="66.48" height="18" />
+    <text class="edge-label" text-anchor="middle" y="4">record</text>
+  </g>
+  <g transform="translate(716,256)">
+    <rect class="edge-label-bg" x="-68.52" y="-9" width="137.04" height="18" />
+    <text class="edge-label" text-anchor="middle" y="4">archive tasks</text>
+  </g>
+  <g transform="translate(258,176)">
+    <rect class="edge-label-bg" x="-23.16" y="-9" width="46.32" height="18" />
+    <text class="edge-label" text-anchor="middle" y="4">read</text>
+  </g>
+  <g transform="translate(534,176)">
+    <rect class="edge-label-bg" x="-23.16" y="-9" width="46.32" height="18" />
+    <text class="edge-label" text-anchor="middle" y="4">land</text>
+  </g>
+  <g transform="translate(750,176)">
+    <rect class="edge-label-bg" x="-43.32" y="-9" width="86.64" height="18" />
+    <text class="edge-label" text-anchor="middle" y="4">validate</text>
+  </g>
+  <g transform="translate(519,116)">
+    <rect class="edge-label-bg" x="-63.48" y="-9" width="126.96" height="18" />
+    <text class="edge-label" text-anchor="middle" y="4">minor change</text>
+  </g>
+  <g transform="translate(904,114)">
+    <rect class="edge-label-bg" x="-3" y="-9" width="86.64" height="18" />
+    <text class="edge-label" text-anchor="start" y="4">validate</text>
+  </g>
+  <g transform="translate(1133,56)">
+    <rect class="edge-label-bg" x="-23.16" y="-9" width="46.32" height="18" />
+    <text class="edge-label" text-anchor="middle" y="4">ship</text>
+  </g>
+  <g transform="translate(1262,176)">
+    <rect class="edge-label-bg" x="-23.16" y="-9" width="46.32" height="18" />
+    <text class="edge-label" text-anchor="middle" y="4">ship</text>
+  </g>
+  <g transform="translate(1160,289)">
+    <rect class="edge-label-bg" x="-3" y="-9" width="137.04" height="18" />
+    <text class="edge-label" text-anchor="start" y="4">sync branches</text>
+  </g>
+  <rect class="callout-box" x="50" y="40" width="260" height="60" rx="12" ry="12" />
+  <text class="node-label" x="180" y="77" text-anchor="middle">minor modifications</text>
+  <rect class="role-action" x="582" y="40" width="120" height="60" rx="12" ry="12" />
+  <text class="node-label" x="642" y="77" text-anchor="middle">/do</text>
+  <rect class="data-rect" x="50" y="160" width="160" height="60" rx="12" ry="12" />
+  <text class="node-label" x="130" y="197" text-anchor="middle">todo_list</text>
+  <rect class="role-action" x="306" y="160" width="180" height="60" rx="12" ry="12" />
+  <text class="node-label" x="396" y="197" text-anchor="middle">/todo-check</text>
+  <rect class="role-action" x="582" y="160" width="120" height="60" rx="12" ry="12" />
+  <text class="node-label" x="642" y="197" text-anchor="middle">/go</text>
+  <rect class="role-action" x="798" y="160" width="200" height="60" rx="12" ry="12" />
+  <text class="node-label" x="898" y="197" text-anchor="middle">/post-check</text>
+  <rect class="role-action" x="1094" y="160" width="120" height="60" rx="12" ry="12" />
+  <text class="node-label" x="1154" y="197" text-anchor="middle">/fix</text>
+  <rect class="role-action" x="1310" y="160" width="140" height="60" rx="12" ry="12" />
+  <text class="node-label" x="1380" y="197" text-anchor="middle">/push</text>
+  <rect class="data-rect" x="372" y="340" width="220" height="60" rx="12" ry="12" />
+  <text class="node-label" x="482" y="377" text-anchor="middle">logs/change_logs</text>
+  <rect class="data-rect" x="682" y="340" width="240" height="60" rx="12" ry="12" />
+  <text class="node-label" x="802" y="377" text-anchor="middle">todo_list_archived</text>
+  <rect class="role-action" x="1187" y="340" width="160" height="60" rx="12" ry="12" />
+  <text class="node-label" x="1267" y="377" text-anchor="middle">/forward</text>
+  <g class="legend" transform="translate(50, 430)">
+    <g transform="translate(0, 0)">
+      <rect width="22" height="12" rx="3" fill="var(--action-fill)" stroke="var(--action-stroke)" stroke-width="1" />
+      <text x="30" y="10" class="legend-label">skills</text>
+    </g>
+    <g transform="translate(124, 0)">
+      <rect width="22" height="12" rx="3" fill="var(--data-fill)" stroke="var(--data-stroke)" stroke-width="1.4" />
+      <text x="30" y="10" class="legend-label">data store</text>
+    </g>
+    <g transform="translate(288, 0)">
+      <rect width="22" height="12" rx="3" fill="var(--callout-fill)" stroke="var(--callout-stroke)" stroke-width="1" />
+      <text x="30" y="10" class="legend-label">trigger</text>
+    </g>
+  </g>
+  </g>
+
+</svg>

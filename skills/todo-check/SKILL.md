@@ -1,15 +1,15 @@
 ---
-name: todo
-description: Read the `## Index` section at the top of docs/todo_list.md and render it verbatim — trust the index (maintained by /todo-add); do not re-parse, re-bucket, or generate recommendations. End with "which entry do you want to see?". $ARGUMENTS = ID keyword filter (optional). Read-only; no commit. Triggers: todo / what is next / what's on the todo list / what should I do now.
+name: todo-check
+description: Read the `## Index` section at the top of docs/todo_list.md and render it verbatim — trust the index (maintained by /todo-add); do not re-parse, re-bucket, or generate recommendations. End with "which entry do you want to see?". $ARGUMENTS = ID keyword filter (optional). Read-only; no commit. Triggers: todo-check / what is next / what's on the todo list / what should I do now.
 ---
 
 > **Language**: per `ai_context/skills_config.md §Language` — disk-bound output (logs / docs / commit messages / code comments / files written) uses `content_language`; user-facing surface (chat prose / `AskUserQuestion` prompts and option labels / progress-tool entry `content` / status lines / strategy declarations / findings rendered in chat) uses `conversation_language`. Code identifiers, file paths, field names, frontmatter keys, and structural prefixes (`Step N:`, `LOG:`, etc.) stay English regardless.
 
-# /todo — todo_list index display
+# /todo-check — todo_list index display
 
 Read the `## Index (auto-generated; do not hand-edit)` section at the top of `docs/todo_list.md` and render it verbatim to the user, ending with "which entry do you want to see?". **Read-only** — do not parse the body, re-bucket, generate recommendations, change todo_list, change code, or commit. `$ARGUMENTS` is an optional ID keyword filter (e.g. `schema` shows only entries whose ID contains schema); without it, show everything.
 
-The index section is a deterministic cache, refreshed in sync by whoever maintains `docs/todo_list.md` whenever entries change (rules live in the "Index maintenance" section at the top of todo_list.md). `/todo` trusts the index and does not re-parse.
+The index section is a deterministic cache, refreshed in sync by whoever maintains `docs/todo_list.md` whenever entries change (rules live in the "Index maintenance" section at the top of todo_list.md). `/todo-check` trusts the index and does not re-parse.
 
 ## Steps
 
@@ -18,7 +18,7 @@ The index section is a deterministic cache, refreshed in sync by whoever maintai
 `Read` `docs/todo_list.md` **with `limit=100` required** — the index section is at the top of the file, and reading the whole ~700-line file slows the response significantly and wastes context. From what is read, extract the `## Index (auto-generated; do not hand-edit)` section — everything from that heading up to the next H2 heading (`## File guide`).
 
 File missing → print "⚠️ docs/todo_list.md missing" and stop.
-Index section missing (heading not found) → print "⚠️ docs/todo_list.md top is missing the index section; first backfill per the «Index maintenance» section of todo_list.md before calling /todo" and stop.
+Index section missing (heading not found) → print "⚠️ docs/todo_list.md top is missing the index section; first backfill per the «Index maintenance» section of todo_list.md before calling /todo-check" and stop.
 After 100 lines `## File guide` is still not seen (meaning the index section has grown past 100 lines and got truncated) → re-`Read` `docs/todo_list.md` **without `limit`** to get the full text, then extract the section from the full text; do not stop.
 Index section is present but all three subtables are tagged "_(none)_" → still render normally, simply showing "no tasks yet".
 
@@ -38,7 +38,7 @@ Print the index section to the user. Preserve markdown table structure (column c
 - Stay verbatim regardless of language: task IDs (`T-XXX`), file paths, dates / timestamps, numeric counts (`Importance`, the `(N)` count after each bucket heading), bucket headings (`### 🟢 In Progress (N)` / `### 🟡 Next (N)` / `### ⚪ Discussing (N)` — emoji + English label is a structural prefix), table column headers (`ID` / `Title` / `Brief` / `Updated` / etc. — field names), and inline `` `code` `` spans.
 - The summary row (`**Total**: N — 🟢 In Progress 0 ｜ 🟡 Next 0 ｜ ⚪ Discussing 1`): translate only the word `Total` if a natural rendering exists in `conversation_language`; bucket labels + numbers stay as-is.
 
-**Skip the blockquote that immediately follows the `## Index ...` heading** (consecutive lines starting with `>` — that is meta guidance for the todo_list maintainer and is noise to `/todo` users). Subtables / summary rows after the blockquote render normally.
+**Skip the blockquote that immediately follows the `## Index ...` heading** (consecutive lines starting with `>` — that is meta guidance for the todo_list maintainer and is noise to `/todo-check` users). Subtables / summary rows after the blockquote render normally.
 
 If filtered by `$ARGUMENTS`, append a `(filtered by keyword "<keyword>")` line at the end of the summary row — render the wrapper text in `conversation_language`; the `<keyword>` value itself stays as the user typed it.
 
