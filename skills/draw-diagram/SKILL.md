@@ -1,13 +1,13 @@
 ---
-name: draw-flowchart
-description: Draw polished, minimalist sequential flowcharts / pipeline / process diagrams as standalone SVG / PNG / HTML in one of three themes. Use when the user asks for flowcharts, flow diagrams, pipeline diagrams, agentic-loop diagrams, process diagrams, workflow visualizations, or state-machine diagrams. Three themes — `dark` (default, slate-950), `light` (cream + sage), `mono-print` (B&W).
+name: draw-diagram
+description: Draw polished, minimalist diagrams — sequential flowcharts, pipeline / process diagrams, agentic-loop and state-machine diagrams — as standalone SVG / PNG / HTML in one of three themes. Use when the user asks for a flowchart, flow / pipeline / process diagram, agentic-loop diagram, workflow visualization, or state-machine diagram. Three themes — `dark` (default, slate-950), `light` (cream + sage), `mono-print` (B&W).
 ---
 
 > **Language**: per `ai_context/skills_config.md §Language` — disk-bound output (text labels / captions / notes written into the generated `.svg` / `.html` / `.png` diagram files) uses `content_language` unless the user's source material dictates otherwise; user-facing surface (chat prose / `AskUserQuestion` prompts and option labels / status lines) uses `conversation_language`. Diagram structural keywords, CSS class / role names, file paths, and code identifiers stay English regardless.
 
-# Flowchart Skill
+# Diagram Skill
 
-Draw polished, minimalist flowcharts as standalone SVG (PNG / HTML on request). The visual language is locked — every constant below is mandatory. Improvising is what causes diagram drift across iterations.
+Draw polished, minimalist diagrams — flowcharts, pipeline / process, agentic-loop, state-machine — as standalone SVG (PNG / HTML on request). The visual language is locked — every constant below is mandatory. Improvising is what causes diagram drift across iterations.
 
 The skill writes an HTML intermediate (CSS-in-`<head>` + inline `<svg>` in `<body>` — easier to edit), then **extracts a standalone `.svg`** as the deliverable. The user receives the `.svg`; the `.html` is a temp source that may be kept for re-editing. PNG is **only** used as a temporary raster for subagent visual review (Read tool needs raster) and is deleted after review.
 
@@ -693,7 +693,7 @@ All artifacts go in `./tmp_diagram/` relative to the current working directory (
 
 6. **Extract v1 .svg from .html**. The HTML's `<style>` block is moved into the SVG (wrapped in CDATA), with a `var(--bg)` background rect added (rounded to `rx` / `ry` = `<radius>` per the Step 1 corner-rounding answer; omit `--radius` / pass `0` for square corners), and an explicit `text { font-family: var(--font); }` rule injected (otherwise SVG `<text>` elements lose the body's font inheritance and fall back to browser default — usually serif):
    ```bash
-   python3 "${CLAUDE_PLUGIN_ROOT}/skills/draw-flowchart/scripts/extract_svg.py" \
+   python3 "${CLAUDE_PLUGIN_ROOT}/skills/draw-diagram/scripts/extract_svg.py" \
      ./tmp_diagram/flowchart-v1-<slug>.html \
      ./tmp_diagram/flowchart-v1-<slug>.svg \
      --radius <radius>
@@ -730,7 +730,7 @@ All artifacts go in `./tmp_diagram/` relative to the current working directory (
 ### Subagent 1 — Visual Quality
 
 ```
-Inputs: PNG <path>, spec ${CLAUDE_PLUGIN_ROOT}/skills/draw-flowchart/SKILL.md
+Inputs: PNG <path>, spec ${CLAUDE_PLUGIN_ROOT}/skills/draw-diagram/SKILL.md
 
 Use Read tool to view PNG. **ALSO Read the user's reference image if one was provided** (path will be in the task prompt) — compare diagram against reference visually.
 

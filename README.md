@@ -5,7 +5,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/LeanderLXZ/holo/releases"><img src="https://img.shields.io/badge/version-v1.10.0-blue" alt="Version"></a>
+  <a href="https://github.com/LeanderLXZ/holo/releases"><img src="https://img.shields.io/badge/version-v1.11.0-blue" alt="Version"></a>
   <img src="https://img.shields.io/badge/Claude%20Code-plugin-7857ED" alt="Claude Code Plugin">
   <a href="LICENSE"><img src="https://img.shields.io/github/license/LeanderLXZ/holo?color=blue" alt="License: MIT"></a>
 </p>
@@ -31,19 +31,19 @@ stopped.
 
 ## ✨ Features
 
-- 🧠 **No forgetting, no drift**<br>
-  A purpose-built set of on-disk memory files — context, decisions, conventions,
-  current state — is re-read at the start of every session, so the AI resumes
-  with the full picture days or weeks later, and won't drift off it mid-session.
 - 🎓 **Knows your project inside out**<br>
   HOLO builds a genuine understanding of your requirements, architecture, and
   roadmap and keeps it current, so it reasons like a seasoned engineer who's
   been on the team for months — not a newcomer you brief from scratch each time.
+- 🧠 **No forgetting, no drift**<br>
+  A purpose-built set of on-disk memory files — context, decisions, conventions,
+  current state — is re-read at the start of every session, so the AI resumes
+  with the full picture days or weeks later, and won't drift off it mid-session.
 - ✂️ **No over-engineering**<br>
   The AI pushes back instead of building whatever's asked — it questions whether
   a step is even needed, reaches for the simplest approach, and resists "while
   I'm here" rewrites, so you get the change you wanted, not a gold-plated one.
-- 🔄 **A professional, repeatable process**<br>
+- 🔄 **Professional, repeatable processes**<br>
   Each skill follows its own well-defined, professional process and applies it
   the same way every time, so the AI works predictably — consistent quality and
   working state run after run, not a different improvised approach each time.
@@ -59,10 +59,6 @@ stopped.
   For anything big — a deep review, a whole-repo audit, a large cleanup — HOLO
   splits the work across several AI agents that run in parallel and cross-check
   each other, landing it faster and more thoroughly than one agent alone.
-- 🛡️ **Never writes behind your back**<br>
-  Nothing is changed, committed, or pushed without your go-ahead, so your work
-  is never silently overwritten and nothing leaves your machine until you say
-  so — you stay in control of what actually happens.
 
 ---
 
@@ -210,9 +206,9 @@ entry lives in its source file under [commands/](commands/) or
 
 | Skill | Purpose |
 |---|---|
-| [`draw-flowchart`](skills/draw-flowchart/SKILL.md) | Draw sequential flowcharts / pipeline / process diagrams (`dark` / `light` / `mono-print` themes; SVG / PNG / HTML outputs). |
+| [`draw-diagram`](skills/draw-diagram/SKILL.md) | Draw polished diagrams — flowcharts, pipeline / process, agentic-loop, state-machine (`dark` / `light` / `mono-print` themes; SVG / PNG / HTML outputs). |
 
-> `draw-flowchart` is also published as a standalone plugin — for full details see **[holo-diagram](https://github.com/LeanderLXZ/holo-diagram)**.
+> `draw-diagram` is also published as a standalone plugin — for full details see **[holo-diagram](https://github.com/LeanderLXZ/holo-diagram)**.
 
 ### Commands
 

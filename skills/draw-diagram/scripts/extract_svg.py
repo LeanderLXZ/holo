@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Convert a draw-flowchart HTML source file to a standalone .svg deliverable.
+"""Convert a draw-diagram HTML source file to a standalone .svg deliverable.
 
 Usage:
     extract_svg.py <input.html> [<output.svg>] [--radius N]
