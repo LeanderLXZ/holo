@@ -3,15 +3,15 @@
   <style type="text/css"><![CDATA[
 @import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap");
 text { font-family: var(--font); }
-/* dark palette — Cocoon-inspired (slate-950 + bright accent borders)
+/* dark palette — slate-950 + bright accent borders
      See ../SKILL.md §Color Palette */
   :root {
     --bg:             #020617;
     --text:           #E2E8F0;
     --label-text:     #94A3B8;
-    --action-fill:    rgba(6,78,59,0.4);
-    --action-stroke:  #34D399;
-    --agent-fill:     rgba(8,51,68,0.4);
+    --action-fill:    rgba(19,78,74,0.4);
+    --action-stroke:  #2DD4BF;
+    --agent-fill:     rgba(14,116,144,0.35);
     --agent-stroke:   #22D3EE;
     --terminal-fill:  rgba(30,41,59,0.5);
     --terminal-stroke:#94A3B8;
@@ -22,15 +22,15 @@ text { font-family: var(--font); }
 
   #arrow-flow path { fill: var(--flow-line); }
 
-  .flow-arrow { stroke: var(--flow-line); stroke-width: 4; fill: none;
+  .flow-arrow { stroke: var(--flow-line); stroke-width: 5; fill: none;
                 stroke-linecap: round; stroke-linejoin: round; }
 
   .node-label   { font-weight: 700; font-size: 18px; fill: var(--text); }
   .node-detail  { font-weight: 500; font-size: 14px; fill: var(--label-text); }
 
-  .role-action   { fill: var(--action-fill);   stroke: var(--action-stroke);   stroke-width: 1.4; }
-  .role-agent    { fill: var(--agent-fill);    stroke: var(--agent-stroke);    stroke-width: 1.4; }
-  .role-terminal { fill: var(--terminal-fill); stroke: var(--terminal-stroke); stroke-width: 1.4; }
+  .role-action   { fill: var(--action-fill);   stroke: var(--action-stroke);   stroke-width: 2; }
+  .role-agent    { fill: var(--agent-fill);    stroke: var(--agent-stroke);    stroke-width: 2; }
+  .role-terminal { fill: var(--terminal-fill); stroke: var(--terminal-stroke); stroke-width: 2; }
 ]]></style>
   <rect width="100%" height="100%" fill="var(--bg)" />
 

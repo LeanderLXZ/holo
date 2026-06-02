@@ -1,6 +1,6 @@
 ---
 name: draw-flowchart
-description: Draw Anthropic-style sequential flowcharts / pipeline / process diagrams as standalone SVG / PNG / HTML. Use when the user asks for flowcharts, flow diagrams, pipeline diagrams, agentic-loop diagrams, process diagrams, workflow visualizations, or state-machine diagrams. Three themes — `light` (default, cream + sage), `dark` (Cocoon-inspired slate-950), `mono-print`. NOT for architecture / network topology (use `architecture-diagram`), UML, gantt, org charts.
+description: Draw Anthropic-style sequential flowcharts / pipeline / process diagrams as standalone SVG / PNG / HTML. Use when the user asks for flowcharts, flow diagrams, pipeline diagrams, agentic-loop diagrams, process diagrams, workflow visualizations, or state-machine diagrams. Three themes — `light` (default, cream + sage), `dark` (slate-950), `mono-print`. NOT for architecture / network topology (use `architecture-diagram`), UML, gantt, org charts.
 ---
 
 # Flowchart Skill
@@ -34,30 +34,30 @@ There are **8 node roles** plus **2 spare color slots**, and **3 edge styles**. 
 
 | Role | Fill | Border |
 |---|---|---|
-| action | `#D5E4CE` | — |
-| agent | `#EFE6D2` | — |
-| data | `#ECE7D6` | `#B8AE93` |
-| decision | `#DAE0EA` | — |
-| event | `#F2DCD5` | — |
-| state | `#DCEAD5` | `#8FB585` |
-| terminal | `#E5E1D6` | — |
+| action | `#C3DCB7` | — |
+| agent | `#C2D6E5` | — |
+| data | `#EAF0F4` | `#6E8CAF` |
+| decision | `#C2C5D9` | — |
+| event | `#EFC6BA` | — |
+| state | `#F7F4E4` | `#C6A24F` |
+| terminal | `#E5DCBE` | — |
 | callout | `#FBF8EE` | `#D89270` · text `#B26C3F` |
-| accent1 | `#D9E7E0` | — |
-| accent2 | `#E7DEEC` | — |
+| accent1 | `#C4DDD1` | — |
+| accent2 | `#DBD4C1` | — |
 
-#### Colors — `dark` (Cocoon-inspired, slate-950 bg; bright border + dark translucent fill)
+#### Colors — `dark` (slate-950 bg; bright border + dark translucent fill)
 
 | Role | Fill | Stroke |
 |---|---|---|
-| action | `rgba(6,78,59,0.4)` | `#34D399` emerald |
-| agent | `rgba(8,51,68,0.4)` | `#22D3EE` cyan |
+| action | `rgba(19,78,74,0.4)` | `#2DD4BF` teal |
+| agent | `rgba(14,116,144,0.35)` | `#22D3EE` cyan |
 | data | `rgba(76,29,149,0.4)` | `#A78BFA` violet |
 | decision | `rgba(30,58,138,0.4)` | `#60A5FA` blue |
 | event | `rgba(136,19,55,0.35)` | `#FB7185` rose |
 | state | `rgba(120,53,15,0.4)` | `#FBBF24` amber |
 | terminal | `rgba(30,41,59,0.5)` | `#94A3B8` slate |
 | callout | `rgba(251,146,60,0.25)` | `#FB923C` orange · text `#FDBA74` |
-| accent1 | `rgba(19,78,74,0.4)` | `#2DD4BF` teal |
+| accent1 | `rgba(6,78,59,0.4)` | `#34D399` emerald |
 | accent2 | `rgba(112,26,117,0.4)` | `#E879F9` fuchsia |
 
 #### Colors — `mono-print` (B&W; SOLID grey fill, NO border — only data / state / callout get a 2px border)
@@ -85,7 +85,7 @@ Mono can't carry 10 hues — boxes differ only by grey SHADE, so **rely on the n
 | Primary text `--text` | `#404442` | `#E2E8F0` | `#1A1A1A` |
 | Secondary text `--label-text` | `#6B6E64` | `#94A3B8` | `#555555` |
 | Flow line `--flow-line` | `#6A6F66` | `#94A3B8` | `#3A3A3A` |
-| Loop-back `--flow-loopback` | `#8FB585` | `#34D399` | `#555555` |
+| Loop-back `--flow-loopback` | `#8FB585` | `#2DD4BF` | `#999999` |
 | Container `--container` | `#B5B2A8` | `#475569` | `#888888` |
 
 Font (all themes): `"Inter", "Söhne", -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif`.
@@ -155,12 +155,12 @@ Every role uses the same shape: rounded rectangle with `rx="12"`. NEVER use circ
 
 **Height fits the content** (width stays text-driven — see sizing formula below):
 - **60px** — single-line node (default)
-- **80px** — node with a main label + one sublabel line (Cocoon-style title+description)
+- **80px** — node with a main label + one sublabel line (title+description)
 - **content card (taller)** — a bold title + one or more 14px detail lines + an optional accent / port line; the box height GROWS to fit. See §Pattern — Multi-line content card.
 
-**Border policy** (differs by theme):
-- **dark** — EVERY role is bordered: a bright accent border over a dark translucent fill (the semi-transparent fills need the edge). 1.4px for the lighter roles, 2px for data / state / callout.
-- **light / mono** — action / agent / terminal / decision / event / accent are **SOLID fill, NO border** (the Anthropic look); only **data / state / callout** carry a 2px border.
+**Border policy** (which roles are bordered differs by theme; the border WIDTH is a **uniform 2px** everywhere):
+- **dark** — EVERY role is bordered: a bright accent border (**2px**) over a dark translucent fill (the semi-transparent fills need the edge). All roles share the same 2px width — data / state / callout are NOT thicker than the rest.
+- **light / mono** — action / agent / terminal / decision / event / accent are **SOLID fill, NO border** (the Anthropic look); only **data / state / callout** carry a border, also **2px**.
 
 Width = enough to fit text at 18px with **≥30px padding each side**: `max(120, ceil((text_pixels + 60) / 20) * 20)`.
 
@@ -200,13 +200,13 @@ The `<marker>` defs (all 3) are in §Pattern — Marker defs. The rules that mat
 **Wrong:** `refX="9"` (or "11", "13") — the line endpoint lands deep inside the triangle, so the line OVERLAPS the triangle interior, making the arrowhead look like a tiny spike on top of the line. Square/fat triangles compound this into a "bulge".
 **Right:** `refX="0"` — the line stops AT the triangle base; the triangle is a clearly distinct visual element that EXTENDS FORWARD from the line.
 
-**Triangle size:** 14 wide × 12 tall on 4px stroke = 3× stroke height. Big enough to read as a discrete arrow, NOT a tiny spike.
+**Triangle size:** 14 wide × 12 tall (fixed, `userSpaceOnUse` — does NOT scale with stroke) — ≈2.4× the 5px forward-flow stroke height. Big enough to read as a discrete arrow, NOT a tiny spike.
 
 **Stroke widths:**
 
 | Arrow type | Stroke | Color | Pattern |
 |---|---|---|---|
-| Default forward flow | **4px** | `--flow-line` (soft grey) | solid |
+| Default forward flow | **5px** | `--flow-line` (soft grey) | solid |
 | Loop-back / return | **5px** | `--flow-loopback` (sage) | solid |
 | Conditional / optional / skip | **3px** | `--flow-line` | dashed `7 5` |
 | Callout (user-interrupt) | **3px** | `--callout-stroke` (orange) | dashed `7 5` |
@@ -629,7 +629,7 @@ See `examples/dark.svg` — `terminal / action / callout` at `0 / 135 / 250`, ea
 | Preset | Background | Use when |
 |---|---|---|
 | `light` (default) | cream `#F0EEE6` | docs / blog / light-mode product UI |
-| `dark` | slate-950 `#020617` | dark-mode UI / terminal screenshots (Cocoon-inspired) |
+| `dark` | slate-950 `#020617` | dark-mode UI / terminal screenshots |
 | `mono-print` | white | print / academic / no-color |
 
 ## Reference examples — READ the matching one before you draw (MANDATORY)

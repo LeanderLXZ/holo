@@ -8,15 +8,15 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
 <style>
-  /* dark palette — Cocoon-inspired (slate-950 + bright accent borders)
+  /* dark palette — slate-950 + bright accent borders
      See ../SKILL.md §Color Palette */
   :root {
     --bg:             #020617;
     --text:           #E2E8F0;
     --label-text:     #94A3B8;
-    --action-fill:    rgba(6,78,59,0.4);
-    --action-stroke:  #34D399;
-    --agent-fill:     rgba(8,51,68,0.4);
+    --action-fill:    rgba(19,78,74,0.4);
+    --action-stroke:  #2DD4BF;
+    --agent-fill:     rgba(14,116,144,0.35);
     --agent-stroke:   #22D3EE;
     --terminal-fill:  rgba(30,41,59,0.5);
     --terminal-stroke:#94A3B8;
@@ -29,10 +29,10 @@
     --callout-text:   #FDBA74;
     --decision-fill:  rgba(30,58,138,0.4);   --decision-stroke: #60A5FA;
     --event-fill:     rgba(136,19,55,0.35);  --event-stroke:    #FB7185;
-    --accent1-fill:   rgba(19,78,74,0.4);    --accent1-stroke:  #2DD4BF;
+    --accent1-fill:   rgba(6,78,59,0.4);     --accent1-stroke:  #34D399;
     --accent2-fill:   rgba(112,26,117,0.4);  --accent2-stroke:  #E879F9;
     --flow-line:      #94A3B8;
-    --flow-loopback:  #34D399;
+    --flow-loopback:  #2DD4BF;
     --container:      #475569;
     --container-lbl:  #94A3B8;
     --font: "Inter", "Söhne", -apple-system, BlinkMacSystemFont, "Segoe UI",
@@ -52,7 +52,7 @@
   .container-gap   { fill: var(--bg); }
   .container-label { font-weight: 500; font-size: 16px; fill: var(--container-lbl); letter-spacing: 0.01em; }
 
-  .flow-arrow        { stroke: var(--flow-line); stroke-width: 4; fill: none;
+  .flow-arrow        { stroke: var(--flow-line); stroke-width: 5; fill: none;
                        stroke-linecap: round; stroke-linejoin: round; }
   .flow-arrow.dashed { stroke-width: 3; stroke-dasharray: 7 5; }
   .loopback-arrow    { stroke: var(--flow-loopback); stroke-width: 5; fill: none;
@@ -63,19 +63,19 @@
   .edge-label    { font-weight: 500; font-size: 18px; fill: var(--label-text); }
   .edge-label-bg { fill: var(--bg); }
 
-  /* Dark theme: ALL roles carry an accent border (1.4px) for edge definition.
-     data / state / callout bump to 2px to retain hierarchy. */
+  /* Dark theme: ALL roles carry an accent border for edge definition,
+     at a uniform 2px width (data / state / callout are NOT thicker). */
   .node-label    { font-weight: 700; font-size: 18px; fill: var(--text); }
   .node-sublabel { font-weight: 500; font-size: 12px; fill: var(--label-text); }
-  .role-action   { fill: var(--action-fill);   stroke: var(--action-stroke);   stroke-width: 1.4; }
-  .role-agent    { fill: var(--agent-fill);    stroke: var(--agent-stroke);    stroke-width: 1.4; }
-  .role-terminal { fill: var(--terminal-fill); stroke: var(--terminal-stroke); stroke-width: 1.4; }
+  .role-action   { fill: var(--action-fill);   stroke: var(--action-stroke);   stroke-width: 2; }
+  .role-agent    { fill: var(--agent-fill);    stroke: var(--agent-stroke);    stroke-width: 2; }
+  .role-terminal { fill: var(--terminal-fill); stroke: var(--terminal-stroke); stroke-width: 2; }
   .data-rect     { fill: var(--data-fill);     stroke: var(--data-stroke);     stroke-width: 2; }
   .state-rect    { fill: var(--state-fill);    stroke: var(--state-stroke);    stroke-width: 2; }
-  .role-decision { fill: var(--decision-fill); stroke: var(--decision-stroke); stroke-width: 1.4; }
-  .role-event    { fill: var(--event-fill);    stroke: var(--event-stroke);    stroke-width: 1.4; }
-  .role-accent1  { fill: var(--accent1-fill);  stroke: var(--accent1-stroke);  stroke-width: 1.4; }
-  .role-accent2  { fill: var(--accent2-fill);  stroke: var(--accent2-stroke);  stroke-width: 1.4; }
+  .role-decision { fill: var(--decision-fill); stroke: var(--decision-stroke); stroke-width: 2; }
+  .role-event    { fill: var(--event-fill);    stroke: var(--event-stroke);    stroke-width: 2; }
+  .role-accent1  { fill: var(--accent1-fill);  stroke: var(--accent1-stroke);  stroke-width: 2; }
+  .role-accent2  { fill: var(--accent2-fill);  stroke: var(--accent2-stroke);  stroke-width: 2; }
 
   .callout-box   { fill: var(--callout-fill); stroke: var(--callout-stroke); stroke-width: 2; }
   .callout-label { font-weight: 500; font-size: 18px; fill: var(--callout-text); }
