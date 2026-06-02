@@ -19,6 +19,7 @@ See ai_context/decisions.md §Skill Implementation #5 for rationale.
 
 import argparse
 import difflib
+import filecmp
 import glob
 import json
 import os
@@ -225,15 +226,36 @@ def expected_mirror_content(source_path: str, name: str, source_type: str) -> st
 # ---------------------------------------------------------------------------
 
 def agents_sync_check(plugin_root: str, target_root: str) -> dict:
-    """Detect `.agents/skills/` mirror drift (STALE / MISSING / ORPHAN)."""
+    """Detect `.agents/skills/` mirror drift (STALE / MISSING / ORPHAN /
+    ASSET_ORPHAN).
+
+    The mirror is a full skill-directory sync, not SKILL.md-only: every
+    non-SKILL.md file under `skills/<name>/` (scripts / palette / examples)
+    is mirrored byte-for-byte, since SKILL.md references them by relative
+    path and non-Claude runtimes would otherwise get a broken skill.
+
+    SKILL.md items go through `expected_mirror_content()` (frontmatter
+    injection for commands); asset items (`source_type="asset"`) are
+    byte-compared and copied verbatim. ASSET_ORPHAN = a mirror asset file
+    under a still-shipped skill whose plugin source is gone (deleted on
+    --fix); skill-level ORPHAN (whole skill gone) keeps the conservative
+    preserve-siblings path. Commands carry no asset directory.
+    """
     agents_dir = os.path.join(target_root, ".agents/skills")
     if not os.path.isdir(agents_dir):
-        return {"skipped": True, "stale": [], "missing": [], "orphan": []}
+        return {
+            "skipped": True, "stale": [], "missing": [],
+            "orphan": [], "asset_orphan": [],
+        }
 
     stale: list[dict] = []
     missing: list[dict] = []
     orphan: list[dict] = []
+    asset_orphan: list[dict] = []
     plugin_names: set[str] = set()
+    # name -> set of asset rel-paths (relative to skills/<name>/) the
+    # plugin currently ships; used below to detect asset orphans.
+    skill_asset_rels: dict[str, set] = {}
 
     def check_source(source_path: str, name: str, source_type: str) -> None:
         target = os.path.join(agents_dir, name, "SKILL.md")
@@ -250,6 +272,22 @@ def agents_sync_check(plugin_root: str, target_root: str) -> dict:
             if f.read() != expected_mirror_content(source_path, name, source_type):
                 stale.append(item)
 
+    def check_asset(source_path: str, name: str, rel: str) -> None:
+        target = os.path.join(agents_dir, name, rel)
+        item = {
+            "name": name,
+            "source_path": source_path,
+            "source_type": "asset",
+            "target_path": target,
+        }
+        if not os.path.exists(target):
+            missing.append(item)
+            return
+        # byte-exact compare (shallow=False forces a content read, not a
+        # stat-only check) — assets may be binary; never text-normalize.
+        if not filecmp.cmp(source_path, target, shallow=False):
+            stale.append(item)
+
     for cmd in sorted(glob.glob(f"{plugin_root}/commands/*.md")):
         name = os.path.splitext(os.path.basename(cmd))[0]
         plugin_names.add(name)
@@ -258,13 +296,43 @@ def agents_sync_check(plugin_root: str, target_root: str) -> dict:
         name = os.path.basename(os.path.dirname(sk))
         plugin_names.add(name)
         check_source(sk, name, "skill")
+        skill_dir = os.path.dirname(sk)
+        rels: set = set()
+        for root, _dirs, files in os.walk(skill_dir):
+            for fn in sorted(files):
+                fpath = os.path.join(root, fn)
+                rel = os.path.relpath(fpath, skill_dir)
+                if rel == "SKILL.md":
+                    continue
+                rels.add(rel)
+                check_asset(fpath, name, rel)
+        skill_asset_rels[name] = rels
 
     for d in sorted(glob.glob(f"{agents_dir}/*/SKILL.md")):
         name = os.path.basename(os.path.dirname(d))
         if name not in plugin_names:
             orphan.append({"name": name, "target_path": d})
 
-    return {"skipped": False, "stale": stale, "missing": missing, "orphan": orphan}
+    # asset orphans: only for skills the plugin still ships (whole-skill
+    # removal is handled by ORPHAN above, which conservatively preserves
+    # siblings rather than deleting them).
+    for name, rels in skill_asset_rels.items():
+        mirror_skill_dir = os.path.join(agents_dir, name)
+        if not os.path.isdir(mirror_skill_dir):
+            continue
+        for root, _dirs, files in os.walk(mirror_skill_dir):
+            for fn in sorted(files):
+                fpath = os.path.join(root, fn)
+                rel = os.path.relpath(fpath, mirror_skill_dir)
+                if rel == "SKILL.md":
+                    continue
+                if rel not in rels:
+                    asset_orphan.append({"name": name, "target_path": fpath})
+
+    return {
+        "skipped": False, "stale": stale, "missing": missing,
+        "orphan": orphan, "asset_orphan": asset_orphan,
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -2237,7 +2305,10 @@ def total_drift(findings: dict) -> int:
     )
     if a.get("skipped"):
         return base
-    return base + len(a["stale"]) + len(a["missing"]) + len(a["orphan"])
+    return (
+        base + len(a["stale"]) + len(a["missing"])
+        + len(a["orphan"]) + len(a.get("asset_orphan", []))
+    )
 
 
 def run_fix(findings: dict, target_root: str) -> dict:
@@ -2267,18 +2338,26 @@ def run_fix(findings: dict, target_root: str) -> dict:
         "orphan_siblings_left": [],
     }
 
+    def _write_mirror(item: dict) -> None:
+        # SKILL.md goes through expected_mirror_content() (command
+        # frontmatter injection); asset files are copied byte-for-byte
+        # (binary safe, no text normalization).
+        os.makedirs(os.path.dirname(item["target_path"]), exist_ok=True)
+        if item.get("source_type") == "asset":
+            shutil.copy2(item["source_path"], item["target_path"])
+            return
+        content = expected_mirror_content(
+            item["source_path"], item["name"], item["source_type"]
+        )
+        with open(item["target_path"], "w", encoding="utf-8") as f:
+            f.write(content)
+
     a = findings.get("agents_sync", {})
     for item in a.get("stale", []):
-        content = expected_mirror_content(item["source_path"], item["name"], item["source_type"])
-        os.makedirs(os.path.dirname(item["target_path"]), exist_ok=True)
-        with open(item["target_path"], "w", encoding="utf-8") as f:
-            f.write(content)
+        _write_mirror(item)
         counts["regenerated"] += 1
     for item in a.get("missing", []):
-        content = expected_mirror_content(item["source_path"], item["name"], item["source_type"])
-        os.makedirs(os.path.dirname(item["target_path"]), exist_ok=True)
-        with open(item["target_path"], "w", encoding="utf-8") as f:
-            f.write(content)
+        _write_mirror(item)
         counts["created"] += 1
     for item in a.get("orphan", []):
         # Only delete the orphaned SKILL.md itself. Sibling files
@@ -2306,6 +2385,27 @@ def run_fix(findings: dict, target_root: str) -> dict:
                     "siblings": siblings,
                 })
         counts["deleted"] += 1
+
+    # asset orphans: the mirror is a generated artifact, so an asset file
+    # absent from the plugin source is always a stale prior-version copy
+    # (never user content) — delete it directly, then prune any now-empty
+    # parent dirs up to (not including) the skill's mirror root.
+    for item in a.get("asset_orphan", []):
+        fpath = item["target_path"]
+        if os.path.isfile(fpath):
+            os.remove(fpath)
+            counts["deleted"] += 1
+        skill_root = os.path.join(target_root, ".agents/skills", item["name"])
+        parent = os.path.dirname(fpath)
+        while (
+            os.path.isdir(parent)
+            and os.path.abspath(parent) != os.path.abspath(skill_root)
+        ):
+            try:
+                os.rmdir(parent)
+            except OSError:
+                break
+            parent = os.path.dirname(parent)
 
     for item in findings.get("missing_template", []):
         os.makedirs(os.path.dirname(item["target_path"]), exist_ok=True)
@@ -2374,11 +2474,25 @@ def _print_human(findings: dict, fix_counts: dict | None) -> None:
     else:
         print(
             f".agents/skills/: stale={len(a['stale'])} | "
-            f"missing={len(a['missing'])} | orphan={len(a['orphan'])}"
+            f"missing={len(a['missing'])} | orphan={len(a['orphan'])} | "
+            f"asset_orphan={len(a.get('asset_orphan', []))}"
         )
-        for label, items in [("STALE", a["stale"]), ("MISSING", a["missing"]), ("ORPHAN", a["orphan"])]:
+        for label, items in [
+            ("STALE", a["stale"]),
+            ("MISSING", a["missing"]),
+            ("ORPHAN", a["orphan"]),
+            ("ASSET_ORPHAN", a.get("asset_orphan", [])),
+        ]:
             for item in items:
                 line = f"  {label}: {item['name']}"
+                if item.get("source_type") == "asset" or label == "ASSET_ORPHAN":
+                    # asset rows share a skill name — disambiguate by the
+                    # asset path relative to the skill's mirror dir.
+                    skill_root = os.path.join(
+                        findings["target_root"], ".agents/skills", item["name"]
+                    )
+                    rel = os.path.relpath(item["target_path"], skill_root)
+                    line += f"  ({rel})"
                 if label == "ORPHAN":
                     parent = os.path.dirname(item["target_path"])
                     try:

@@ -1,7 +1,9 @@
 ---
 name: draw-flowchart
-description: Draw polished, minimalist sequential flowcharts / pipeline / process diagrams as standalone SVG / PNG / HTML in one of three themes. Use when the user asks for flowcharts, flow diagrams, pipeline diagrams, agentic-loop diagrams, process diagrams, workflow visualizations, or state-machine diagrams. Three themes — `light` (default, cream + sage), `dark` (slate-950), `mono-print` (B&W). NOT for architecture / network topology (use `architecture-diagram`), UML, gantt, org charts.
+description: Draw polished, minimalist sequential flowcharts / pipeline / process diagrams as standalone SVG / PNG / HTML in one of three themes. Use when the user asks for flowcharts, flow diagrams, pipeline diagrams, agentic-loop diagrams, process diagrams, workflow visualizations, or state-machine diagrams. Three themes — `dark` (default, slate-950), `light` (cream + sage), `mono-print` (B&W).
 ---
+
+> **Language**: per `ai_context/skills_config.md §Language` — disk-bound output (text labels / captions / notes written into the generated `.svg` / `.html` / `.png` diagram files) uses `content_language` unless the user's source material dictates otherwise; user-facing surface (chat prose / `AskUserQuestion` prompts and option labels / status lines) uses `conversation_language`. Diagram structural keywords, CSS class / role names, file paths, and code identifiers stay English regardless.
 
 # Flowchart Skill
 
@@ -630,8 +632,8 @@ See `examples/dark.svg` — `terminal / action / callout` at `0 / 135 / 250`, ea
 
 | Preset | Background | Use when |
 |---|---|---|
-| `light` (default) | cream `#F0EEE6` | docs / blog / light-mode product UI |
-| `dark` | slate-950 `#020617` | dark-mode UI / terminal screenshots |
+| `dark` (default) | slate-950 `#020617` | dark-mode UI / terminal screenshots |
+| `light` | cream `#F0EEE6` | docs / blog / light-mode product UI |
 | `mono-print` | white | print / academic / no-color |
 
 ## Reference examples — READ the matching one before you draw (MANDATORY)
@@ -651,6 +653,8 @@ All artifacts go in `./tmp_diagram/` relative to the current working directory (
 
 1. **Ask output format + canvas width + theme** (`AskUserQuestion`, three questions in one call):
 
+   > **Language (L3 · USER)**: the three questions below + all their option labels + any Step 2 clarifying question are user-facing, so phrase them in `conversation_language` per `ai_context/skills_config.md §Language`. The canonical option *values* / theme + format keywords (`svg` / `png` / `html` / `dark` / `light` / `mono-print` / `auto`) and role names stay English regardless.
+
    **Q1 — output format** (single-select, 4 options in order):
    - `svg (recommended)` — standalone SVG, opens in any browser, lossless scaling
    - `png` — rasterized for chat / docs that don't accept SVG
@@ -662,9 +666,9 @@ All artifacts go in `./tmp_diagram/` relative to the current working directory (
    - `1500 (full default)` — use the full default canvas (e.g. to match an existing 1500-wide set)
    - `custom` — user supplies a viewBox width (display width = `min(viewBox, 825)`)
 
-   **Q3 — theme** (single-select, 3 options; default `light` — see §Presets). Skip this question only when the user already named a theme in their request:
-   - `light (default)` — cream `#F0EEE6` + sage; docs / blog / light-mode product UI
-   - `dark` — slate-950 `#020617`; dark-mode UI / terminal screenshots
+   **Q3 — theme** (single-select, 3 options; default `dark` — see §Presets). Skip this question only when the user already named a theme in their request:
+   - `dark (default)` — slate-950 `#020617`; dark-mode UI / terminal screenshots
+   - `light` — cream `#F0EEE6` + sage; docs / blog / light-mode product UI
    - `mono-print` — B&W; print / academic / no-color
 
    Record all three answers. The format answer determines which files survive Step 11 (the intermediate workflow always produces HTML → SVG → PNG — PNG is needed for subagent review regardless of choice). The canvas-width answer sets the viewBox cap for Step 4 layout; for a multi-diagram SET, apply the chosen policy once and use ONE shared width across the set. The theme answer fixes the preset for Steps 5–6 and is what §Reference examples' "read ONLY your theme" keys off — load only the chosen theme's color table + example, never all three.
@@ -680,9 +684,11 @@ All artifacts go in `./tmp_diagram/` relative to the current working directory (
 
 5. **Read the matching reference example(s), THEN generate v1 HTML** — first Read (both `.html` and `.svg`) the example(s) matching your diagram's features; for the theme trio read ONLY your chosen theme (see §Reference examples — MANDATORY). Then write `./tmp_diagram/flowchart-v1-<slug>.html` with inline SVG: copy the chosen preset's `<style>` block verbatim from `examples/<preset>.html`, and match the example's geometry for any feature it shows.
 
+   > **Language (L3 · DISK)**: the diagram's own visible text — node labels / sublabels / legend entries / captions / content-card detail lines — is disk-bound output baked into the `.html` / `.svg`, so write it in `content_language` per `ai_context/skills_config.md §Language` (exception: label text the user supplied verbatim is kept as given). Role / CSS class names, `--var` tokens, file paths, and code identifiers stay English regardless.
+
 6. **Extract v1 .svg from .html**. The HTML's `<style>` block is moved into the SVG (wrapped in CDATA), with a `var(--bg)` background rect added, and an explicit `text { font-family: var(--font); }` rule injected (otherwise SVG `<text>` elements lose the body's font inheritance and fall back to browser default — usually serif):
    ```bash
-   python3 /home/leander/Leander/holo/skills/draw-flowchart/scripts/extract_svg.py \
+   python3 "${CLAUDE_PLUGIN_ROOT}/skills/draw-flowchart/scripts/extract_svg.py" \
      ./tmp_diagram/flowchart-v1-<slug>.html \
      ./tmp_diagram/flowchart-v1-<slug>.svg
    ```
@@ -717,7 +723,7 @@ All artifacts go in `./tmp_diagram/` relative to the current working directory (
 ### Subagent 1 — Visual Quality
 
 ```
-Inputs: PNG <path>, spec /home/leander/Leander/holo/skills/draw-flowchart/SKILL.md
+Inputs: PNG <path>, spec ${CLAUDE_PLUGIN_ROOT}/skills/draw-flowchart/SKILL.md
 
 Use Read tool to view PNG. **ALSO Read the user's reference image if one was provided** (path will be in the task prompt) — compare diagram against reference visually.
 

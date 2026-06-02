@@ -95,12 +95,12 @@ This is informational only — Step 1 proceeds with the user's chosen `/holo:ini
 
 Use **<ask tool>** to ask one question:
 
-> Generate `.agents/skills/` mirror? (Converts all plugin commands/ + skills/ into `.agents/skills/<name>/SKILL.md`. Purpose: let Codex / other non-Claude runtimes also recognize this set of commands / skills for cross-validation — they do not recognize slash commands, only SKILL.md. Pick No if not needed — if this repo invokes the plugin only via Claude / Claude Code, a local duplicate is redundant.)
+> Generate `.agents/skills/` mirror? (Converts all plugin commands/ + skills/ into `.agents/skills/<name>/SKILL.md`, plus a byte-for-byte copy of any bundled skill assets — scripts / palette / examples a skill references by relative path. Purpose: let Codex / other non-Claude runtimes also recognize this set of commands / skills for cross-validation — they do not recognize slash commands, only SKILL.md. Pick No if not needed — if this repo invokes the plugin only via Claude / Claude Code, a local duplicate is redundant.)
 
 Options:
 
 - `No` (recommended default): skip `.agents/` generation.
-- `Yes`: pre-create an empty `<target_root>/.agents/skills/` directory so Reconcile.Step 4 drift detection surfaces `agents_sync.missing` findings (one per command + skill the plugin ships); Reconcile.Step 5b's `--fix` then populates it via `expected_mirror_content()`. Step 7 verifies the mirror byte-matches expected output.
+- `Yes`: pre-create an empty `<target_root>/.agents/skills/` directory so Reconcile.Step 4 drift detection surfaces `agents_sync.missing` findings (one per command + skill `SKILL.md`, plus one per bundled skill asset the plugin ships); Reconcile.Step 5b's `--fix` then populates it (`SKILL.md` via `expected_mirror_content()`, assets via byte-for-byte copy). Step 7 verifies the mirror byte-matches expected output.
 
 Record the user's choice (referenced below as `<.agents-opt>`). On `Yes`, `mkdir -p .agents/skills/` immediately so the directory exists before Reconcile.Step 4 runs.
 
@@ -185,7 +185,7 @@ Reconcile core executes its 6 sub-steps (Template inventory → Language alignme
 - **Reconcile.Step 3** does the wholesale NEW file copy (the bulk of fresh-init's work). Copied files retain `<...>` REQUIRED placeholders + PROGRESSIVE markers verbatim — Step 5 (post-Reconcile) substitutes the REQUIRED placeholders.
 - **Reconcile.Step 4 drift detection** runs against the post-Step-3 state. On fresh-init, `claude_agents_lang_drift` will surface because CLAUDE.md / AGENTS.md just landed with template-default values (`content_language: en` / `conversation_language: auto`) that may differ from the user's Step 0 answers; this is expected and resolved by Step 5b's `--fix` in the same dispatch (no separate hand-edit needed).
 - **Reconcile.Step 5a smart-merge** typically does not fire on fresh-init (no EXISTING markdown files → no `sentinel_layout_drift` findings). On re-init it fires for any consumer file whose sentinel structure drifted from the new plugin template — same dispatch as `/holo:update`.
-- **Reconcile.Step 5b `--fix`** populates `.agents/skills/` if Step 1.4 chose Yes (the empty directory pre-created in Step 1.4 makes the script see `agents_sync.missing` findings, which `--fix` fills via `expected_mirror_content()`).
+- **Reconcile.Step 5b `--fix`** populates `.agents/skills/` if Step 1.4 chose Yes (the empty directory pre-created in Step 1.4 makes the script see `agents_sync.missing` findings — one per `SKILL.md` plus one per bundled skill asset — which `--fix` fills: `SKILL.md` via `expected_mirror_content()`, assets via byte-for-byte copy).
 
 ## Step 5: REQUIRED placeholder substitution
 
@@ -319,7 +319,7 @@ Three-category scan (informational summary; only category (a) gates completion):
 
 **7.4 `.agents/skills/` mirror verification** (only when Step 1.4 picked `Yes`)
 
-Verify Reconcile.Step 5b's `--fix` populated the mirror correctly: re-run `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/holo_update_check.py" --json` and assert `agents_sync.stale / missing / orphan` are all empty. Any inconsistency → error listing the diverging paths and stop.
+Verify Reconcile.Step 5b's `--fix` populated the mirror correctly: re-run `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/holo_update_check.py" --json` and assert `agents_sync.stale / missing / orphan / asset_orphan` are all empty (this covers both each `SKILL.md` and its bundled assets — `stale`/`missing` carry `source_type="asset"` items). Any inconsistency → error listing the diverging paths and stop.
 
 **7.5 Summary print**
 

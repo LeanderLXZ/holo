@@ -241,9 +241,10 @@ The script outputs the JSON structure documented as the **interface contract**:
   "consumer_content_lang": "en|zh|<ISO 639-1>",
   "agents_sync": {
     "skipped": false,
-    "stale":   [{"name": "...", "source_path": "...", "source_type": "command|skill", "target_path": "..."}],
-    "missing": [/* same as stale */],
-    "orphan":  [{"name": "...", "target_path": "..."}]
+    "stale":   [{"name": "...", "source_path": "...", "source_type": "command|skill|asset", "target_path": "..."}],
+    "missing": [/* same as stale; source_type="asset" items mirror non-SKILL.md skill assets */],
+    "orphan":  [{"name": "...", "target_path": "..."}],
+    "asset_orphan": [{"name": "...", "target_path": "..."}]
   },
   "missing_template": [{"rel": "...", "source_path": "...", "target_path": "..."}],
   "missing_section":  [{"rel": "...", "header": "## ...", "source_path": "..."}],
@@ -285,7 +286,7 @@ The script outputs the JSON structure documented as the **interface contract**:
    - `sentinel_layout_drift` (any sub_shape: `missing_sentinel` / `partial_sentinel` / `heading_drift` / `block_content_drift` — smart-merge dispatch is sub_shape-agnostic per `docs/architecture/smart-merge.md`).
    - File-body language mismatch is **NOT** in this bucket — it is handled by Step 2b preprocessing. After Step 2b completes (Yes path translated, No path skipped), Step 4's drift detection runs on post-translation state; mismatched-and-skipped files surface only via `sentinel_layout_drift` if their sentinel structure also drifted.
 2. **Deterministic-fixable** (routed to Step 5b `holo_update_check.py --fix`):
-   - `agents_sync.stale` / `agents_sync.missing` / `agents_sync.orphan`.
+   - `agents_sync.stale` / `agents_sync.missing` / `agents_sync.orphan` / `agents_sync.asset_orphan` (`stale`/`missing` include `source_type="asset"` items — non-SKILL.md skill assets; `asset_orphan` = mirror asset whose plugin source is gone, deleted by `--fix`).
    - `missing_template` (note: for markdown templates that should be NEW, Step 3 already handled them; `missing_template` findings remaining here are for non-markdown templates or markdown gaps the script's check found that Step 3 didn't — both flow through `--fix`'s template copy path).
    - `missing_section`, `missing_field`, `gitignore_missing_lines`.
    - `claude_agents_lang_drift` (always standalone — bullets live in gap territory outside the sentinel block per `ai_context/decisions.md §Language Configuration #17` Layout footer 2026-05-22; the lightweight `fix_claude_agents_lang_drift` field-level sync handles every case deterministically).
@@ -326,7 +327,7 @@ Dispatch Q-conflict + Q-fixable in **one batched `<ask tool>` call** (current be
   **When Step 2a's `translation_log` is non-empty for this run, append `--baseline-root <tmp_root>/<YYYY-MM-DD>_<HHMMSS>/templates/` to BOTH this `--fix` invocation AND the post-fix self-check invocation below.** Same condition as Step 4 (see §Baseline override in Step 4 above). Reason: `--fix` reads `source_path` values from the check pass it runs implicitly, which must use the same baseline that Step 4 used; the post-fix `--json` self-check must do the same so its pass/fail signal compares against the same baseline. Skipping the flag on either would re-resolve `_skeleton_root` to canonical EN, producing a different finding set than Step 4 — the user would see a spurious "post-fix drift remains" anomaly.
 
   `--fix` implicitly runs `--check` first; outputs `fix_counts` JSON. Capture this JSON object verbatim and return it as part of Reconcile.Step 6's `fix_counts` field. Then invoke `--json` once more (without `--fix`) for a post-fix self-check:
-  - `agents_sync.stale / missing / orphan` should all be 0.
+  - `agents_sync.stale / missing / orphan / asset_orphan` should all be 0.
   - `missing_template` should be 0.
   - `missing_section`, `missing_field`, `gitignore_missing_lines` should all be 0.
   - `claude_agents_lang_drift` should be 0 (always standalone per the 2026-05-22 Layout footer; lightweight `fix_claude_agents_lang_drift` handles every case); may remain > 0 only for structurally pre-#17 §Language sections (script skips silently when both axis bullets absent — user re-runs `/holo:init` or manually upgrades).

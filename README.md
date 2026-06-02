@@ -5,7 +5,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/LeanderLXZ/holo/releases"><img src="https://img.shields.io/badge/version-v1.9.1-blue" alt="Version"></a>
+  <a href="https://github.com/LeanderLXZ/holo/releases"><img src="https://img.shields.io/badge/version-v1.9.2-blue" alt="Version"></a>
   <img src="https://img.shields.io/badge/Claude%20Code-plugin-7857ED" alt="Claude Code Plugin">
   <a href="LICENSE"><img src="https://img.shields.io/github/license/LeanderLXZ/holo?color=blue" alt="License: MIT"></a>
 </p>
@@ -167,7 +167,7 @@ entry lives in its source file under [commands/](commands/) or
 
 | Skill | Purpose |
 |---|---|
-| [`draw-flowchart`](skills/draw-flowchart/SKILL.md) | Draw sequential flowcharts / pipeline / process diagrams (`light` / `dark` / `mono-print` themes; SVG / PNG / HTML outputs). |
+| [`draw-flowchart`](skills/draw-flowchart/SKILL.md) | Draw sequential flowcharts / pipeline / process diagrams (`dark` / `light` / `mono-print` themes; SVG / PNG / HTML outputs). |
 
 > `draw-flowchart` is also published as a standalone plugin — for full details see **[holo-diagram](https://github.com/LeanderLXZ/holo-diagram)**.
 
