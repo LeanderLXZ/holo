@@ -5,7 +5,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/LeanderLXZ/holo/releases"><img src="https://img.shields.io/badge/version-v1.9.3-blue" alt="Version"></a>
+  <a href="https://github.com/LeanderLXZ/holo/releases"><img src="https://img.shields.io/badge/version-v1.9.4-blue" alt="Version"></a>
   <img src="https://img.shields.io/badge/Claude%20Code-plugin-7857ED" alt="Claude Code Plugin">
   <a href="LICENSE"><img src="https://img.shields.io/github/license/LeanderLXZ/holo?color=blue" alt="License: MIT"></a>
 </p>
@@ -19,45 +19,56 @@ tomorrow or a month from now, resumes from exactly where the last one
 stopped.
 
 <p align="center">
-  <a href="#features">Features</a> ·
-  <a href="#install">Install</a> ·
-  <a href="#update">Update</a> ·
-  <a href="#initialize-a-project">Initialize</a> ·
-  <a href="#skills--commands">Skills &amp; Commands</a> ·
-  <a href="#engineering-loop">Engineering Loop</a> ·
-  <a href="#configuration">Configuration</a>
+  <a href="#-features">Features</a> ·
+  <a href="#-quick-start">Quick Start</a> ·
+  <a href="#-initialize-a-project">Initialize</a> ·
+  <a href="#-skills--commands">Skills &amp; Commands</a> ·
+  <a href="#-engineering-loop">Engineering Loop</a> ·
+  <a href="#-configuration">Configuration</a>
 </p>
 
 ---
 
-## Features
+## ✨ Features
 
-- 🧠 **No forgetting, no drift** — a purpose-built set of on-disk memory
-  files captures your project's context and decisions, and the AI re-reads
-  them each session, so it never starts cold or drifts off track.
-- 🎓 **Knows your project inside out** — it builds a real understanding of
-  your requirements, architecture, and roadmap and keeps it current, so it
-  works like a seasoned teammate, not a newcomer you brief from scratch.
-- ✂️ **No over-engineering** — the AI pushes back instead of building
-  blindly — questioning whether a step is even needed and reaching for the
-  simplest approach, so you get what you wanted, not a gold-plated version.
-- 🔄 **A professional, repeatable process** — each skill runs its own
-  well-defined steps the same way every time, so the AI works predictably
-  and at consistent quality instead of improvising each run.
-- 🧩 **Flexible, composable workflow** — mix and match the skills like
-  building blocks to fit how you work, from a one-liner to a sweeping change.
-- 📒 **Everything on the record** — every discussion, decision, change, and
-  review is saved to disk, so when a bug surfaces or a decision is
-  questioned, you can retrace exactly what happened and why.
-- 🤝 **Multi-agent collaboration** — big jobs (a deep review, a whole-repo
-  audit, a large cleanup) are split across parallel AI agents that
-  cross-check each other — faster and more thorough than one alone.
-- 🛡️ **Never writes behind your back** — nothing is changed, committed, or
-  pushed without your say-so, so your work is never silently overwritten.
+- 🧠 **No forgetting, no drift**
+  A purpose-built set of on-disk memory files — context, decisions, conventions,
+  current state — is re-read at the start of every session, so the AI resumes
+  with the full picture days or weeks later, and won't drift off it mid-session.
+- 🎓 **Knows your project inside out**
+  HOLO builds a genuine understanding of your requirements, architecture, and
+  roadmap and keeps it current, so it reasons like a seasoned engineer who's
+  been on the team for months — not a newcomer you brief from scratch each time.
+- ✂️ **No over-engineering**
+  The AI pushes back instead of building whatever's asked — it questions whether
+  a step is even needed, reaches for the simplest approach, and resists "while
+  I'm here" rewrites, so you get the change you wanted, not a gold-plated one.
+- 🔄 **A professional, repeatable process**
+  Each skill follows its own well-defined, professional process and applies it
+  the same way every time, so the AI works predictably — consistent quality and
+  working state run after run, not a different improvised approach each time.
+- 🧩 **Flexible, composable workflow**
+  The skills are building blocks you mix and match to fit how you work and the
+  size of the job — from a quick one-line fix to a sweeping, multi-file change —
+  so your workflow stays flexible while every task still lands as expected.
+- 📒 **Everything on the record**
+  Every discussion, decision, change, and review is written to disk, so there's
+  always a trail to follow — when a bug surfaces or a decision gets questioned,
+  you can retrace exactly what happened and why, instead of guessing.
+- 🤝 **Multi-agent collaboration**
+  For anything big — a deep review, a whole-repo audit, a large cleanup — HOLO
+  splits the work across several AI agents that run in parallel and cross-check
+  each other, landing it faster and more thoroughly than one agent alone.
+- 🛡️ **Never writes behind your back**
+  Nothing is changed, committed, or pushed without your go-ahead, so your work
+  is never silently overwritten and nothing leaves your machine until you say
+  so — you stay in control of what actually happens.
 
 ---
 
-## Install
+## 🚀 Quick Start
+
+### 1. Install
 
 In Claude Code:
 
@@ -66,35 +77,39 @@ In Claude Code:
 /plugin install holo
 ```
 
----
+### 2. Initialize a project
 
-## Update
+From inside a new or existing project (details under
+[Initialize a Project](#-initialize-a-project)):
 
-In Claude Code:
+```
+/holo:init
+```
+
+### 3. Update
+
+When a new plugin version ships, in Claude Code:
 
 ```
 /plugin marketplace update holo
 /reload-plugins
 ```
 
-Then, in each project that uses holo, run `/holo:update` to sync any
-template / `.agents/skills/` drift introduced by the new plugin
-version.
+Then, inside each project that uses holo, sync any template /
+`.agents/skills/` drift from the new version:
+
+```
+/holo:update
+```
 
 ---
 
-## Initialize a Project
+## 🏗️ Initialize a Project
 
-From inside a new or existing project:
-
-```
-/holo:init
-```
-
-The command detects current state, copies the template (silent for
-new files, interactive `keep` / `overwrite` / `merge` for conflicts),
-asks a Step 0 language question plus three rounds of setup questions,
-and verifies that no `<...>` placeholders remain.
+`/holo:init` (see [Quick Start](#-quick-start)) detects current state, copies
+the template (silent for new files, interactive `keep` / `overwrite` / `merge`
+for conflicts), asks a Step 0 language question plus three rounds of setup
+questions, and verifies that no `<...>` placeholders remain.
 
 ### What it asks
 
@@ -148,7 +163,7 @@ on for cross-session continuity.
 
 ---
 
-## Skills & Commands
+## 🛠️ Skills & Commands
 
 holo ships two distinct entry kinds. **Commands** use the `/holo:`
 prefix and operate on the plugin itself. **Skills** are invoked by
@@ -208,7 +223,7 @@ entry lives in its source file under [commands/](commands/) or
 
 ---
 
-## Engineering Loop
+## 🔁 Engineering Loop
 
 Three interlocking pipelines drive the daily cadence — **planning** what
 to do next, **implementing** a single change, and **reviewing** after
@@ -270,7 +285,7 @@ properly-formatted commit, but without the full land ceremony.
 
 ---
 
-## Configuration
+## ⚙️ Configuration
 
 Most skills read `ai_context/skills_config.md` in your project for
 per-project anchors. Missing required header → loud fail. `(none)`
@@ -301,6 +316,6 @@ the section is missing, since it runs before any `/holo:init`).
 
 ---
 
-## License
+## 📄 License
 
 See [LICENSE](LICENSE).
