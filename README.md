@@ -5,7 +5,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/LeanderLXZ/holo/releases"><img src="https://img.shields.io/badge/version-v1.9.2-blue" alt="Version"></a>
+  <a href="https://github.com/LeanderLXZ/holo/releases"><img src="https://img.shields.io/badge/version-v1.9.3-blue" alt="Version"></a>
   <img src="https://img.shields.io/badge/Claude%20Code-plugin-7857ED" alt="Claude Code Plugin">
   <a href="LICENSE"><img src="https://img.shields.io/github/license/LeanderLXZ/holo?color=blue" alt="License: MIT"></a>
 </p>
@@ -19,13 +19,41 @@ tomorrow or a month from now, resumes from exactly where the last one
 stopped.
 
 <p align="center">
+  <a href="#features">Features</a> ·
   <a href="#install">Install</a> ·
   <a href="#update">Update</a> ·
   <a href="#initialize-a-project">Initialize</a> ·
   <a href="#skills--commands">Skills &amp; Commands</a> ·
-  <a href="#engineering-loop">Engineering loop</a> ·
+  <a href="#engineering-loop">Engineering Loop</a> ·
   <a href="#configuration">Configuration</a>
 </p>
+
+---
+
+## Features
+
+- 🧠 **No forgetting, no drift** — a purpose-built set of on-disk memory
+  files captures your project's context and decisions, and the AI re-reads
+  them each session, so it never starts cold or drifts off track.
+- 🎓 **Knows your project inside out** — it builds a real understanding of
+  your requirements, architecture, and roadmap and keeps it current, so it
+  works like a seasoned teammate, not a newcomer you brief from scratch.
+- ✂️ **No over-engineering** — the AI pushes back instead of building
+  blindly — questioning whether a step is even needed and reaching for the
+  simplest approach, so you get what you wanted, not a gold-plated version.
+- 🔄 **A professional, repeatable process** — each skill runs its own
+  well-defined steps the same way every time, so the AI works predictably
+  and at consistent quality instead of improvising each run.
+- 🧩 **Flexible, composable workflow** — mix and match the skills like
+  building blocks to fit how you work, from a one-liner to a sweeping change.
+- 📒 **Everything on the record** — every discussion, decision, change, and
+  review is saved to disk, so when a bug surfaces or a decision is
+  questioned, you can retrace exactly what happened and why.
+- 🤝 **Multi-agent collaboration** — big jobs (a deep review, a whole-repo
+  audit, a large cleanup) are split across parallel AI agents that
+  cross-check each other — faster and more thorough than one alone.
+- 🛡️ **Never writes behind your back** — nothing is changed, committed, or
+  pushed without your say-so, so your work is never silently overwritten.
 
 ---
 
@@ -55,7 +83,7 @@ version.
 
 ---
 
-## Initialize a project
+## Initialize a Project
 
 From inside a new or existing project:
 
@@ -180,7 +208,7 @@ entry lives in its source file under [commands/](commands/) or
 
 ---
 
-## Engineering loop
+## Engineering Loop
 
 Three interlocking pipelines drive the daily cadence — **planning** what
 to do next, **implementing** a single change, and **reviewing** after
