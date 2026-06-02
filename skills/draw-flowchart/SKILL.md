@@ -651,9 +651,9 @@ See `examples/dark.svg` — `terminal / action / callout` at `0 / 135 / 250`, ea
 
 All artifacts go in `./tmp_diagram/` relative to the current working directory (project root, NOT `/tmp/`). Create the directory if it does not exist: `mkdir -p tmp_diagram`.
 
-1. **Ask output format + canvas width + theme** (`AskUserQuestion`, three questions in one call):
+1. **Ask output format + canvas width + theme + corner rounding** (`AskUserQuestion`, four questions in one call):
 
-   > **Language (L3 · USER)**: the three questions below + all their option labels + any Step 2 clarifying question are user-facing, so phrase them in `conversation_language` per `ai_context/skills_config.md §Language`. The canonical option *values* / theme + format keywords (`svg` / `png` / `html` / `dark` / `light` / `mono-print` / `auto`) and role names stay English regardless.
+   > **Language (L3 · USER)**: the four questions below + all their option labels + any Step 2 clarifying question are user-facing, so phrase them in `conversation_language` per `ai_context/skills_config.md §Language`. The canonical option *values* / theme + format keywords (`svg` / `png` / `html` / `dark` / `light` / `mono-print` / `auto`) and role names stay English regardless.
 
    **Q1 — output format** (single-select, 4 options in order):
    - `svg (recommended)` — standalone SVG, opens in any browser, lossless scaling
@@ -671,7 +671,12 @@ All artifacts go in `./tmp_diagram/` relative to the current working directory (
    - `light` — cream `#F0EEE6` + sage; docs / blog / light-mode product UI
    - `mono-print` — B&W; print / academic / no-color
 
-   Record all three answers. The format answer determines which files survive Step 11 (the intermediate workflow always produces HTML → SVG → PNG — PNG is needed for subagent review regardless of choice). The canvas-width answer sets the viewBox cap for Step 4 layout; for a multi-diagram SET, apply the chosen policy once and use ONE shared width across the set. The theme answer fixes the preset for Steps 5–6 and is what §Reference examples' "read ONLY your theme" keys off — load only the chosen theme's color table + example, never all three.
+   **Q4 — corner rounding** (single-select; affects only the diagram's SVG / PNG output — when Q1 = `html` only, record the answer but skip applying the radius). Default `yes — radius 25`:
+   - `yes — rounded, radius 25 (recommended)` — round the diagram's background corners with `rx` / `ry` = 25 (viewBox user units)
+   - `yes — rounded, custom radius` — round with a user-supplied integer radius (viewBox user units; capture it via the ask tool's free-text path)
+   - `no — square corners`
+
+   Record all four answers. The format answer determines which files survive Step 11 (the intermediate workflow always produces HTML → SVG → PNG — PNG is needed for subagent review regardless of choice). The canvas-width answer sets the viewBox cap for Step 4 layout; for a multi-diagram SET, apply the chosen policy once and use ONE shared width across the set. The theme answer fixes the preset for Steps 5–6 and is what §Reference examples' "read ONLY your theme" keys off — load only the chosen theme's color table + example, never all three. The corner-rounding answer sets `<radius>` (25 / custom / 0 for square), threaded to `extract_svg.py --radius <radius>` at Steps 6 + 10; for a multi-diagram SET use ONE shared radius across the set.
 
 2. **Understand the diagram** — restate node + edge spec; ask one clarifying question if material ambiguity remains.
 
@@ -686,27 +691,29 @@ All artifacts go in `./tmp_diagram/` relative to the current working directory (
 
    > **Language (L3 · DISK)**: the diagram's own visible text — node labels / sublabels / legend entries / captions / content-card detail lines — is disk-bound output baked into the `.html` / `.svg`, so write it in `content_language` per `ai_context/skills_config.md §Language` (exception: label text the user supplied verbatim is kept as given). Role / CSS class names, `--var` tokens, file paths, and code identifiers stay English regardless.
 
-6. **Extract v1 .svg from .html**. The HTML's `<style>` block is moved into the SVG (wrapped in CDATA), with a `var(--bg)` background rect added, and an explicit `text { font-family: var(--font); }` rule injected (otherwise SVG `<text>` elements lose the body's font inheritance and fall back to browser default — usually serif):
+6. **Extract v1 .svg from .html**. The HTML's `<style>` block is moved into the SVG (wrapped in CDATA), with a `var(--bg)` background rect added (rounded to `rx` / `ry` = `<radius>` per the Step 1 corner-rounding answer; omit `--radius` / pass `0` for square corners), and an explicit `text { font-family: var(--font); }` rule injected (otherwise SVG `<text>` elements lose the body's font inheritance and fall back to browser default — usually serif):
    ```bash
    python3 "${CLAUDE_PLUGIN_ROOT}/skills/draw-flowchart/scripts/extract_svg.py" \
      ./tmp_diagram/flowchart-v1-<slug>.html \
-     ./tmp_diagram/flowchart-v1-<slug>.svg
+     ./tmp_diagram/flowchart-v1-<slug>.svg \
+     --radius <radius>
    ```
 
 7. **Render v1 to PNG** — needed for subagent review (Read tool needs raster):
    ```bash
    google-chrome --headless --disable-gpu --no-sandbox --hide-scrollbars \
      --window-size=<W>,<H> \
+     --default-background-color=00000000 \
      --screenshot=./tmp_diagram/flowchart-v1-<slug>.png \
      "file://$(pwd)/tmp_diagram/flowchart-v1-<slug>.svg"
    ```
-   `<W>` = viewBox width + 64; `<H>` = viewBox height + 32.
+   `<W>` = viewBox width + 64; `<H>` = viewBox height + 32. The `--default-background-color=00000000` flag keeps the area outside a rounded background rect transparent (so the PNG renders rounded corners instead of opaque triangles); for square corners the bg rect covers the whole canvas, so it is a harmless no-op — always include it.
 
 8. **Dispatch 3 review subagents in PARALLEL** (Visual / Logical / Requirement — see §Subagent Review Prompts). Each subagent reads the PNG.
 
 9. **Synthesize findings** — categorize critical / important / nitpick. **Verify subagent claims against the PNG yourself** (subagents have false-positive rate ~50% on visual claims like "edge crossing"; main thread must verify with Read tool before acting on a finding).
 
-10. **Regenerate v2** — apply real fixes (drop false positives). Write `./tmp_diagram/flowchart-v2-<slug>.html`. Re-extract SVG, re-render PNG for visual confirmation.
+10. **Regenerate v2** — apply real fixes (drop false positives). Write `./tmp_diagram/flowchart-v2-<slug>.html`. Re-extract SVG (same `--radius <radius>`), re-render PNG for visual confirmation.
 
 11. **Filter outputs per Step 1 choice + Present**:
     - `svg` only → delete `.html` and `.png` (both v1 and v2)

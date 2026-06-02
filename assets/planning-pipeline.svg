@@ -60,7 +60,7 @@ text { font-family: var(--font); }
   .caption       { font-weight: 500; font-size: 18px; fill: #FFFFFF; }
   .caption-cmd   { fill: #2DD4BF; }
 ]]></style>
-  <rect width="100%" height="100%" fill="var(--bg)" />
+  <rect width="100%" height="100%" rx="25" ry="25" fill="var(--bg)" />
 
   <defs>
     <marker id="arrow-flow" viewBox="0 0 14 12" refX="0" refY="6"

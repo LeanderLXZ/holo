@@ -43,7 +43,7 @@ text { font-family: var(--font); }
   .role-action   { fill: var(--action-fill); stroke: var(--action-stroke); stroke-width: 2; }
   .data-rect     { fill: var(--data-fill);   stroke: var(--data-stroke);   stroke-width: 2; }
 ]]></style>
-  <rect width="100%" height="100%" fill="var(--bg)" />
+  <rect width="100%" height="100%" rx="25" ry="25" fill="var(--bg)" />
 
 
   <defs>

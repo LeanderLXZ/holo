@@ -32,7 +32,7 @@ text { font-family: var(--font); }
   .role-agent    { fill: var(--agent-fill);    stroke: var(--agent-stroke);    stroke-width: 2; }
   .role-terminal { fill: var(--terminal-fill); stroke: var(--terminal-stroke); stroke-width: 2; }
 ]]></style>
-  <rect width="100%" height="100%" fill="var(--bg)" />
+  <rect width="100%" height="100%" rx="25" ry="25" fill="var(--bg)" />
 
 
   <defs>

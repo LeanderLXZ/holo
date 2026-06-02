@@ -1,11 +1,11 @@
 # HOLO
 
 <p align="center">
-  <img src="assets/banner.png" alt="HOLO — Claude Code Plugin: a disciplined four-step loop (discuss, land, review, ship) for AI-paired work" width="820">
+  <img src="assets/banner.png" alt="HOLO — Claude Code Plugin: a disciplined four-step loop (discuss, land, review, ship) for AI-paired work" width="100%">
 </p>
 
 <p align="center">
-  <a href="https://github.com/LeanderLXZ/holo/releases"><img src="https://img.shields.io/badge/version-v1.9.4-blue" alt="Version"></a>
+  <a href="https://github.com/LeanderLXZ/holo/releases"><img src="https://img.shields.io/badge/version-v1.10.0-blue" alt="Version"></a>
   <img src="https://img.shields.io/badge/Claude%20Code-plugin-7857ED" alt="Claude Code Plugin">
   <a href="LICENSE"><img src="https://img.shields.io/github/license/LeanderLXZ/holo?color=blue" alt="License: MIT"></a>
 </p>
@@ -31,35 +31,35 @@ stopped.
 
 ## ✨ Features
 
-- 🧠 **No forgetting, no drift**
+- 🧠 **No forgetting, no drift**<br>
   A purpose-built set of on-disk memory files — context, decisions, conventions,
   current state — is re-read at the start of every session, so the AI resumes
   with the full picture days or weeks later, and won't drift off it mid-session.
-- 🎓 **Knows your project inside out**
+- 🎓 **Knows your project inside out**<br>
   HOLO builds a genuine understanding of your requirements, architecture, and
   roadmap and keeps it current, so it reasons like a seasoned engineer who's
   been on the team for months — not a newcomer you brief from scratch each time.
-- ✂️ **No over-engineering**
+- ✂️ **No over-engineering**<br>
   The AI pushes back instead of building whatever's asked — it questions whether
   a step is even needed, reaches for the simplest approach, and resists "while
   I'm here" rewrites, so you get the change you wanted, not a gold-plated one.
-- 🔄 **A professional, repeatable process**
+- 🔄 **A professional, repeatable process**<br>
   Each skill follows its own well-defined, professional process and applies it
   the same way every time, so the AI works predictably — consistent quality and
   working state run after run, not a different improvised approach each time.
-- 🧩 **Flexible, composable workflow**
+- 🧩 **Flexible, composable workflow**<br>
   The skills are building blocks you mix and match to fit how you work and the
   size of the job — from a quick one-line fix to a sweeping, multi-file change —
   so your workflow stays flexible while every task still lands as expected.
-- 📒 **Everything on the record**
+- 📒 **Everything on the record**<br>
   Every discussion, decision, change, and review is written to disk, so there's
   always a trail to follow — when a bug surfaces or a decision gets questioned,
   you can retrace exactly what happened and why, instead of guessing.
-- 🤝 **Multi-agent collaboration**
+- 🤝 **Multi-agent collaboration**<br>
   For anything big — a deep review, a whole-repo audit, a large cleanup — HOLO
   splits the work across several AI agents that run in parallel and cross-check
   each other, landing it faster and more thoroughly than one agent alone.
-- 🛡️ **Never writes behind your back**
+- 🛡️ **Never writes behind your back**<br>
   Nothing is changed, committed, or pushed without your go-ahead, so your work
   is never silently overwritten and nothing leaves your machine until you say
   so — you stay in control of what actually happens.
@@ -95,8 +95,8 @@ When a new plugin version ships, in Claude Code:
 /reload-plugins
 ```
 
-Then, inside each project that uses holo, sync any template /
-`.agents/skills/` drift from the new version:
+Then, inside each project that uses holo, sync any template / skills drift
+from the new version:
 
 ```
 /holo:update
@@ -223,7 +223,7 @@ entry lives in its source file under [commands/](commands/) or
 
 ---
 
-## 🔁 Engineering Loop
+## 🤖 Engineering Loop
 
 Three interlocking pipelines drive the daily cadence — **planning** what
 to do next, **implementing** a single change, and **reviewing** after
@@ -234,7 +234,7 @@ a batch lands.
 Decide what to do next, or retire ideas that won't make the cut:
 
 <p align="center">
-  <img src="assets/planning-pipeline.svg" alt="holo planning pipeline" width="825">
+  <img src="assets/planning-pipeline.svg" alt="holo planning pipeline" width="95%">
 </p>
 
 `/plan` and `/todo-add` form a tight loop — each round of discussion
@@ -247,7 +247,7 @@ or `docs/` instead of the queue.
 Land a single change from queue to remote:
 
 <p align="center">
-  <img src="assets/implementation-pipeline.svg" alt="holo implementation pipeline" width="825">
+  <img src="assets/implementation-pipeline.svg" alt="holo implementation pipeline" width="95%">
 </p>
 
 `/go` lands a finalized entry (logging + archiving it), `/post-check`
@@ -259,7 +259,7 @@ sibling branches before `/push`.
 After several commits accumulate, audit the whole repo at once:
 
 <p align="center">
-  <img src="assets/review-pipeline.svg" alt="holo review pipeline" width="825">
+  <img src="assets/review-pipeline.svg" alt="holo review pipeline" width="95%">
 </p>
 
 `/full-review` runs multi-agent scans into `review_reports/`;
