@@ -1,6 +1,6 @@
 ---
 name: draw-flowchart
-description: Draw Anthropic-style sequential flowcharts / pipeline / process diagrams as standalone SVG / PNG / HTML. Use when the user asks for flowcharts, flow diagrams, pipeline diagrams, agentic-loop diagrams, process diagrams, workflow visualizations, or state-machine diagrams. Three themes — `light` (default, cream + sage), `dark` (slate-950), `mono-print`. NOT for architecture / network topology (use `architecture-diagram`), UML, gantt, org charts.
+description: Draw polished, minimalist sequential flowcharts / pipeline / process diagrams as standalone SVG / PNG / HTML in one of three themes. Use when the user asks for flowcharts, flow diagrams, pipeline diagrams, agentic-loop diagrams, process diagrams, workflow visualizations, or state-machine diagrams. Three themes — `light` (default, cream + sage), `dark` (slate-950), `mono-print` (B&W). NOT for architecture / network topology (use `architecture-diagram`), UML, gantt, org charts.
 ---
 
 # Flowchart Skill
@@ -106,7 +106,7 @@ A **group box** brackets a SUBSET of nodes that form one phase / region / sub-sy
 | purple | `#A78BFA` | `rgba(167,139,250,0.07)` |
 | red | `#FB7185` | `rgba(251,113,133,0.07)` |
 
-**`light`** (Anthropic-warm, muted; fill alpha ~0.07 — a faint wash so the solid node boxes inside stay legible):
+**`light`** (warm, muted; fill alpha ~0.07 — a faint wash so the solid node boxes inside stay legible):
 
 | Tint | Border | Fill |
 |---|---|---|
@@ -143,6 +143,8 @@ Stack: `"Inter", "Söhne", -apple-system, BlinkMacSystemFont, "Segoe UI", Helvet
 
 **One in-diagram text size: 18px.** Node labels, edge labels, and legend labels are ALL **18px** — the same size as the text inside the boxes (only the optional node sublabel at 12px, the container label at 16px, and content-card detail / port lines at 14px differ). Never shrink edge or legend text to a smaller tier; if an 18px edge label won't fit its gap, widen the gap (see §Horizontal space pressure), don't shrink the font.
 
+**Text-width estimate (shared constant).** To size boxes and lay out the legend, estimate a label's rendered width at 18px as `text_px ≈ chars × 10` (Inter's ≈0.56-em average advance × 18px, rounded). This single value feeds BOTH the node box-width formula (§Node shapes) and the legend item layout (§Pattern — In-SVG Legend) — do not use a different per-char ratio in the two places.
+
 ### Visual Elements
 
 #### Background
@@ -160,9 +162,9 @@ Every role uses the same shape: rounded rectangle with `rx="12"`. NEVER use circ
 
 **Border policy** (which roles are bordered differs by theme; the border WIDTH is a **uniform 2px** everywhere):
 - **dark** — EVERY role is bordered: a bright accent border (**2px**) over a dark translucent fill (the semi-transparent fills need the edge). All roles share the same 2px width — data / state / callout are NOT thicker than the rest.
-- **light / mono** — action / agent / terminal / decision / event / accent are **SOLID fill, NO border** (the Anthropic look); only **data / state / callout** carry a border, also **2px**.
+- **light / mono** — action / agent / terminal / decision / event / accent are **SOLID fill, NO border**; only **data / state / callout** carry a border, also **2px**.
 
-Width = enough to fit text at 18px with **≥30px padding each side**: `max(120, ceil((text_pixels + 60) / 20) * 20)`.
+Width = enough to fit text at 18px with **≥30px padding each side**: `max(120, ceil((text_pixels + 60) / 20) * 20)`, where `text_pixels ≈ chars × 10` (§Typography — Text-width estimate).
 
 #### Same-role alignment (CRITICAL)
 
@@ -605,7 +607,7 @@ CSS:
 
 Place at the bottom-left. Label each swatch in the project's domain vocabulary, NOT the generic role token — e.g. `agent` → "user" (humans) / "service" (microservices); `data` → "log" / "queue" / "database"; `action` → "command" / "step" / "process". Include ONLY the roles that actually appear.
 
-**Lay items out SEQUENTIALLY by text width — NEVER a fixed per-item pitch.** Each item occupies `swatch(22) + gap(8) + text_width`; the next item's `x` = previous item's right edge **+ ≥24px**. A hardcoded pitch (every item at +100, +120 …) silently overlaps once a label is long or at 18px — the next swatch lands under the previous label. Compute each `x` from the running total; `text_width ≈ chars × 18 × 0.56`.
+**Lay items out SEQUENTIALLY by text width — NEVER a fixed per-item pitch.** Each item occupies `swatch(22) + gap(8) + text_width`; the next item's `x` = previous item's right edge **+ ≥24px**. A hardcoded pitch (every item at +100, +120 …) silently overlaps once a label is long or at 18px — the next swatch lands under the previous label. Compute each `x` from the running total; `text_width ≈ chars × 10` (§Typography — Text-width estimate).
 
 ```svg
 <g class="legend" transform="translate(50, LEGEND_Y)">
@@ -615,7 +617,7 @@ Place at the bottom-left. Label each swatch in the project's domain vocabulary, 
     <rect width="22" height="12" rx="3" fill="var(--action-fill)" />
     <text x="30" y="10" class="legend-label">skills</text>
   </g>
-  <g transform="translate(115, 0)">   <!-- 0 + 30 + ceil("skills"≈61) + 24 = 115 -->
+  <g transform="translate(114, 0)">   <!-- 0 + 30 + ("skills" 6 chars × 10 = 60) + 24 = 114 -->
     <rect width="22" height="12" rx="3" fill="var(--data-fill)" stroke="var(--data-stroke)" stroke-width="1.2" />
     <text x="30" y="10" class="legend-label">log</text>
   </g>
@@ -647,7 +649,7 @@ See `examples/dark.svg` — `terminal / action / callout` at `0 / 135 / 250`, ea
 
 All artifacts go in `./tmp_diagram/` relative to the current working directory (project root, NOT `/tmp/`). Create the directory if it does not exist: `mkdir -p tmp_diagram`.
 
-1. **Ask output format + canvas width** (`AskUserQuestion`, two questions in one call):
+1. **Ask output format + canvas width + theme** (`AskUserQuestion`, three questions in one call):
 
    **Q1 — output format** (single-select, 4 options in order):
    - `svg (recommended)` — standalone SVG, opens in any browser, lossless scaling
@@ -660,7 +662,12 @@ All artifacts go in `./tmp_diagram/` relative to the current working directory (
    - `1500 (full default)` — use the full default canvas (e.g. to match an existing 1500-wide set)
    - `custom` — user supplies a viewBox width (display width = `min(viewBox, 825)`)
 
-   Record both answers. The format answer determines which files survive Step 11 (the intermediate workflow always produces HTML → SVG → PNG — PNG is needed for subagent review regardless of choice). The canvas-width answer sets the viewBox cap for Step 4 layout; for a multi-diagram SET, apply the chosen policy once and use ONE shared width across the set.
+   **Q3 — theme** (single-select, 3 options; default `light` — see §Presets). Skip this question only when the user already named a theme in their request:
+   - `light (default)` — cream `#F0EEE6` + sage; docs / blog / light-mode product UI
+   - `dark` — slate-950 `#020617`; dark-mode UI / terminal screenshots
+   - `mono-print` — B&W; print / academic / no-color
+
+   Record all three answers. The format answer determines which files survive Step 11 (the intermediate workflow always produces HTML → SVG → PNG — PNG is needed for subagent review regardless of choice). The canvas-width answer sets the viewBox cap for Step 4 layout; for a multi-diagram SET, apply the chosen policy once and use ONE shared width across the set. The theme answer fixes the preset for Steps 5–6 and is what §Reference examples' "read ONLY your theme" keys off — load only the chosen theme's color table + example, never all three.
 
 2. **Understand the diagram** — restate node + edge spec; ask one clarifying question if material ambiguity remains.
 
@@ -788,14 +795,9 @@ Boundary rules not already enforced by a §Section above:
 
 - **Diagonal arrows / cubic curves anywhere** — every edge (including callout) is orthogonal; the callout uses exactly ONE rounded corner (no Z-elbow, no cubic). The SOLE non-orthogonal exception is the bridge/hop arc at a crossing.
 - **Edge crossing a node it doesn't connect to** — if an arrow segment passes through a non-source/dest node's bounding rect, reroute or reposition. Subagents have missed this; verify each arrow vs each node rect manually.
-- **Sub-categorizing actions by sub-type** (decision / inventory / workflow → distinct colors) — all process steps are `action`. Topology and shape convey semantic, not extra colors.
-- **Mixed node-label font sizes** — uniformly 18px. If text overflows, widen the box, never shrink the font.
 - **Pure-black text or arrows** — use the palette's softened greys (`--text`, `--flow-line`); pure `#000` clashes with the cream / slate backgrounds.
-- **`markerUnits="strokeWidth"`** (or omitting it) — markers will scale with stroke width.
 - **Skipping the 3-subagent review** or accepting subagent claims without verifying against the rendered PNG yourself (subagent visual-claim false-positive rate ~50%).
-- **More than 2 iterations** (v1 + v2). Hard cap.
 - **Outputting `.html` or `.png` as the deliverable** — SVG is what the user gets; HTML is editable source; PNG is throwaway review raster.
 - **Extracting SVG without injecting `text { font-family: var(--font); }`** — the body rule's font inheritance is gone in standalone SVG; without an explicit text rule, every `<text>` falls back to browser default (serif).
-- **Baking a section title / heading into the SVG** — the SVG carries only nodes, edges, labels, and the legend; the heading belongs in the surrounding document, not the image.
-- **Undifferentiated edge crossings** — if a crossing is unavoidable, disambiguate it (bridge/hop arc preferred, else distinct color or dashed); never leave two identical solid lines silently overlapping.
-- **Legend text smaller than the chart's annotation tier** — legend labels are 18px (same as node / edge labels), never a smaller tier.
+
+Already enforced in their own §Section (not repeated here): single-role color assignment (§Layout Reasoning), uniform 18px node / edge / legend text + no in-SVG title (§Typography), `markerUnits="userSpaceOnUse"` (§Arrows), crossing disambiguation (§Routing Rules), the 2-iteration hard cap (§Workflow).
