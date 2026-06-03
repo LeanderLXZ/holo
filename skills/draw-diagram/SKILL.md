@@ -145,7 +145,15 @@ Stack: `"Inter", "Söhne", -apple-system, BlinkMacSystemFont, "Segoe UI", Helvet
 
 **One in-diagram text size: 18px.** Node labels, edge labels, and legend labels are ALL **18px** — the same size as the text inside the boxes (only the optional node sublabel at 12px, the container label at 16px, and content-card detail / port lines at 14px differ). Never shrink edge or legend text to a smaller tier; if an 18px edge label won't fit its gap, widen the gap (see §Horizontal space pressure), don't shrink the font.
 
-**Text-width estimate (shared constant).** To size boxes and lay out the legend, estimate a label's rendered width at 18px as `text_px ≈ chars × 10` (Inter's ≈0.56-em average advance × 18px, rounded). This single value feeds BOTH the node box-width formula (§Node shapes) and the legend item layout (§Pattern — In-SVG Legend) — do not use a different per-char ratio in the two places.
+**Text-width estimate (shared constant).** Estimate a label's rendered width at 18px from a **character-class sum**, NOT a flat per-char value — Inter is proportional, so a flat `chars × 10` over-reserves narrow / space-heavy labels (e.g. "entry / exit", with a slash + two spaces) and then renders an oversized trailing gap:
+
+| Class | Characters | Width @18px |
+|---|---|---|
+| narrow | `i l I j t f r . , ' ! \| / : ;` + space | **5px** |
+| wide | `m w M W @` | **15px** |
+| default | everything else | **10px** |
+
+`text_px ≈ Σ class_width(char)`. This single estimate feeds BOTH the node box-width formula (§Node shapes) and the legend item layout (§Pattern — In-SVG Legend) — same model in both places. Node boxes carry ≥30px padding slack that absorbs estimate error; the legend's inter-item gap is **exact**, so the class-weighted sum matters most there (a flat `chars × 10` is the visible cause of uneven legend gaps).
 
 ### Visual Elements
 
@@ -166,7 +174,7 @@ Every role uses the same shape: rounded rectangle with `rx="12"`. NEVER use circ
 - **dark** — EVERY role is bordered: a bright accent border (**2px**) over a dark translucent fill (the semi-transparent fills need the edge). All roles share the same 2px width — data / state / callout are NOT thicker than the rest.
 - **light / mono** — action / agent / terminal / decision / event / accent are **SOLID fill, NO border**; only **data / state / callout** carry a border, also **2px**.
 
-Width = enough to fit text at 18px with **≥30px padding each side**: `max(120, ceil((text_pixels + 60) / 20) * 20)`, where `text_pixels ≈ chars × 10` (§Typography — Text-width estimate).
+Width = enough to fit text at 18px with **≥30px padding each side**: `max(120, ceil((text_pixels + 60) / 20) * 20)`, where `text_pixels` is the §Typography — Text-width estimate (character-class sum).
 
 #### Same-role alignment (CRITICAL)
 
@@ -248,19 +256,17 @@ A SINGLE arrow originates from the **geometric center** of the source box's edge
 
 All edge labels follow the **same rule**: centered on the **midpoint of the longest segment** of the edge, **OFFSET from the line** — above for horizontals, right for verticals. NEVER on the line itself.
 
-**Why off-line, not on-line:** an on-line label with bg cutout works for long arrows but **silently consumes short arrows** (the cutout is wider than the arrow, the arrow disappears under the cutout). Offset labels never have this failure mode. (Copy-paste svg — horizontal & vertical variants — in §Pattern — Edge label.)
+**No background fill — edge labels are transparent.** The label is offset off the line and sits on the solid `var(--bg)` card, so it is already legible with **no `<rect>` background**. A `var(--bg)` cutout behind the text is not just redundant — it punches an opaque hole in any stroke that passes near the label, including the very loop-back / flow line the label annotates, leaving a visible break in the line. So edge labels carry no background; legibility comes from the offset alone. (This replaces the older bg-cutout approach: a cutout was only ever needed for an ON-line label, but the mandatory offset already keeps text clear of the line, so the cutout — which silently consumes short arrows AND covers neighbouring lines — is dropped.)
 
 **Computing position**:
-- **Horizontal segment** `(x1,y) → (x2,y)`: text-anchor = `middle`, position = `(midpoint_x, y - 14)`. Cutout = `x="-(W/2+3)" width="(W+6)"`.
-- **Vertical segment** `(x,y1) → (x,y2)`: text-anchor = `start`, position = `(x + 6, midpoint_y)`. Cutout = `x="-3" width="(W+6)"`. Critical: `text-anchor="start"` (NOT middle) so the cutout extends RIGHT from the arrow line and never overlaps it.
+- **Horizontal segment** `(x1,y) → (x2,y)`: text-anchor = `middle`, position = `(midpoint_x, y - 14)`.
+- **Vertical segment** `(x,y1) → (x,y2)`: text-anchor = `start`, position = `(x + 6, midpoint_y)`. Critical: `text-anchor="start"` (NOT middle) so the text extends RIGHT, away from the arrow line.
 - **L-shaped path**: pick the LONGEST of the two segments and use its offset midpoint.
 
-**Arrow-length sanity check**: before placing a horizontal label, ensure `label_width + 6 < arrow_length`. If not, EXTEND the arrow (push target node further away) — do not shrink the label.
+**Arrow-length sanity check**: before placing a horizontal label, ensure `label_width < arrow_length`. If not, EXTEND the arrow (push target node further away) — do not shrink the label.
 
-**Cutout rect** is small (text width + 6px breathing room) and protects text legibility. With offset positioning + correct text-anchor, the cutout never overlaps any arrow line.
-
-**Wrong:** "narrative" label at midpoint `(640, 110)` on the line — cutout 72px wide covers the entire 59px-long arrow.
-**Right:** "narrative" label at `(640, 96)` — 14px above the line. Arrow remains fully visible.
+**Wrong:** "loop · next batch" with a `var(--bg)` cutout sitting beside the loop-back's vertical return — the opaque box covers a slice of the line, breaking it visually.
+**Right:** "loop · next batch" offset 6px right of the line, no background — the return line stays continuous and the text reads cleanly off the solid card.
 
 #### Container / group box (optional — bracket a sub-flow or region)
 
@@ -294,8 +300,9 @@ CSS (plain variant):
 - **Sparingly** — 1-3 groups per diagram; a box around every other node is noise. Nest at most 2 deep.
 - **Color = grouping, not role.** Pick a tint for aesthetics, or to DISTINGUISH multiple regions; never to imply a node role. One region → any tint (often `blue` / `gray`); several → DISTINCT tints. Match the label fill to the border on a tinted box.
 - **Fill stays faint** (the preset alphas) so the region reads as a wash BEHIND the nodes; the box is drawn first (Z-order layer 1).
-- **Fit** (§Container fit): enclose every member with ≥30px padding (the main `agentic loop` container uses 50px sides / 60-70 top-bottom). The box's OUTER edge counts as content for the 50px viewBox padding; an edge leaving the region simply crosses the dashed border.
-- **Label** on the top border via the `container-gap` break; 16px (`container-label` tier).
+- **Fit** (§Container fit): enclose every member with ≥30px padding (the main `agentic loop` container uses 50px sides / 60-70 top-bottom). The box's OUTER edge counts as content for the 50px viewBox padding; an edge leaving the region for ANOTHER region simply crosses the dashed border.
+- **Loop-backs stay INSIDE (CRITICAL)**: a loop-back whose source AND destination are both nodes inside this container must route INSIDE the box — in an internal gutter between the container edge and the nodes — NOT out in the page margin beyond the container. Size the container to include that gutter (the loop-back path counts as a contained member for the fit check). A return arc drawn outside its own region's box reads as escaping the region it belongs to. → see `examples/dark.svg` (the `agentic loop` loop-back returns inside the container, not around it).
+- **Label** on the top border via an **opaque** `container-gap` fill (`var(--bg)`) that breaks the dashed border behind the text — UNLIKE edge labels (which are transparent), a container label MUST keep this solid gap, sized to fully cover the dashes behind the text so none poke through; 16px (`container-label` tier).
 
 #### Callout (user-interrupt) — orthogonal single-elbow arrow
 
@@ -330,7 +337,7 @@ Copy-paste svg in §Pattern — Callout arrow.
 | **SVG viewBox padding** (around all content) | **50px on EVERY side** (left / right / top / bottom) |
 | Legend swatch size | 22px wide × 12px tall |
 
-**ViewBox padding symmetry rule (CRITICAL)**: all four paddings are 50px and the opposing pair MUST be equal — top padding (`min_content_y`) = bottom padding (`viewBox_height − max_content_y`) = 50px; left (`min_content_x`) = right (`viewBox_width − max_content_x`) = 50px. Asymmetric padding (e.g., 50px top + 90px bottom) reads as visually unbalanced and "framed wrong" when embedded in a doc.
+**ViewBox padding symmetry rule (CRITICAL)**: all four paddings are 50px and the opposing pair MUST be equal, measured against the ACTUAL viewBox bounds (`min-x` / `min-y` need NOT be 0) — top padding (`min_content_y − viewBox_min_y`) = bottom (`viewBox_max_y − max_content_y`) = 50px; left (`min_content_x − viewBox_min_x`) = right (`viewBox_max_x − max_content_x`) = 50px. The background rect (`extract_svg.py`) is derived from these SAME viewBox bounds, so content, padding, and background stay aligned even when the viewBox origin is non-zero. Asymmetric padding (e.g., 50px top + 90px bottom) reads as visually unbalanced and "framed wrong" when embedded in a doc.
 
 **Wrong:** content y=50 to y=360, viewBox y=0 to y=440 → top padding 50, bottom padding 440-360=80. Asymmetric.
 **Right:** content y=50 to y=360, viewBox y=0 to y=410 → top 50, bottom 50. Symmetric. (Same logic for left/right against `viewBox_width`.)
@@ -380,7 +387,7 @@ An **undifferentiated crossing** (two identical solid lines simply overlapping, 
 2. Loop-back / return arrows (behind nodes)
 3. Forward flow arrows
 4. Callout arrow
-5. Edge labels (bg cutout interrupts arrows visually)
+5. Edge labels (offset off the line; no background fill)
 6. Nodes (rects)
 7. Node labels (text)
 8. Legend
@@ -558,23 +565,21 @@ CSS: `.callout-arrow { stroke: var(--callout-stroke); stroke-width: 3; fill: non
 
 See `examples/dark.svg` — callout box → single-elbow dashed arrow up to the container's bottom-center.
 
-### Pattern — Edge label (offset from line, centered, small bg cutout)
+### Pattern — Edge label (offset from line, centered, NO background)
 
 ```svg
 <!-- For horizontal segment: position 14px ABOVE the arrow -->
 <g transform="translate(MIDPOINT_X, ARROW_Y - 14)">
-  <rect class="edge-label-bg" x="-(W/2+3)" y="-9" width="(W+6)" height="18" />
   <text class="edge-label" text-anchor="middle" y="4">label text</text>
 </g>
 
 <!-- For vertical segment: text-anchor=start, position 6px RIGHT of arrow -->
 <g transform="translate(ARROW_X + 6, MIDPOINT_Y)">
-  <rect class="edge-label-bg" x="-3" y="-9" width="(W+6)" height="18" />
   <text class="edge-label" text-anchor="start" y="4">label text</text>
 </g>
 ```
 
-See `examples/bridge-crossover.svg` — the `hops over` label sits offset above the long left segment of the hopping edge.
+No `<rect>` background — the offset keeps the label clear of the line, and the text reads off the solid `var(--bg)` card; an opaque cutout would punch a hole in any nearby stroke (§Edge labels). See `examples/bridge-crossover.svg` — the `hops over` label sits offset above the long left segment of the hopping edge.
 
 ### Pattern — Marker defs (3 markers; include all)
 
@@ -609,7 +614,7 @@ CSS:
 
 Place at the bottom-left. Label each swatch in the project's domain vocabulary, NOT the generic role token — e.g. `agent` → "user" (humans) / "service" (microservices); `data` → "log" / "queue" / "database"; `action` → "command" / "step" / "process". Include ONLY the roles that actually appear.
 
-**Lay items out SEQUENTIALLY by text width — NEVER a fixed per-item pitch.** Each item occupies `swatch(22) + gap(8) + text_width`; the next item's `x` = previous item's right edge **+ ≥24px**. A hardcoded pitch (every item at +100, +120 …) silently overlaps once a label is long or at 18px — the next swatch lands under the previous label. Compute each `x` from the running total; `text_width ≈ chars × 10` (§Typography — Text-width estimate).
+**Lay items out SEQUENTIALLY by text width — NEVER a fixed per-item pitch.** Each item occupies `swatch(22) + gap(8) + text_width`; the next item's `x` = previous item's right edge **+ ≥24px**. A hardcoded pitch (every item at +100, +120 …) silently overlaps once a label is long or at 18px — the next swatch lands under the previous label. Compute each `x` from the running total; `text_width` is the §Typography — Text-width estimate (**character-class sum**, not a flat `chars × 10`). The inter-item gap here is exact, so a crude flat estimate over-reserves narrow / space-heavy labels and renders **visibly uneven gaps** — use the class sum.
 
 ```svg
 <g class="legend" transform="translate(50, LEGEND_Y)">
@@ -619,7 +624,7 @@ Place at the bottom-left. Label each swatch in the project's domain vocabulary, 
     <rect width="22" height="12" rx="3" fill="var(--action-fill)" />
     <text x="30" y="10" class="legend-label">skills</text>
   </g>
-  <g transform="translate(114, 0)">   <!-- 0 + 30 + ("skills" 6 chars × 10 = 60) + 24 = 114 -->
+  <g transform="translate(99, 0)">   <!-- 0 + 30 + ("skills" ≈ 45 via class sum: s·k·s=10×3, i·l·l=5×3) + 24 = 99 -->
     <rect width="22" height="12" rx="3" fill="var(--data-fill)" stroke="var(--data-stroke)" stroke-width="1.2" />
     <text x="30" y="10" class="legend-label">log</text>
   </g>
@@ -715,13 +720,17 @@ All artifacts go in `./tmp_diagram/` relative to the current working directory (
 
 10. **Regenerate v2** — apply real fixes (drop false positives). Write `./tmp_diagram/flowchart-v2-<slug>.html`. Re-extract SVG (same `--radius <radius>`), re-render PNG for visual confirmation.
 
-11. **Filter outputs per Step 1 choice + Present**:
-    - `svg` only → delete `.html` and `.png` (both v1 and v2)
-    - `png` only → delete `.html` and `.svg`
-    - `html` only → delete `.svg` and `.png`
-    - `all three` → delete only the v1 files; keep v2 `.html` + `.svg` + `.png`
+11. **Filter outputs per Step 1 choice + Present**. Always delete all v1 files. **The v2 `.html` source is kept by DEFAULT regardless of format choice** — it is the editable source, and deleting it strands re-editing (the extracted `.svg` is awkward to hand-edit: CDATA-wrapped CSS + injected bg rect). Keep per choice:
+    - `svg` (default) → keep v2 `.svg` **+ v2 `.html` source**; delete `.png`
+    - `png` → keep v2 `.png` **+ v2 `.html` source**; delete `.svg`
+    - `html` → keep v2 `.html`; delete `.svg` + `.png`
+    - `all three` → keep v2 `.html` + `.svg` + `.png`
 
-    Report: kept paths, preset, node/edge counts, v1→v2 changes.
+    Report: kept paths, preset, node/edge counts, v1→v2 changes, AND the **re-extract command** so the user can regenerate the deliverable after editing the HTML source:
+    ```bash
+    python3 "${CLAUDE_PLUGIN_ROOT}/skills/draw-diagram/scripts/extract_svg.py" \
+      tmp_diagram/flowchart-<slug>.html tmp_diagram/flowchart-<slug>.svg --radius <radius>
+    ```
 
 **Hard cap: 2 iterations.** No infinite loops.
 
@@ -737,16 +746,18 @@ Use Read tool to view PNG. **ALSO Read the user's reference image if one was pro
 Check per spec (the hard-to-eyeball ones — minor constants like r=12 / stroke weights are trusted from the copied preset):
 1. **Crossings** — flag ONLY undifferentiated ones (two identical solid lines overlapping with no bridge/hop arc, distinct color, or dash).
 2. **Node overlaps + edge-through-node collisions** — ZERO. For EACH arrow segment (each `L` between corners), check it does NOT pass through a node's rect that isn't its source/destination (subagents miss this — verify each segment vs each node rect).
-3. **Container fit** — container's rect fully encloses every contained node with ≥30px padding; flag any container edge cutting through a node.
+3. **Container fit** — container's rect fully encloses every contained node with ≥30px padding; flag any container edge cutting through a node. Also: a loop-back whose source AND destination are both INSIDE a container must route inside the box (internal gutter), NOT in the page margin outside it — flag a return arc drawn outside its own container.
 4. **Arrow tips** — every `marker-end` shows a visible triangle; the apex touches the destination edge (gap >1px or overshoot >3px = fail); `refX=0` geometry (triangle base at the line endpoint, not a spike on top of the line).
 5. **Loopback origins** — exit/entry at the EXACT box center-x. Off by any amount = fail.
 6. **ViewBox padding symmetry** — all four paddings 50px; top=bottom and left=right.
 7. **Text** — no cut-off / overflow; node labels uniformly 18px.
 8. **Palette** — only locked-palette colors; no pure black text/arrows.
-9. **Legend** — present (for the roles used), not cut off, labels 18px, items spaced sequentially by text width (no swatch under a prior label).
+9. **Legend** — present (for the roles used), not cut off, labels 18px, items spaced sequentially by text width (no swatch under a prior label) AND the whitespace gaps between items look UNIFORM (a noticeably wider gap after one item = its width was over-reserved by the estimate; flag it).
 10. **ALIGNMENT AUDIT** — same-row Y / same-column X / same-role uniform width / line origin from box center / edge labels offset (above horizontal, right of vertical) / fan-OUT = SYMMETRIC arced-split Y / fan-IN = independent arrows (no merged stem).
 11. **No in-SVG title** — the SVG holds only nodes, edges, labels, legend (no baked-in heading).
 12. **Reference image match** — if a reference image was provided, does the render's composition / arrow style / layout match it? Note any divergence.
+13. **Label backgrounds** — edge/line labels have NO background fill: flag any opaque box behind an edge label that covers a stroke (especially the loop-back / flow line the label annotates), leaving a gap in the line. Container/group labels DO keep an opaque `var(--bg)` gap that fully breaks the dashed border behind the text: flag dashes poking through the label text.
+14. **Background card** — the rounded `var(--bg)` background covers the WHOLE viewBox: all four corners rounded identically, no transparent strip / void between content and any viewBox edge, no square-cut side (a non-zero viewBox origin with a `100%`-sized bg is the classic cause).
 
 Report HIGH/MEDIUM/LOW findings. Under 350 words. Do NOT propose fixes.
 ```
@@ -793,12 +804,12 @@ All artifacts live in `./tmp_diagram/` (relative to the cwd, NOT `/tmp/`). What 
 
 | Format choice | Kept in `./tmp_diagram/` |
 |---|---|
-| `svg` (default) | `flowchart-v2-<slug>.svg` |
-| `png` | `flowchart-v2-<slug>.png` |
+| `svg` (default) | `flowchart-v2-<slug>.svg` + `.html` source |
+| `png` | `flowchart-v2-<slug>.png` + `.html` source |
 | `html` | `flowchart-v2-<slug>.html` |
 | `all three` | v2 `.html` + `.svg` + `.png` |
 
-All v1 files are always deleted at Step 11. SVG is the canonical deliverable (standalone, embeds CSS + Google Font @import, opens in any browser). HTML is the editable source for further tweaks. PNG is a raster export.
+All v1 files are always deleted at Step 11. SVG is the canonical deliverable (standalone, embeds CSS + Google Font @import, opens in any browser). **The v2 `.html` source is retained alongside the deliverable by default** so the diagram can be re-edited and re-extracted (Step 11 prints the re-extract command) without redrawing from scratch. PNG is a raster export.
 
 If the user wants the diagram permanently in the project (e.g., `assets/diagrams/`), `cp` from `./tmp_diagram/` to the chosen path.
 

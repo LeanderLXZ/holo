@@ -9,7 +9,10 @@ The HTML has <style> in <head> + <svg> in <body>. For standalone .svg, we
 move the <style> INTO the <svg> (wrapped in CDATA so any `&` / `<` inside
 CSS comments / @import URLs don't trip XML parsing), and we add a background
 rect that fills the entire viewBox (the HTML's body background isn't
-available in standalone SVG).
+available in standalone SVG). The rect's x/y/width/height are derived from
+the viewBox — NOT `width="100%"` — so it still covers the canvas when the
+viewBox origin is non-zero (a shifted viewBox would otherwise clip the
+rounded corners on one side and leave a transparent strip on the other).
 
 `--radius N` rounds the corners of that background rect (`rx`/`ry` = N, in
 viewBox user units; default 0 = square). With the corners rounded, the canvas
@@ -59,6 +62,23 @@ def extract(html_path: Path, svg_path: Path, radius: int = 0) -> None:
         sys.exit(f"no <svg> in {html_path}")
     svg_open, svg_inner, svg_close = svg_match.groups()
 
+    # Background rect geometry — derive it from the viewBox, NOT `100%/100%`.
+    # `width="100%" height="100%"` (implicit x=0/y=0) only covers the canvas
+    # when the viewBox origin is (0,0). A diagram that shifts its viewBox to
+    # frame content (e.g. `viewBox="45 0 1380 1824"`) would leave the rect
+    # offset by the origin: the left/top rounded corners fall off-canvas
+    # (clipped to a square edge) and a transparent strip is left on the far
+    # side. Parsing min-x/min-y/width/height makes the rect track the canvas.
+    vb_match = re.search(r'viewBox\s*=\s*"([^"]+)"', svg_open)
+    nums = vb_match.group(1).replace(",", " ").split() if vb_match else []
+    if len(nums) == 4:
+        min_x, min_y, vb_w, vb_h = nums
+        bg_geom = f'x="{min_x}" y="{min_y}" width="{vb_w}" height="{vb_h}"'
+    else:
+        # No viewBox, or a malformed one (not exactly 4 values) — fall back to
+        # a full-canvas rect rather than emitting a degenerate (0-size) one.
+        bg_geom = 'width="100%" height="100%"'
+
     # Optional rounded corners on the background rect (viewBox user units).
     rx_attr = f' rx="{radius}" ry="{radius}"' if radius > 0 else ""
 
@@ -70,7 +90,7 @@ def extract(html_path: Path, svg_path: Path, radius: int = 0) -> None:
         '  <style type="text/css"><![CDATA[\n'
         f"{css}\n"
         "]]></style>\n"
-        f'  <rect width="100%" height="100%"{rx_attr} fill="var(--bg)" />\n'
+        f'  <rect {bg_geom}{rx_attr} fill="var(--bg)" />\n'
         f"{svg_inner}\n"
         f"{svg_close}\n"
     )

@@ -17,7 +17,7 @@ Execute per the discussion above. `/do` is the default path for landing already-
 
 If the change surface widens past `/do`'s envelope mid-flight (≥ 3 files / cross-file alignment needed), exit and re-enter via `/go` — `/do` does **NOT** mid-flight escalate.
 
-**Anti-pattern (hard).** `/do` does NOT call `/go` / `/post-check` / `/full-review` / `/commit` / `/update-docs`. The Step 3 commit is a raw `git add` + `git commit`, not a delegated invocation. `/do` does NOT switch branches, open worktrees, stash / pop, or fan out to other branches. `/do` does NOT maintain `ai_context/` durable state (`handoff.md` / `decisions.md`) or `docs/todo_list.md` — those are `/go` Step 6's job.
+**Anti-pattern (hard).** `/do` does NOT call `/post-check` / `/full-review` / `/commit` / `/update-docs`, and the Step 3 commit is a raw `git add` + `git commit` (not a delegated invocation). The ONE allowed delegation is the Step 1.1 ≥ 3-file fork handing off to `/go` when the user explicitly picks "Upgrade to `/go`" — a start-time, user-chosen handoff (see Step 1.1). `/do` does NOT switch branches, open worktrees, stash / pop, or fan out to other branches. `/do` does NOT maintain `ai_context/` durable state (`handoff.md` / `decisions.md`) or `docs/todo_list.md` — those are `/go` Step 6's job.
 
 ## Progress reporting
 
@@ -78,13 +78,13 @@ Print one line: `Plan: file1 / file2 / file3 / ...` listing every file you expec
 
 Options (exactly three, recommended option first):
 
-1. **Upgrade to `/go` (recommended)** — exit `/do`; user re-invokes `/go`, which carries PRE log + cross-file alignment + multi-line review.
+1. **Upgrade to `/go` (recommended)** — hand off directly to `/go` (which carries PRE log + cross-file alignment + multi-line review). `/do` does NOT stop and make the user re-invoke — it chains into `/go` for them (see the Option 1 branch below).
 2. **Continue with `/do`** — accept the wider scope on this run; subsequent additions during execution do NOT re-trigger this question (see 1.2 "Mid-flight new file" rule).
 3. **Exit without modifying** — abort `/do`; no files touched, no LOG written.
 
 Branch on the answer:
 
-- Option 1 → print `/do exited; re-enter via /go for ≥ 3-file changes` and stop the skill.
+- Option 1 → **hand off to `/go` immediately** (do NOT stop for a manual re-invoke): print one line `Planned set is ≥ 3 files; handing off to /go: <file list>`, then invoke **<skill tool>** targeting `/go` with `<arg>` = this run's `<arg>` (or a short slug derived from the discussion). The in-conversation discussion `/do` was about IS `/go`'s baseline — `/go` reads it as its Step 2 PRE log "Background / Trigger", then runs its own flow (starting with its Step 1 work-location ask). **<skill tool> resolution**: Claude → `Skill("go")`; runtimes without a structured skill tool → print `User: please run /go <slug> next` and stop (manual fallback only where auto-invoke is unavailable).
 - Option 2 → proceed to 1.2.
 - Option 3 → print `/do exited; no files modified` and stop.
 
@@ -186,9 +186,9 @@ Options (exactly two, recommended option first):
 
 ## Constraints
 
-- **No delegated skills**: `/do` does NOT call `/go` / `/post-check` / `/full-review` / `/commit` / `/update-docs`. The Step 3 commit is raw `git add` + `git commit`, not a delegated invocation.
+- **One delegated skill, by user choice**: `/do` does NOT call `/post-check` / `/full-review` / `/commit` / `/update-docs`, and the Step 3 commit is raw `git add` + `git commit` (not a delegated invocation). The SOLE delegation is the Step 1.1 ≥ 3-file fork: when the user explicitly picks "Upgrade to `/go`", `/do` hands off to `/go` directly (a start-time, user-chosen delegation) instead of stopping for a manual re-invoke.
 - **No environment takeover**: `/do` does NOT switch branches, open worktrees, stash / pop, run background-process probes, or fan out to other branches. Cross-branch sync → `/forward` (user-invoked, separately, after `/do`).
-- **No mid-flight escalation**: `/do` does NOT mid-flight escalate to `/go`. If the scope widens, exit cleanly and re-enter via `/go`.
+- **No mid-flight escalation**: once editing has started, `/do` does NOT escalate to `/go` mid-flight — if the scope widens after the first edit, finish minimally or exit and re-enter via `/go`. (Distinct from the Step 1.1 ≥ 3-file fork, which fires BEFORE any edit and, on the user's "Upgrade to `/go`" pick, hands off to `/go` directly.)
 - **No durable-doc maintenance**: `/do` does NOT touch `ai_context/handoff.md` / `decisions.md` unless the discussion is explicitly about those files. Durable maintenance is `/go` Step 6's job.
 - **No todo bookkeeping**: `/do` does NOT maintain `docs/todo_list.md` (no entry move to archived, no Index refresh). Use `/todo-add` or `/go` for todo bookkeeping.
 - **No backfill of pre-existing logs**: pre-existing `logs/change_logs/*.md` files are NOT retroactively assigned a `Type` field. Only new logs from `/go` (`Type: GO`) and `/do` (`Type: DO`) onward carry the field.

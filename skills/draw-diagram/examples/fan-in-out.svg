@@ -40,7 +40,7 @@ text { font-family: var(--font); }
 
   .legend-label { font-weight: 500; font-size: 18px; fill: var(--label-text); }
 ]]></style>
-  <rect width="100%" height="100%" rx="25" ry="25" fill="var(--bg)" />
+  <rect x="0" y="0" width="1020" height="715" rx="25" ry="25" fill="var(--bg)" />
 
 
   <defs>
