@@ -16,9 +16,9 @@ No arguments. **Touches plugin-owned content** (sentinel blocks, plugin canonica
 
 > **Language**: progress-tool entries (`content` field) are user-facing — write them in `conversation_language` per `ai_context/skills_config.md §Language`. The `Step N:` prefix stays English (structural label); subtitle text after the colon translates to `conversation_language`. Sub-task entries `Step 2a:` ~ `Step 2f:` follow the same rule.
 
-The user-entry shell is split into `## Step 0:` ~ `## Step 3:`.
+The user-entry shell is split into `## Step 0:` ~ `## Step 4:`.
 
-**Before entering Step 0**: call **<progress tool>** to pre-register Step 0 ~ Step 3 (`status` all `pending`). **Do not proceed without calling <progress tool>**.
+**Before entering Step 0**: call **<progress tool>** to pre-register Step 0 ~ Step 4 (`status` all `pending`). **Do not proceed without calling <progress tool>**.
 
 On entering each step: flip the current step to `in_progress` and mark the previous one `completed`.
 
@@ -59,7 +59,7 @@ None present → print `Project has not been initialized — run /holo:init firs
 
 **1.3 Working tree status**
 
-- `test -d .git && git status --short`; dirty → print warning but do not stop (`/holo:update` does not commit, consistent with `/holo:init`)
+- `test -d .git && git status --short`; dirty → print warning but do not stop (`/holo:update` does not auto-commit — its closing Step 4 commit offer is opt-in and routes through `/commit`; consistent with `/holo:init`)
 
 **1.4 Cross-agent surface question** (`ai_context/decisions.md` #32)
 
@@ -121,12 +121,30 @@ Suggested next steps (only when there are _(TODO)_ appends, manual sync, or smar
   1. Review `_(TODO — added by /holo:update)_` markers and fill in actual content as needed
   2. If CLAUDE.md ↔ AGENTS.md have unexpected diffs, manually sync them and rerun diff to verify
   3. If smart-merge surfaced any failed-after-retry files (Z > 0), inspect the staging output the smart-merge dispatch saved + the snapshot, then resolve manually
-  4. `/commit` to land the sync changes
 ```
+
+Landing the changes is handled interactively by **Step 4** below (no standalone `/commit` reminder here).
 
 Mapping: `Reconcile.Step 6.write_counts.merged` → `M`, `.overwritten` → `N`, `.kept` → `K`, `.failed` → `Z`. `Reconcile.Step 6.fix_counts.{regenerated, created, deleted, template_copied, section_appended, field_appended, gitignore_appended, claude_agents_lang_fixed}` → `A / B / C / D / E / F / G / H` directly. `write_counts.new_copied` (Reconcile.Step 3 NEW file count — for `/holo:update` typically 0 since the consumer is already initialized; non-zero only when the plugin upgrade added new template files) → folded into the `Templates` row's `template_copied=D` count for display only (the two counters mean "new from Step 3 NEW-path" and "new from Step 5b deterministic-fix", both display under the same row).
 
-`total_drift = 0` ⇔ `fix_counts` is all-zero AND smart-merge dispatch list was empty AND `remaining_drift` is empty → print `✅ Project is in sync with <name> v<version>; nothing to do.` and exit.
+`total_drift = 0` ⇔ `fix_counts` is all-zero AND smart-merge dispatch list was empty AND `remaining_drift` is empty → print `✅ Project is in sync with <name> v<version>; nothing to do.` and exit (Step 4 is skipped — nothing was written).
+
+## Step 4: Commit offer
+
+> **Language**: user-facing — render the `<ask tool>` prompt + option labels and the post-decision line in `conversation_language` per `ai_context/skills_config.md §Language`. File paths and the `/commit` skill name stay verbatim.
+
+After Step 3's summary, offer to land the changes this run produced.
+
+**Guard — only ask when the run actually wrote something**: run `git status --short`. Empty (the 0-drift "Project is in sync" early-exit, or every finding skipped so nothing landed) → there is nothing to commit; mark Step 4 `completed` and skip the ask silently. Non-empty → proceed to the ask below.
+
+Use **<ask tool>** to ask one question:
+
+> /holo:update 本次同步已写入改动，是否现在提交？
+
+- `现在提交` (Recommended) — chain into the `/commit` skill (its Step 0 ~ Step 3: change-validity + tracking-state safety net — do-not-commit paths, large files, logical splitting — then commit). `/holo:update` itself never runs `git add` / `git commit`; this is a **user-chosen handoff** (same pattern as `/do`'s Step 1.1 → `/go` fork), so the actual commit always flows through `/commit`'s own checks and prompts.
+- `稍后手动` — no commit this run; print one line reminding the user they can run `/commit` (then `/forward` / `/push`) later.
+
+On `现在提交`, invoke `/commit` directly — the user's pick is the gate, so do not re-confirm before handing off (only `/commit`'s own prompts apply thereafter). On `稍后手动`, end here.
 
 ## Reconcile core
 
@@ -414,6 +432,6 @@ Return to caller. Reconcile core does not print anything user-facing on return (
 - **Single source of truth for detection / fix rules** = `scripts/holo_update_check.py`; the skill body does not re-implement.
 - **Reconcile core is single source of truth for per-file landing logic** — both `/holo:update` (this command) and `/holo:init` Step 4 flow through it. To change file-update behavior, edit `## Reconcile core` above; do NOT duplicate the logic into init's user-entry shell.
 - **Only touches structural drift introduced by the plugin upgrade** (missing files / missing section headers / stale mirror / sentinel-aware drift); does not touch user-territory content — skill-level orphan mirrors are surfaced but never deleted.
-- **Does not `git add` / does not commit**: consistent with `/holo:init`; the user commits via `/commit`.
+- **Never commits directly**: `/holo:update` itself never runs `git add` / `git commit`. Step 4 offers an opt-in commit at the end — on the user's `现在提交` pick it **chains into `/commit`** (which runs the actual commit behind its do-not-commit-path / large-file / logical-split safety net); on decline the user commits manually. Consistent with `/holo:init`.
 - **CLAUDE/AGENTS cross-sync not auto-merged**: the script `--fix` is designed not to touch CLAUDE↔AGENTS asymmetric guidance lines (`claude_agents.unexpected_diffs`); it only reports them. Distinct from §Language hardcoded-value sync (`claude_agents_lang_drift`), which IS auto-fixable.
 - To adjust detection rules → edit `scripts/holo_update_check.py`, then sync the Reconcile.Step 4 JSON contract description in this file per `ai_context/conventions.md` §Cross-File Alignment.

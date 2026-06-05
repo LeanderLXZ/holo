@@ -16,9 +16,9 @@ No arguments. The repo's current state is probed automatically (empty directory 
 
 > **Language**: progress-tool entries (`content` field) are user-facing — write them in `conversation_language` per `ai_context/skills_config.md §Language`. The `Step N:` prefix stays English (structural label); subtitle text after the colon translates to `conversation_language`. Until Step 0 settles `<conversation_language>` (only the Step 0 question itself precedes it), follow `auto` semantics — match the user's most recent message language for entries written then.
 
-The flow is split into `## Step 0:` ~ `## Step 7:`.
+The flow is split into `## Step 0:` ~ `## Step 8:`.
 
-**Before entering Step 0**: call **<progress tool>** to pre-register Step 0 ~ Step 7 (one entry per step, `content` as `Step N: <sub-section title>`, all `status` = `pending`). This is a hard requirement — **do not proceed without calling <progress tool>**.
+**Before entering Step 0**: call **<progress tool>** to pre-register Step 0 ~ Step 8 (one entry per step, `content` as `Step N: <sub-section title>`, all `status` = `pending`). This is a hard requirement — **do not proceed without calling <progress tool>**.
 
 On entering each step: flip the current step to `in_progress` and mark the previous one `completed`, then do the actual work. Skipping a step: mark it `completed` directly and print one line in the conversation `Step N skipped (reason: …)`.
 
@@ -51,7 +51,7 @@ Purpose: paint a clear picture of "what the target directory looks like" so subs
 
 - `pwd` to confirm the absolute path of the current working directory
 - `ls -la` to view the top-level file / directory listing
-- `test -d .git && git status --short` to check whether it is a git repo + working-tree state. dirty → print a warning (do not stop, because `/holo:init` does not commit; but advise the user to stash / commit existing changes first to keep the git history cleaner)
+- `test -d .git && git status --short` to check whether it is a git repo + working-tree state. dirty → print a warning (do not stop, because `/holo:init` does not auto-commit — its closing Step 8 commit offer is opt-in and routes through `/commit`; but advise the user to stash / commit existing changes first, otherwise an opted-in closing commit would let `/commit` see those pre-existing changes too)
 
 **1.2 Repo content probing** (pre-fills values for Round 1 questioning)
 
@@ -344,17 +344,34 @@ Progressive sections still empty (M items; fill as the project evolves):
 
 Suggested next steps:
   1. Fill in remaining PROGRESSIVE sections — recommend starting with ai_context/project_background.md + handoff.md
-  2. git add + commit the skeleton first, then fill content in increments (cleaner git history)
+  2. Commit the skeleton — Step 8 below offers this interactively (chains into /commit); committing the skeleton first, then filling content in increments, keeps a cleaner git history
   3. Maintain the project subsequently via /go / /commit / /todo-add etc. skills
   4. After future plugin upgrades, run /holo:update to re-sync (same Reconcile core, lighter shell)
 ```
+
+## Step 8: Commit offer
+
+> **Language**: user-facing — render the `<ask tool>` prompt + option labels and the post-decision line in `conversation_language` per `ai_context/skills_config.md §Language`. File paths and the `/commit` skill name stay verbatim.
+
+After Step 7's wrap-up, offer to land the skeleton this run produced.
+
+**Guard — only ask when the run actually wrote something**: run `git status --short`. Empty (e.g. a re-init that landed no changes) → there is nothing to commit; mark Step 8 `completed` and skip the ask silently. Non-empty → proceed to the ask below.
+
+Use **<ask tool>** to ask one question:
+
+> /holo:init 已生成项目骨架，是否现在提交？
+
+- `现在提交` (Recommended) — chain into the `/commit` skill (its Step 0 ~ Step 3: change-validity + tracking-state safety net — do-not-commit paths, large files, logical splitting — then commit). `/holo:init` itself never runs `git add` / `git commit`; this is a **user-chosen handoff** (same pattern as `/do`'s Step 1.1 → `/go` fork), so the actual commit always flows through `/commit`'s own checks and prompts.
+- `稍后手动` — no commit this run; print one line reminding the user they can run `/commit` later (committing the skeleton before filling PROGRESSIVE sections keeps a cleaner history).
+
+On `现在提交`, invoke `/commit` directly — the user's pick is the gate, so do not re-confirm before handing off (only `/commit`'s own prompts apply thereafter). On `稍后手动`, end here.
 
 ## Constraints
 
 - **Reconcile core is the single source of truth for per-file landing logic** — Step 4 invokes it (mode=`"init-post-bootstrap"`); this shell does not classify SAME / CONFLICT, does not handle CONFLICT, does not translate files, does not copy templates. Changes to file-update behavior go to `commands/update.md ## Reconcile core`.
 - **Never silently overwrite**: any template conflict (re-init paths) flows through Reconcile.Step 5a smart-merge dispatch's three-layer ask + `take_snapshot` backup.
 - **Do not touch non-template files**: existing files outside template paths are not touched (Reconcile.Step 2b's CJK-detection scope is restricted to the canonical manifest).
-- **Do not `git add` / do not commit**: `/holo:init` only generates / modifies files; commits are done by the user via `/commit`.
+- **Never commits directly**: `/holo:init` itself never runs `git add` / `git commit` — it only generates / modifies files. Step 8 offers an opt-in commit at the end — on the user's `现在提交` pick it **chains into `/commit`** (which runs the actual commit behind its do-not-commit-path / large-file / logical-split safety net); on decline the user commits manually.
 - **Placeholder marker conventions (three-bucket schema)** — see `ai_context/decisions.md` §Skill Implementation #15 for rationale:
   - **REQUIRED** `<...>` syntax: filled by Step 0 (Language) or Step 2 (Project basics) or Step 5.4 (deterministic AI-infer) or Step 6 `Auto-scan` / `Manual input` paths. Step 7.1(a) gates residue = 0.
   - **PROGRESSIVE** `_(none yet — delete this marker once content is added)_` line: template ships with this marker; user deletes when adding first content. Not reported as drift / not gated.
