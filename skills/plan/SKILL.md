@@ -1,6 +1,6 @@
 ---
 name: plan
-description: Lock the current message into discuss-only mode — activates only when the user's current message literally contains `/plan`. Forbids Write/Edit/NotebookEdit and all mutating Bash (git mutations / file writes / network writes); allows only read-only queries (cat / grep / ls / find / git log / diff / status). Scope = one message; /plan in session history does NOT count as activation. After discussion converges, user invokes /go or other writing skills to land. $ARGUMENTS = discussion topic (optional). Triggers: /plan / discuss only / discuss without touching files / analyze the plan / talk it through first.
+description: Lock the current message into discuss-only mode — no file writes / no mutating Bash, read-only queries only; scope = one message. Triggers: /plan / discuss only / discuss without touching files / analyze the plan / talk it through first.
 ---
 
 > **Language**: per `ai_context/skills_config.md §Language` — disk-bound output (logs / docs / commit messages / code comments / files written) uses `content_language`; user-facing surface (chat prose / `AskUserQuestion` prompts and option labels / progress-tool entry `content` / status lines / strategy declarations / findings rendered in chat) uses `conversation_language`. Code identifiers, file paths, field names, frontmatter keys, and structural prefixes (`Step N:`, `LOG:`, etc.) stay English regardless.

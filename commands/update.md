@@ -1,5 +1,5 @@
 ---
-description: Project sync check after plugin upgrade — thin user-entry shell around the shared `## Reconcile core` SOP defined in this same file (`/holo:update` mode=update and `/holo:init` Step 4 mode=init-post-bootstrap both flow through it; single source of truth). Reconcile core 6 sub-steps: template inventory → language alignment → NEW file copy → drift detection via scripts/holo_update_check.py → 3-bucket dispatch (smart-merge for sentinel_layout_drift / deterministic --fix for missing_template+section+field / gitignore_missing_lines / agents_sync / claude_agents_lang_drift / display-only for the rest) → return. File-body language mismatch is preprocessed by Reconcile.Step 2b, not a smart-merge trigger. 0 drift passes silently. No arguments; preserves user-territory content; does not git add or commit. Triggers: /holo:update / plugin upgraded / sync holo update / check whether holo is up to date.
+description: Project sync check after a plugin upgrade — template inventory + drift detection + 3-bucket dispatch (smart-merge / deterministic --fix / display-only). Triggers: /holo:update / plugin upgraded / sync holo update / check whether holo is up to date.
 ---
 
 > **Language**: per `ai_context/skills_config.md §Language` — disk-bound output (regenerated `.agents/skills/` mirror files, `_(TODO — added by /holo:update)_` markers appended to `skills_config.md`, any in-place file edits) uses `content_language`; user-facing surface (chat prose / `AskUserQuestion` prompts and option labels / progress-tool entry `content` / drift-category report / final summary / `Auto-fix all` / `Skip all` confirmations) uses `conversation_language`. Code identifiers, file paths, field names, frontmatter keys, JSON keys returned by `holo_update_check.py` (`missing_section`, `lang_mirror_drift`, `agents_sync.stale`, `legacy_skip_marker`, etc.), and structural prefixes (`Step N:`, `DRIFT:`, `OK:`) stay English regardless.
@@ -61,6 +61,19 @@ None present → print `Project has not been initialized — run /holo:init firs
 
 - `test -d .git && git status --short`; dirty → print warning but do not stop (`/holo:update` does not commit, consistent with `/holo:init`)
 
+**1.4 Cross-agent surface question** (`ai_context/decisions.md` #32)
+
+> **Language**: user-facing — render the question + option labels in `conversation_language` per `ai_context/skills_config.md §Language`.
+
+Probe the current state first: `test -f AGENTS.md` (and `test -d .agents/skills`). Use **<ask tool>** to ask ONE question, with the **presence-based default** as the `Recommended` option:
+
+> 是否为其他 AI agent（Codex / Cursor 等非 Claude 运行时）维护兼容文件？包含 `AGENTS.md`（入口说明）+ `.agents/skills/` 技能镜像。
+
+- `Yes` — create (if missing) and sync `AGENTS.md` + the `.agents/skills/` mirror this run. **Recommended when `AGENTS.md` already exists.**
+- `No` — leave them out of scope: don't create, and don't touch a present `AGENTS.md` / mirror this run. **Recommended when `AGENTS.md` is absent.**
+
+Record the answer as `<other_agents>` (`yes` / `no`). On `Yes` with `.agents/skills/` absent, `mkdir -p .agents/skills/` before Step 2 so Reconcile's mirror sync sees it (same pre-create pattern as `/holo:init` Step 1.4). The question is always asked (it is `/holo:update`'s only `<ask tool>`); 0-drift still completes silently after Reconcile returns.
+
 ## Step 2: Invoke Reconcile core
 
 Call the **`## Reconcile core`** SOP (defined later in this file) with:
@@ -70,6 +83,7 @@ mode = "update"
 target_root = "."                                       # consumer project root (or absolute path if /holo:update ran from a subdir)
 plugin_root = "${CLAUDE_PLUGIN_ROOT}"
 content_language = <consumer skills_config §Language content_language value>
+other_agents = <other_agents>                           # Step 1.4 answer (yes / no)
 ```
 
 Reconcile core returns:
@@ -77,7 +91,7 @@ Reconcile core returns:
 ```
 {
   write_counts: { merged: M, overwritten: N, kept: K, failed: Z, new_copied: P, deterministic_fixed: Q },
-  fix_counts: { regenerated, created, deleted, template_copied, section_appended, field_appended, gitignore_appended, claude_agents_lang_fixed, orphan_siblings_left },  # raw `holo_update_check.py --fix --json` output verbatim — Step 3 maps these to A/B/C/D/E/F/G/H counters in the final print
+  fix_counts: { regenerated, created, deleted, template_copied, section_appended, field_appended, gitignore_appended, claude_agents_lang_fixed, orphan_kept },  # raw `holo_update_check.py --fix --json` output verbatim — Step 3 maps these to A/B/C/D/E/F/G/H counters in the final print
   snapshot_dir: "<path or null>",
   remaining_drift: [...],          # findings that still surface after dispatch (display-only bucket + user-skipped conflict-triggering)
   translation_log: [...]
@@ -123,7 +137,7 @@ Mapping: `Reconcile.Step 6.write_counts.merged` → `M`, `.overwritten` → `N`,
 **Signature**:
 
 ```
-Reconcile(target_root, plugin_root, mode, content_language) →
+Reconcile(target_root, plugin_root, mode, content_language, other_agents) →
   { write_counts: { merged, overwritten, kept, failed, new_copied, deterministic_fixed },
     snapshot_dir,
     remaining_drift,
@@ -135,6 +149,7 @@ Reconcile(target_root, plugin_root, mode, content_language) →
 - `plugin_root` — `${CLAUDE_PLUGIN_ROOT}`.
 - `mode` — `"update"` (called by `/holo:update`) or `"init-post-bootstrap"` (called by `/holo:init` Step 4). Mode-specific behavior is intentionally minimal: the only difference is that `init-post-bootstrap` mode tolerates a **higher NEW-file count** (caller asserted the project is initialized but allows skeleton gaps) while `update` mode expects most files already present (NEW > 0 indicates the plugin added new files since the last init).
 - `content_language` — ISO 639-1 code; consumer's target language read from `skills_config.md §Language`.
+- `other_agents` — `"yes"` | `"no"`; the caller's cross-agent-surface answer (`AGENTS.md` + `.agents/skills/` mirror; `ai_context/decisions.md` #32). `"no"` → Reconcile skips `AGENTS.md` in Step 1 inventory / Step 2b existing-scan / Step 3 NEW-copy, and appends `--other-agents no` to BOTH the Step 4 `--json` and Step 5b `--fix`/self-check invocations (so the script excludes `AGENTS.md` + the mirror from every check/fix). Default `"yes"` = current behavior.
 
 **Precondition**: project is initialized (CLAUDE.md / AGENTS.md / `ai_context/` at least one exists on disk). Caller (the user-entry shell) enforces this; Reconcile core may assume it.
 
@@ -153,6 +168,7 @@ For each template file (path relative to `templates/project-skeleton/`):
 - Consumer path = `<target_root>/<rel>`.
 - Path-only check: status `NEW` (consumer path absent) or `EXISTING` (consumer path present).
 - Do NOT read content; do NOT detect language. Content + language analysis runs at Step 2 / Step 4.
+- **When `other_agents == "no"`: exclude `AGENTS.md` from the inventory entirely** (it is not part of the chosen surface — see `ai_context/decisions.md` #32). It is then neither language-aligned (Step 2), NEW-copied (Step 3), nor flagged by the script (Step 4 receives `--other-agents no`).
 
 Output: an inventory list `[(rel, status, source_canonical_path), ...]`.
 
@@ -172,7 +188,7 @@ Result per template file: a `resolved-template-path` in `content_language` (cano
 
 **Step 2b — consumer existing-file side (per `EXISTING` template manifest file from Step 1)**:
 
-Restrict to the **canonical manifest**: `CLAUDE.md`, `AGENTS.md`, `ai_context/**/*.md`, `docs/todo_list.md`, `docs/architecture/**/*.md`. Do NOT scan user business docs.
+Restrict to the **canonical manifest**: `CLAUDE.md`, `AGENTS.md`, `ai_context/**/*.md`, `docs/todo_list.md`, `docs/architecture/**/*.md`. Do NOT scan user business docs. **When `other_agents == "no"`, drop `AGENTS.md` from this manifest** (Step 1 already excluded it from the inventory; this restates the contract — see `ai_context/decisions.md` #32).
 
 For each manifest file present on disk:
 
@@ -230,6 +246,8 @@ Increment `write_counts.new_copied` per file copied.
 
 Run `${plugin_root}/scripts/holo_update_check.py --target <target_root> --plugin-root <plugin_root> --json` on the post-Step-2-and-Step-3 state.
 
+**Cross-agent surface flag**: append `--other-agents <other_agents>` (the Reconcile input, `yes` | `no`) to this invocation **and** to the Step 5b `--fix` + post-fix self-check invocations below. On `no` the script excludes `AGENTS.md` + the `.agents/skills/` mirror from every check (so `--fix` neither recreates `AGENTS.md` as `missing_template` nor touches a present mirror — `ai_context/decisions.md` #32). A missing flag on `--fix` would re-flag `AGENTS.md` and recreate it, contradicting Step 1's inventory exclusion. Default `yes` = current behavior.
+
 **Baseline override**: when Step 2a's `translation_log` is non-empty for this run (consumer's `content_language` had no shipped `templates/project-skeleton.<lang>/` variant, so Step 2a produced an on-the-fly tmp-translated template tree at `<tmp_root>/<YYYY-MM-DD>_<HHMMSS>/templates/`), append `--baseline-root <tmp_root>/<YYYY-MM-DD>_<HHMMSS>/templates/` to the invocation so the script's baseline-aware finding categories compare consumer files against the tmp baseline instead of the canonical EN fallback. When `translation_log` is empty (en/zh consumers — their variants ship in the plugin), omit the flag and the script falls through to its default plugin-tree resolver. Background + completeness contract: see `docs/architecture/drift-detection.md` §Baseline root override.
 
 The script outputs the JSON structure documented as the **interface contract**:
@@ -241,7 +259,7 @@ The script outputs the JSON structure documented as the **interface contract**:
   "consumer_content_lang": "en|zh|<ISO 639-1>",
   "agents_sync": {
     "skipped": false,
-    "stale":   [{"name": "...", "source_path": "...", "source_type": "command|skill|asset", "target_path": "..."}],
+    "stale":   [{"name": "...", "source_path": "...", "source_type": "skill|asset", "target_path": "..."}],
     "missing": [/* same as stale; source_type="asset" items mirror non-SKILL.md skill assets */],
     "orphan":  [{"name": "...", "target_path": "..."}],
     "asset_orphan": [{"name": "...", "target_path": "..."}]
@@ -286,7 +304,7 @@ The script outputs the JSON structure documented as the **interface contract**:
    - `sentinel_layout_drift` (any sub_shape: `missing_sentinel` / `partial_sentinel` / `heading_drift` / `block_content_drift` — smart-merge dispatch is sub_shape-agnostic per `docs/architecture/smart-merge.md`).
    - File-body language mismatch is **NOT** in this bucket — it is handled by Step 2b preprocessing. After Step 2b completes (Yes path translated, No path skipped), Step 4's drift detection runs on post-translation state; mismatched-and-skipped files surface only via `sentinel_layout_drift` if their sentinel structure also drifted.
 2. **Deterministic-fixable** (routed to Step 5b `holo_update_check.py --fix`):
-   - `agents_sync.stale` / `agents_sync.missing` / `agents_sync.orphan` / `agents_sync.asset_orphan` (`stale`/`missing` include `source_type="asset"` items — non-SKILL.md skill assets; `asset_orphan` = mirror asset whose plugin source is gone, deleted by `--fix`).
+   - `agents_sync.stale` / `agents_sync.missing` / `agents_sync.asset_orphan` (`stale`/`missing` include `source_type="asset"` items — non-SKILL.md skill assets; `asset_orphan` = mirror asset whose plugin source is gone, deleted by `--fix`). `agents_sync.orphan` (a whole skill the plugin no longer ships) is **display-only** — `--fix` NEVER deletes it (a consumer may keep their own skills under `.agents/skills/`; see `ai_context/decisions.md` #30), reporting it as `orphan_kept`.
    - `missing_template` (note: for markdown templates that should be NEW, Step 3 already handled them; `missing_template` findings remaining here are for non-markdown templates or markdown gaps the script's check found that Step 3 didn't — both flow through `--fix`'s template copy path).
    - `missing_section`, `missing_field`, `gitignore_missing_lines`.
    - `claude_agents_lang_drift` (always standalone — bullets live in gap territory outside the sentinel block per `ai_context/decisions.md §Language Configuration #17` Layout footer 2026-05-22; the lightweight `fix_claude_agents_lang_drift` field-level sync handles every case deterministically).
@@ -322,12 +340,13 @@ Dispatch Q-conflict + Q-fixable in **one batched `<ask tool>` call** (current be
 
 - `Auto-fix all` → invoke:
   ```bash
-  python3 "${plugin_root}/scripts/holo_update_check.py" --target <target_root> --plugin-root <plugin_root> --fix --json
+  python3 "${plugin_root}/scripts/holo_update_check.py" --target <target_root> --plugin-root <plugin_root> --fix --json --other-agents <other_agents>
   ```
+  **`--other-agents <other_agents>` (the Reconcile input) MUST be passed to BOTH this `--fix` invocation AND the post-fix self-check below** — same value as Step 4. On `no` it keeps `--fix` from recreating `AGENTS.md` / touching the mirror; omitting it on `--fix` would re-flag and recreate `AGENTS.md` (`ai_context/decisions.md` #32).
   **When Step 2a's `translation_log` is non-empty for this run, append `--baseline-root <tmp_root>/<YYYY-MM-DD>_<HHMMSS>/templates/` to BOTH this `--fix` invocation AND the post-fix self-check invocation below.** Same condition as Step 4 (see §Baseline override in Step 4 above). Reason: `--fix` reads `source_path` values from the check pass it runs implicitly, which must use the same baseline that Step 4 used; the post-fix `--json` self-check must do the same so its pass/fail signal compares against the same baseline. Skipping the flag on either would re-resolve `_skeleton_root` to canonical EN, producing a different finding set than Step 4 — the user would see a spurious "post-fix drift remains" anomaly.
 
-  `--fix` implicitly runs `--check` first; outputs `fix_counts` JSON. Capture this JSON object verbatim and return it as part of Reconcile.Step 6's `fix_counts` field. Then invoke `--json` once more (without `--fix`) for a post-fix self-check:
-  - `agents_sync.stale / missing / orphan / asset_orphan` should all be 0.
+  `--fix` implicitly runs `--check` first; outputs `fix_counts` JSON. Capture this JSON object verbatim and return it as part of Reconcile.Step 6's `fix_counts` field. Then invoke `--json` once more (without `--fix`, but WITH the same `--other-agents <other_agents>` and any `--baseline-root`) for a post-fix self-check:
+  - `agents_sync.stale / missing / asset_orphan` should all be 0. `agents_sync.orphan` may be non-zero — orphans are kept, never deleted (display-only via `orphan_kept`; see `ai_context/decisions.md` #30) — so it is NOT a post-fix anomaly.
   - `missing_template` should be 0.
   - `missing_section`, `missing_field`, `gitignore_missing_lines` should all be 0.
   - `claude_agents_lang_drift` should be 0 (always standalone per the 2026-05-22 Layout footer; lightweight `fix_claude_agents_lang_drift` handles every case); may remain > 0 only for structurally pre-#17 §Language sections (script skips silently when both axis bullets absent — user re-runs `/holo:init` or manually upgrades).
@@ -337,7 +356,7 @@ Dispatch Q-conflict + Q-fixable in **one batched `<ask tool>` call** (current be
   - `sentinel_layout_drift` (any sub_shape) may still be > 0 (resolved by Step 5a smart-merge, not by `--fix`).
 - `Skip all` → no script invocation; `fix_counts` in the Step 6 return is set to an all-zero object.
 
-**Orphan sibling cleanup**: if `fix_counts.orphan_siblings_left` is non-empty, the script removed each orphan's `SKILL.md` but kept other files under the parent directory (per the "no silent overwrite" rule). Add each entry to `remaining_drift` so Step 3's final print surfaces them to the user (`⚠️ kept sibling files under <parent>: <sibling list> (manual cleanup required)`).
+**Orphan skills kept**: if `fix_counts.orphan_kept` is non-empty, the script detected skill-level orphans (a skill the plugin no longer ships, or a consumer's own skill under `.agents/skills/`) and left each one **fully intact** — orphans are NEVER deleted (per `ai_context/decisions.md` #30 + the "no silent overwrite" rule). Add each entry to `remaining_drift` so Step 3's final print surfaces them to the user (`ℹ️ orphan skill kept (never deleted): <name> at <target_path> (manual cleanup if unwanted)`).
 
 Any of the post-fix items unexpectedly > 0 → record the anomaly in `remaining_drift` and stop the dispatch (indicates a script bug or permission issue).
 
@@ -374,13 +393,13 @@ Build the structured return value:
   fix_counts: {                       # raw Step 5b output verbatim from `holo_update_check.py --fix --json`
     regenerated: A,                   # .agents/skills/ mirror regen
     created: B,                       # .agents/skills/ mirror new create
-    deleted: C,                       # .agents/skills/ mirror orphan deletion
+    deleted: C,                       # .agents/skills/ asset_orphan deletion (skill-level orphans are kept, never deleted)
     template_copied: D,               # missing_template auto-fix
     section_appended: E,              # missing_section auto-fix
     field_appended: F,                # missing_field auto-fix
     gitignore_appended: G,            # gitignore_missing_lines auto-fix
     claude_agents_lang_fixed: H,      # claude_agents_lang_drift auto-fix
-    orphan_siblings_left: [...]       # paths the orphan-cleanup retained
+    orphan_kept: [...]                # skill-level orphans detected + kept (never deleted)
   },
   snapshot_dir: "<path or null>",     # set iff take_snapshot() fired (Step 5a Option 1 / 2 / Layer 2 1 / 2)
   remaining_drift: [...],             # bucket 3 + user-skipped bucket 1 entries + Step 5b post-fix anomalies
@@ -394,7 +413,7 @@ Return to caller. Reconcile core does not print anything user-facing on return (
 
 - **Single source of truth for detection / fix rules** = `scripts/holo_update_check.py`; the skill body does not re-implement.
 - **Reconcile core is single source of truth for per-file landing logic** — both `/holo:update` (this command) and `/holo:init` Step 4 flow through it. To change file-update behavior, edit `## Reconcile core` above; do NOT duplicate the logic into init's user-entry shell.
-- **Only touches structural drift introduced by the plugin upgrade** (missing files / missing section headers / stale mirror / orphan mirror / sentinel-aware drift); does not touch user-territory content.
+- **Only touches structural drift introduced by the plugin upgrade** (missing files / missing section headers / stale mirror / sentinel-aware drift); does not touch user-territory content — skill-level orphan mirrors are surfaced but never deleted.
 - **Does not `git add` / does not commit**: consistent with `/holo:init`; the user commits via `/commit`.
 - **CLAUDE/AGENTS cross-sync not auto-merged**: the script `--fix` is designed not to touch CLAUDE↔AGENTS asymmetric guidance lines (`claude_agents.unexpected_diffs`); it only reports them. Distinct from §Language hardcoded-value sync (`claude_agents_lang_drift`), which IS auto-fixable.
 - To adjust detection rules → edit `scripts/holo_update_check.py`, then sync the Reconcile.Step 4 JSON contract description in this file per `ai_context/conventions.md` §Cross-File Alignment.

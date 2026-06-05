@@ -194,57 +194,63 @@ def expected_mirror_content(source_path: str, name: str, source_type: str) -> st
     Compute the expected `.agents/skills/<name>/SKILL.md` content.
 
     SINGLE SOURCE OF TRUTH — used both for /holo:update drift detection and
-    for /holo:init Step 1.2 initial mirror generation. Do not reimplement.
+    for /holo:init initial mirror generation. Do not reimplement.
 
-    source_type:
-        'command' — frontmatter is injected with `name: <name>` (commands/*.md
-                    do not declare it; Claude Code derives from filename).
-        'skill'   — byte-for-byte copy (skills/*/SKILL.md already has frontmatter).
+    The mirror covers `skills/` ONLY — plugin `commands/` are NOT mirrored
+    (see `ai_context/decisions.md` #30). The only supported `source_type`
+    is therefore `'skill'`: a byte-for-byte copy (skills/*/SKILL.md already
+    carries its own frontmatter). The `name` parameter is retained for
+    signature stability with the call sites but is unused for skills.
 
     Source files are read as UTF-8 with BOM tolerated (`utf-8-sig`) and
-    line endings normalised to LF before the frontmatter regex runs.
-    Without this normalisation, CRLF-saved sources fall through to the
-    duplicate-frontmatter fallback and STALE churn never clears.
+    line endings normalised to LF. Without this normalisation, CRLF-saved
+    sources would surface as STALE churn that never clears.
     """
     with open(source_path, "r", encoding="utf-8-sig", newline="") as f:
         content = f.read().replace("\r\n", "\n").replace("\r", "\n")
     if source_type == "skill":
         return content
-    if source_type != "command":
-        raise ValueError(f"unknown source_type: {source_type!r}")
-    m = re.match(r"^---\n(.*?)\n---\n", content, re.DOTALL)
-    if m:
-        front, body = m.group(1), content[m.end():]
-        if not re.search(r"^name:\s", front, re.MULTILINE):
-            front = f"name: {name}\n{front}"
-        return f"---\n{front}\n---\n{body}"
-    return f"---\nname: {name}\n---\n{content}"
+    raise ValueError(f"unknown source_type: {source_type!r}")
 
 
 # ---------------------------------------------------------------------------
 # Detection functions
 # ---------------------------------------------------------------------------
 
-def agents_sync_check(plugin_root: str, target_root: str) -> dict:
+def agents_sync_check(
+    plugin_root: str, target_root: str, other_agents: str = "yes"
+) -> dict:
     """Detect `.agents/skills/` mirror drift (STALE / MISSING / ORPHAN /
     ASSET_ORPHAN).
 
-    The mirror is a full skill-directory sync, not SKILL.md-only: every
-    non-SKILL.md file under `skills/<name>/` (scripts / palette / examples)
-    is mirrored byte-for-byte, since SKILL.md references them by relative
-    path and non-Claude runtimes would otherwise get a broken skill.
+    `other_agents="no"` (cross-agent surface declined — see
+    `ai_context/decisions.md` #32) → return `skipped` regardless of
+    whether `.agents/skills/` exists, so a present mirror is left
+    untouched and an absent one is not created.
 
-    SKILL.md items go through `expected_mirror_content()` (frontmatter
-    injection for commands); asset items (`source_type="asset"`) are
-    byte-compared and copied verbatim. ASSET_ORPHAN = a mirror asset file
-    under a still-shipped skill whose plugin source is gone (deleted on
-    --fix); skill-level ORPHAN (whole skill gone) keeps the conservative
-    preserve-siblings path. Commands carry no asset directory.
+    Scope is `skills/` ONLY — plugin `commands/` are NOT mirrored (see
+    `ai_context/decisions.md` #30). The mirror is a full skill-directory
+    sync, not SKILL.md-only: every non-SKILL.md file under `skills/<name>/`
+    (scripts / palette / examples) is mirrored byte-for-byte, since
+    SKILL.md references them by relative path and non-Claude runtimes
+    would otherwise get a broken skill.
+
+    SKILL.md items go through `expected_mirror_content()` (byte copy);
+    asset items (`source_type="asset"`) are byte-compared and copied
+    verbatim. ASSET_ORPHAN = a mirror asset file under a still-shipped
+    skill whose plugin source is gone (deleted on --fix); skill-level
+    ORPHAN (whole skill gone) is NEVER deleted on --fix — display-only,
+    since a consumer may keep their own skills under `.agents/skills/`.
     """
     agents_dir = os.path.join(target_root, ".agents/skills")
-    if not os.path.isdir(agents_dir):
+    if other_agents == "no" or not os.path.isdir(agents_dir):
+        reason = (
+            "cross-agent surface declined (--other-agents no)"
+            if other_agents == "no"
+            else "directory not present in target"
+        )
         return {
-            "skipped": True, "stale": [], "missing": [],
+            "skipped": True, "skip_reason": reason, "stale": [], "missing": [],
             "orphan": [], "asset_orphan": [],
         }
 
@@ -288,10 +294,9 @@ def agents_sync_check(plugin_root: str, target_root: str) -> dict:
         if not filecmp.cmp(source_path, target, shallow=False):
             stale.append(item)
 
-    for cmd in sorted(glob.glob(f"{plugin_root}/commands/*.md")):
-        name = os.path.splitext(os.path.basename(cmd))[0]
-        plugin_names.add(name)
-        check_source(cmd, name, "command")
+    # Mirror covers skills/ ONLY — plugin commands/ are NOT mirrored
+    # (decisions.md #30). Any prior command mirror (init/update) now
+    # surfaces as an ORPHAN, which is preserved (never deleted).
     for sk in sorted(glob.glob(f"{plugin_root}/skills/*/SKILL.md")):
         name = os.path.basename(os.path.dirname(sk))
         plugin_names.add(name)
@@ -314,8 +319,8 @@ def agents_sync_check(plugin_root: str, target_root: str) -> dict:
             orphan.append({"name": name, "target_path": d})
 
     # asset orphans: only for skills the plugin still ships (whole-skill
-    # removal is handled by ORPHAN above, which conservatively preserves
-    # siblings rather than deleting them).
+    # removal is handled by ORPHAN above, which is never deleted —
+    # display-only, kept intact).
     for name, rels in skill_asset_rels.items():
         mirror_skill_dir = os.path.join(agents_dir, name)
         if not os.path.isdir(mirror_skill_dir):
@@ -515,9 +520,15 @@ def _skeleton_root(
 
 
 def template_file_check(
-    plugin_root: str, target_root: str, baseline_root: str | None = None
+    plugin_root: str, target_root: str, baseline_root: str | None = None,
+    other_agents: str = "yes",
 ) -> list[dict]:
-    """Files present in templates/project-skeleton[.<lang>]/ but absent from project."""
+    """Files present in templates/project-skeleton[.<lang>]/ but absent from project.
+
+    `other_agents="no"` (cross-agent surface declined — decisions.md #32)
+    excludes `AGENTS.md` so an opted-out project is not flagged for it
+    (and `--fix` therefore does not recreate it).
+    """
     skel = _skeleton_root(
         plugin_root, _consumer_content_lang(target_root), baseline_root
     )
@@ -526,6 +537,8 @@ def template_file_check(
         if not os.path.isfile(f):
             continue
         rel = os.path.relpath(f, skel)
+        if other_agents == "no" and rel == "AGENTS.md":
+            continue
         target = os.path.join(target_root, rel)
         if not os.path.exists(target):
             missing.append({"rel": rel, "source_path": f, "target_path": target})
@@ -633,15 +646,23 @@ def _md_h1_header(path: str) -> str | None:
 
 
 def template_section_check(
-    plugin_root: str, target_root: str, baseline_root: str | None = None
+    plugin_root: str, target_root: str, baseline_root: str | None = None,
+    other_agents: str = "yes",
 ) -> list[dict]:
-    """For .md files present in both, find `^## ` headers in template[.<lang>] missing from project."""
+    """For .md files present in both, find `^## ` headers in template[.<lang>] missing from project.
+
+    `other_agents="no"` (cross-agent surface declined — decisions.md #32)
+    skips `AGENTS.md` so a present-but-opted-out `AGENTS.md` is left
+    untouched (no section appended by `--fix`).
+    """
     skel = _skeleton_root(
         plugin_root, _consumer_content_lang(target_root), baseline_root
     )
     missing: list[dict] = []
     for f in glob.glob(f"{skel}/**/*.md", recursive=True):
         rel = os.path.relpath(f, skel)
+        if other_agents == "no" and rel == "AGENTS.md":
+            continue
         target = os.path.join(target_root, rel)
         if not os.path.exists(target):
             continue  # covered by template_file_check
@@ -928,8 +949,12 @@ def claude_agents_check(
     target_root: str,
     plugin_root: str | None = None,
     baseline_root: str | None = None,
+    other_agents: str = "yes",
 ) -> dict:
     """CLAUDE.md / AGENTS.md placeholder + cross-sync diff (report only — never auto-merged).
+
+    `other_agents="no"` (cross-agent surface declined — decisions.md #32)
+    → return the empty result without inspecting `AGENTS.md`.
 
     Consumer-language-aware: when the consumer's `content_language` is
     non-EN and a matching `templates/project-skeleton.<lang>/` ships in
@@ -946,6 +971,8 @@ def claude_agents_check(
         "unexpected_diffs": [],
         "unexpected_diffs_truncated": 0,
     }
+    if other_agents == "no":
+        return result
     if not (os.path.exists(cl_path) and os.path.exists(ag_path)):
         return result
     result["present"] = True
@@ -1042,9 +1069,15 @@ def claude_agents_check(
 # the same lines since the bullets are not in a sentinel block);
 # smart-merge never invokes for them.
 
-def claude_agents_lang_drift_check(target_root: str) -> list[dict]:
+def claude_agents_lang_drift_check(
+    target_root: str, other_agents: str = "yes"
+) -> list[dict]:
     """Compare CLAUDE.md / AGENTS.md §Language axis-bullet values against
     `ai_context/skills_config.md §Language`.
+
+    `other_agents="no"` (cross-agent surface declined — decisions.md #32)
+    → `AGENTS.md` is skipped (CLAUDE.md is still checked; Claude always
+    needs it).
 
     One finding per (file, axis) pair where the file's bullet value
     differs from skills_config, OR where the axis bullet is missing from
@@ -1070,6 +1103,8 @@ def claude_agents_lang_drift_check(target_root: str) -> list[dict]:
     expected_content = _consumer_content_lang(target_root)
     expected_conv = _consumer_conversation_lang(target_root)
     for rel in ("CLAUDE.md", "AGENTS.md"):
+        if other_agents == "no" and rel == "AGENTS.md":
+            continue
         path = os.path.join(target_root, rel)
         if not os.path.isfile(path):
             continue
@@ -2244,22 +2279,34 @@ def gitignore_missing_lines_check(
 # ---------------------------------------------------------------------------
 
 def run_check(
-    plugin_root: str, target_root: str, baseline_root: str | None = None
+    plugin_root: str, target_root: str, baseline_root: str | None = None,
+    other_agents: str = "yes",
 ) -> dict:
+    # other_agents="no" gates the cross-agent surface (AGENTS.md + the
+    # .agents/skills/ mirror): the five checks below skip AGENTS.md / the
+    # mirror so neither is flagged or (via --fix) created. See decisions.md #32.
     return {
         "plugin_root": plugin_root,
         "target_root": os.path.abspath(target_root),
         "baseline_root": baseline_root,
         "consumer_content_lang": _consumer_content_lang(target_root),
-        "agents_sync": agents_sync_check(plugin_root, target_root),
-        "missing_template": template_file_check(plugin_root, target_root, baseline_root),
-        "missing_section": template_section_check(plugin_root, target_root, baseline_root),
+        "agents_sync": agents_sync_check(plugin_root, target_root, other_agents),
+        "missing_template": template_file_check(
+            plugin_root, target_root, baseline_root, other_agents
+        ),
+        "missing_section": template_section_check(
+            plugin_root, target_root, baseline_root, other_agents
+        ),
         "missing_field": missing_field_check(plugin_root, target_root, baseline_root),
         "gitignore_missing_lines": gitignore_missing_lines_check(
             plugin_root, target_root, baseline_root
         ),
-        "claude_agents": claude_agents_check(target_root, plugin_root, baseline_root),
-        "claude_agents_lang_drift": claude_agents_lang_drift_check(target_root),
+        "claude_agents": claude_agents_check(
+            target_root, plugin_root, baseline_root, other_agents
+        ),
+        "claude_agents_lang_drift": claude_agents_lang_drift_check(
+            target_root, other_agents
+        ),
         "missing_l1_directive": l1_directive_check(plugin_root),
         "l1_directive_drift": l1_directive_drift_check(plugin_root),
         "lang_mirror_drift": lang_mirror_check(plugin_root),
@@ -2322,12 +2369,14 @@ def run_fix(findings: dict, target_root: str) -> dict:
 
     Returns a dict with counts (`regenerated` / `created` / `deleted` /
     `template_copied` / `section_appended` / `field_appended` /
-    `gitignore_appended`) plus `orphan_siblings_left`: a list of
-    `{"name", "parent", "siblings"}` entries for any orphan whose parent
-    directory still holds non-SKILL.md files after the fix. JSON consumers
-    (e.g. `/holo:update`) surface these so the user knows manual sibling
-    cleanup is required — otherwise the deletion appears silent (violates
-    §14 #1 "No silent overwrite").
+    `gitignore_appended`) plus `orphan_kept`: a list of
+    `{"name", "target_path"}` entries for every skill-level orphan that
+    was detected. Skill-level orphans are NEVER deleted (a consumer may
+    keep their own skills under `.agents/skills/`; see decisions.md #30);
+    `orphan_kept` is display-only so JSON consumers (e.g. `/holo:update`)
+    can surface them for optional manual cleanup. `asset_orphan` files
+    (inside a still-shipped skill) ARE still deleted — generated
+    artifacts, never user content.
     """
     counts: dict = {
         "regenerated": 0, "created": 0, "deleted": 0,
@@ -2335,13 +2384,13 @@ def run_fix(findings: dict, target_root: str) -> dict:
         "field_appended": 0,
         "gitignore_appended": 0,
         "claude_agents_lang_fixed": 0,
-        "orphan_siblings_left": [],
+        "orphan_kept": [],
     }
 
     def _write_mirror(item: dict) -> None:
-        # SKILL.md goes through expected_mirror_content() (command
-        # frontmatter injection); asset files are copied byte-for-byte
-        # (binary safe, no text normalization).
+        # SKILL.md goes through expected_mirror_content() (byte copy);
+        # asset files are copied byte-for-byte (binary safe, no text
+        # normalization).
         os.makedirs(os.path.dirname(item["target_path"]), exist_ok=True)
         if item.get("source_type") == "asset":
             shutil.copy2(item["source_path"], item["target_path"])
@@ -2360,31 +2409,15 @@ def run_fix(findings: dict, target_root: str) -> dict:
         _write_mirror(item)
         counts["created"] += 1
     for item in a.get("orphan", []):
-        # Only delete the orphaned SKILL.md itself. Sibling files
-        # (notes, extensions, local overrides) under <name>/ are user
-        # content and must not be wiped by a single "Auto-fix all"
-        # click — violates §14 #1 "No silent overwrite". The directory
-        # is removed only if it becomes empty.
-        skill_md = item["target_path"]
-        parent = os.path.dirname(skill_md)
-        if os.path.isfile(skill_md):
-            os.remove(skill_md)
-        try:
-            os.rmdir(parent)
-        except OSError:
-            # Directory still has sibling files — record them so the
-            # JSON consumer can surface a manual-cleanup prompt.
-            try:
-                siblings = sorted(os.listdir(parent))
-            except OSError:
-                siblings = []
-            if siblings:
-                counts["orphan_siblings_left"].append({
-                    "name": item["name"],
-                    "parent": parent,
-                    "siblings": siblings,
-                })
-        counts["deleted"] += 1
+        # Skill-level orphan = a mirror skill the plugin no longer ships.
+        # NEVER delete it: a consumer may keep their own skills under
+        # `.agents/skills/`, so wiping plugin-absent dirs would destroy
+        # user content (decisions.md #30; §14 #1 "No silent overwrite").
+        # Record for display-only surfacing; the user cleans up manually.
+        counts["orphan_kept"].append({
+            "name": item["name"],
+            "target_path": item["target_path"],
+        })
 
     # asset orphans: the mirror is a generated artifact, so an asset file
     # absent from the plugin source is always a stale prior-version copy
@@ -2470,7 +2503,8 @@ def _print_human(findings: dict, fix_counts: dict | None) -> None:
     print(f"target_root: {findings['target_root']}")
     print(f"consumer_content_lang: {findings.get('consumer_content_lang', 'en')}")
     if a.get("skipped"):
-        print(".agents/skills/: skipped (directory not present in target)")
+        reason = a.get("skip_reason", "directory not present in target")
+        print(f".agents/skills/: skipped ({reason})")
     else:
         print(
             f".agents/skills/: stale={len(a['stale'])} | "
@@ -2494,19 +2528,7 @@ def _print_human(findings: dict, fix_counts: dict | None) -> None:
                     rel = os.path.relpath(item["target_path"], skill_root)
                     line += f"  ({rel})"
                 if label == "ORPHAN":
-                    parent = os.path.dirname(item["target_path"])
-                    try:
-                        siblings = [
-                            f for f in os.listdir(parent) if f != "SKILL.md"
-                        ]
-                    except OSError:
-                        siblings = []
-                    if siblings:
-                        line += (
-                            f"  (auto-fix: removes only SKILL.md; "
-                            f"{len(siblings)} sibling file(s) kept: "
-                            f"{', '.join(sorted(siblings))})"
-                        )
+                    line += "  (kept — never deleted; manual cleanup if unwanted)"
                 print(line)
     print(f"missing_template: {len(findings['missing_template'])}")
     for item in findings["missing_template"]:
@@ -2610,10 +2632,10 @@ def _print_human(findings: dict, fix_counts: dict | None) -> None:
             f"gitignore_appended={fix_counts.get('gitignore_appended', 0)} "
             f"claude_agents_lang_fixed={fix_counts.get('claude_agents_lang_fixed', 0)}"
         )
-        for entry in fix_counts.get("orphan_siblings_left", []):
+        for entry in fix_counts.get("orphan_kept", []):
             print(
-                f"  orphan sibling files kept under {entry['parent']}: "
-                f"{', '.join(entry['siblings'])} (manual cleanup required)"
+                f"  orphan skill kept (never deleted): {entry['name']} "
+                f"at {entry['target_path']} (manual cleanup if unwanted)"
             )
 
 
@@ -2635,10 +2657,28 @@ def main() -> None:
             "docs/architecture/drift-detection.md §Baseline root override."
         ),
     )
+    parser.add_argument(
+        "--other-agents",
+        choices=["yes", "no"],
+        default="yes",
+        help=(
+            "gate the cross-agent surface (AGENTS.md + .agents/skills/ "
+            "mirror). 'yes' (default, back-compat) checks/syncs both; "
+            "'no' treats both as out of scope — AGENTS.md is excluded from "
+            "template/section/claude_agents checks and the mirror is "
+            "skipped, so neither is created on --fix nor flagged. Reconcile "
+            "core passes the user's /holo:init|/holo:update answer. See "
+            "docs/architecture/drift-detection.md + decisions.md #32."
+        ),
+    )
     args = parser.parse_args()
 
     plugin_root = find_plugin_root(args.plugin_root)
-    findings = run_check(plugin_root, args.target, baseline_root=args.baseline_root)
+    findings = run_check(
+        plugin_root, args.target,
+        baseline_root=args.baseline_root,
+        other_agents=args.other_agents,
+    )
     fix_counts = None
     if args.fix:
         fix_counts = run_fix(findings, args.target)

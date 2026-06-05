@@ -1,6 +1,6 @@
 ---
 name: forward
-description: Explicitly merge current branch's HEAD into one or more target branches — load config → pre-check (stop on dirty) → candidate triage (6 classes: missing / protected / already synced / dirty target / process / predicted conflict) → batch unobstructed merge → ask per obstructed branch → result list. $ARGUMENTS = target branches (space-separated; default = all non-current candidates). Source = current branch; no push / no force / no rebase. Triggers: forward / sync to develop / push commits to other branches / push to X Y Z.
+description: Merge the current branch into one or more sibling branches with per-branch conflict triage. No push / force / rebase. Triggers: forward / sync to develop / push commits to other branches / push to X Y Z.
 ---
 
 > **Language**: per `ai_context/skills_config.md §Language` — disk-bound output (logs / docs / commit messages / code comments / files written) uses `content_language`; user-facing surface (chat prose / `AskUserQuestion` prompts and option labels / progress-tool entry `content` / status lines / strategy declarations / findings rendered in chat) uses `conversation_language`. Code identifiers, file paths, field names, frontmatter keys, and structural prefixes (`Step N:`, `LOG:`, etc.) stay English regardless.

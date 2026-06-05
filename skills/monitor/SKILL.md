@@ -1,6 +1,6 @@
 ---
 name: monitor
-description: Background-process progress monitor — at fixed interval (default 5min) report on processes declared in skills_config.md ## Background processes using a 7-aspect framework: 5 core (Time / State / Progress / Errors & retries / External constraints) + 1 conditional (Artifacts) + 1 mandatory verdict (Diagnosis) + anomaly bucket. Auto-infers finite vs always-on shape. $ARGUMENTS = interval + focus (optional). Empty config + no ad-hoc target → notify and stop. Diagnose only; do not kill / restart / change config; user decides → /go. Triggers: monitor please / monitor 5min / monitor X process.
+description: Periodic progress report (default 5min) for background processes declared in skills_config.md; diagnose only — no kill / restart / config change. Triggers: monitor please / monitor 5min / monitor X process.
 ---
 
 > **Language**: per `ai_context/skills_config.md §Language` — disk-bound output (logs / docs / commit messages / code comments / files written) uses `content_language`; user-facing surface (chat prose / `AskUserQuestion` prompts and option labels / progress-tool entry `content` / status lines / strategy declarations / findings rendered in chat) uses `conversation_language`. Code identifiers, file paths, field names, frontmatter keys, and structural prefixes (`Step N:`, `LOG:`, etc.) stay English regardless.

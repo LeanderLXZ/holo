@@ -1,6 +1,6 @@
 ---
 name: recent-activity
-description: Reverse-chronological timeline of the latest N project actions — merge git commits, logs/change_logs/, docs/todo_list.md **Updated** field, sorted DESC by timestamp, trimmed to top N. $ARGUMENTS = N (default 10) + source filter (commits / logs / todo; default = all). Missing skills_config.md ## Timezone / ## Activity sources → fail loudly. Read-only: no git mutation / no file change. Triggers: what's been happening lately / recent-activity / recent changes / show the timeline / latest N actions.
+description: Reverse-chronological timeline of the latest N project actions (git commits + change logs + todo updates). Triggers: what's been happening lately / recent-activity / recent changes / show the timeline / latest N actions.
 ---
 
 > **Language**: per `ai_context/skills_config.md §Language` — disk-bound output (logs / docs / commit messages / code comments / files written) uses `content_language`; user-facing surface (chat prose / `AskUserQuestion` prompts and option labels / progress-tool entry `content` / status lines / strategy declarations / findings rendered in chat) uses `conversation_language`. Code identifiers, file paths, field names, frontmatter keys, and structural prefixes (`Step N:`, `LOG:`, etc.) stay English regardless.

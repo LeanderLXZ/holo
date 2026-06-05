@@ -1,6 +1,6 @@
 ---
 name: branch-inventory
-description: Full-branch inventory — list every local + remote branch grouped into 6 buckets (Main / Resting / Protected active+abandoned / Other local / Remote-only), each tagged with last commit / age / ahead-behind / worktree / background process. End with a "suggested actions" summary but do not execute. $ARGUMENTS = branch-name filter / "all" (optional). Read-only: no checkout / merge / push / fetch / branch delete. Triggers: branch inventory / what other branches exist / look at branch status / branch-inventory / clean up branches.
+description: Read-only inventory of every local + remote branch, grouped by lifecycle bucket (age / ahead-behind / worktree). Triggers: branch inventory / what other branches exist / look at branch status / branch-inventory / clean up branches.
 ---
 
 > **Language**: per `ai_context/skills_config.md §Language` — disk-bound output (logs / docs / commit messages / code comments / files written) uses `content_language`; user-facing surface (chat prose / `AskUserQuestion` prompts and option labels / progress-tool entry `content` / status lines / strategy declarations / findings rendered in chat) uses `conversation_language`. Code identifiers, file paths, field names, frontmatter keys, and structural prefixes (`Step N:`, `LOG:`, etc.) stay English regardless.

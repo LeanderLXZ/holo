@@ -1,5 +1,5 @@
 ---
-description: Project skeleton initialization — thin user-entry shell that collects user answers (Step 0 language axes + Round 1 project basics + Round 2 directory classification + Round 3 doc bootstrap) and delegates all per-file landing to `commands/update.md ## Reconcile core` SOP (mode=`"init-post-bootstrap"`). Reconcile core handles template inventory / language alignment / NEW file copy / drift detection / 3-bucket dispatch (smart-merge / deterministic --fix / display-only). Three-bucket template schema: REQUIRED `<...>` (filled by Step 0 + Round 1 + Step 5 substitution) / PROGRESSIVE marker (filled as project evolves) / INFERRED (Step 5 AI-infer). No arguments; empty + already-initialized both handled. Never silently overwrites — CONFLICTs flow through smart-merge with `take_snapshot` backup; `.gitignore` via append-only union. Does not git add, does not commit. Triggers: /holo:init / initialize project / install skeleton / create an empty project.
+description: Initialize the project skeleton — collect language + project answers, then delegate per-file landing to update.md ## Reconcile core. Triggers: /holo:init / initialize project / install skeleton / create an empty project.
 ---
 
 > **Language**: per `ai_context/skills_config.md §Language` — disk-bound output (template files landed in the project, the filled-in placeholder values written by Step 5 substitution, the `skills_config.md §Language` values, any in-place translation result produced by Reconcile.Step 2b) uses `content_language`; user-facing surface (chat prose / `AskUserQuestion` prompts and option labels / progress-tool entry `content` / `[lang-translate]` progress lines / planned-actions print / `Step N skipped` lines) uses `conversation_language`. Code identifiers, file paths, field names, frontmatter keys, ISO 639-1 codes (`zh`, `en`, etc.), and structural prefixes (`Step N:`, `NEW`, `EXISTING`) stay English regardless. **Note on the bootstrap edge case**: until Step 0 settles `<conversation_language>` (the Step 0 question itself is asked before any settle), the AI follows `auto` semantics (per-turn match the user's most recent message language); from Step 0's answer onward the chosen value governs all subsequent user-facing output in this init run.
@@ -37,7 +37,7 @@ Use **<ask tool>** to ask 2 questions covering the project-level language config
 1. **Project content language?** — the language of every written artifact the AI produces or maintains in this project: `ai_context/` / `docs/` / `logs/` / commits / README / skill output / new code comments. Accepts any ISO 639-1 code. Default suggestion: `en` (or the conversation language if that is a single ISO 639-1 code).
 2. **AI conversation language?** — the language of AI ↔ user turns (`AskUserQuestion` / replies / confirmations). Accepts `auto | <ISO 639-1>`. `auto` follows the user's current-message language per turn. Any explicit value is a hard rule with a single-message escape hatch ("respond in `<other>`"). Default suggestion: `auto`.
 
-Record the user's choices as `<content_language>` and `<conversation_language>` — referenced below by Step 1.4 (mirror Q), Step 4 (passed as Reconcile core input parameter), and Step 5 (written into the landed `skills_config.md §Language` + CLAUDE/AGENTS gap-territory bullets).
+Record the user's choices as `<content_language>` and `<conversation_language>` — referenced below by Step 1.4 (cross-agent surface Q), Step 4 (passed as Reconcile core input parameter), and Step 5 (written into the landed `skills_config.md §Language` + CLAUDE/AGENTS gap-territory bullets).
 
 ISO 639-1 lock: `zh`, not `cn` (country code). Locale variants (`zh-CN`, `zh-TW`) reserved for future regional split — current phase rejects them.
 
@@ -75,13 +75,13 @@ Initialization detected if any of the following exist:
 - `AGENTS.md` at top level
 - `ai_context/` directory
 
-If any present → re-init path. Print one informational hint line **before** the Step 1.4 mirror question:
+If any present → re-init path. Print one informational hint line **before** the Step 1.4 cross-agent surface question:
 
 ```
 Hint: this project is already initialized. If you only want non-destructive
 structural sync after a plugin upgrade (add missing template files / section
 headers / skills_config fields with `_(TODO)_` stubs, regenerate
-.agents/skills/ mirror, re-align sentinel-aware drift via smart-merge),
+.agents/skills/ mirror (when opted in), re-align sentinel-aware drift via smart-merge),
 `/holo:update` is the lighter tool — it skips the Round 1 / 2 / 4 Q&A and
 the REQUIRED `<...>` substitution loop. Both `/holo:init` and `/holo:update`
 flow through the same `## Reconcile core` SOP, so the per-file landing
@@ -91,18 +91,18 @@ intend to re-walk the bootstrap questions.
 
 This is informational only — Step 1 proceeds with the user's chosen `/holo:init` invocation.
 
-**1.4 Ask whether to generate `.agents/skills/` mirror**
+**1.4 Ask whether to build the cross-agent surface** (`ai_context/decisions.md` #32)
 
-Use **<ask tool>** to ask one question:
+This ONE question gates BOTH `AGENTS.md` (the non-Claude entry doc) and the `.agents/skills/` skills mirror — together the "cross-agent surface" for other AI runtimes. Use **<ask tool>** to ask one question:
 
-> Generate `.agents/skills/` mirror? (Converts all plugin commands/ + skills/ into `.agents/skills/<name>/SKILL.md`, plus a byte-for-byte copy of any bundled skill assets — scripts / palette / examples a skill references by relative path. Purpose: let Codex / other non-Claude runtimes also recognize this set of commands / skills for cross-validation — they do not recognize slash commands, only SKILL.md. Pick No if not needed — if this repo invokes the plugin only via Claude / Claude Code, a local duplicate is redundant.)
+> 是否为其他 AI agent（Codex / Cursor 等非 Claude 运行时）生成兼容文件？包含 `AGENTS.md`（入口说明，CLAUDE.md 的镜像）+ `.agents/skills/` 技能镜像（每个 skill 的 `SKILL.md` + 引用的资产；插件 `commands/` 不镜像）。选 No 则仅为 Claude Code 准备，二者都不创建。
 
 Options:
 
-- `No` (recommended default): skip `.agents/` generation.
-- `Yes`: pre-create an empty `<target_root>/.agents/skills/` directory so Reconcile.Step 4 drift detection surfaces `agents_sync.missing` findings (one per command + skill `SKILL.md`, plus one per bundled skill asset the plugin ships); Reconcile.Step 5b's `--fix` then populates it (`SKILL.md` via `expected_mirror_content()`, assets via byte-for-byte copy). Step 7 verifies the mirror byte-matches expected output.
+- `No` (recommended default): the project is Claude-only — create neither `AGENTS.md` nor `.agents/skills/`. `CLAUDE.md` is still created regardless (Claude always needs it).
+- `Yes`: build both. Pre-create an empty `<target_root>/.agents/skills/` directory so Reconcile.Step 4 drift detection surfaces `agents_sync.missing` findings (one per skill `SKILL.md` + one per bundled skill asset; plugin `commands/` are NOT mirrored — see `ai_context/decisions.md` #30); Reconcile.Step 5b's `--fix` then populates it (`SKILL.md` via `expected_mirror_content()`, assets byte-for-byte). `AGENTS.md` is landed by Reconcile as a normal template file. Step 7 verifies the mirror.
 
-Record the user's choice (referenced below as `<.agents-opt>`). On `Yes`, `mkdir -p .agents/skills/` immediately so the directory exists before Reconcile.Step 4 runs.
+Record the user's choice as `<other_agents>` (`yes` / `no`). On `Yes`, `mkdir -p .agents/skills/` immediately so the directory exists before Reconcile.Step 4 runs. The `<other_agents>` value is passed to Reconcile.Step 4 (Step 4 below) and gates whether `AGENTS.md` is created/synced — on `No`, `AGENTS.md` is NOT landed (excluded from the template inventory + the script's `--other-agents no` checks).
 
 **1.5 Print plan**
 
@@ -112,7 +112,7 @@ Aggregate the above into a "planned actions" print:
 Language config (from Step 0):
   - content_language:      <value>
   - conversation_language: <value>
-.agents/skills/ mirror: <yes / no>
+Cross-agent surface (AGENTS.md + .agents/skills/ mirror): <yes / no>
 Probed pre-fill values:
   - Project name candidate: <value>
   - One-line description:   <value>
@@ -164,6 +164,7 @@ mode = "init-post-bootstrap"
 target_root = "."                                       # consumer project root (CWD where /holo:init was launched)
 plugin_root = "${CLAUDE_PLUGIN_ROOT}"                   # if unset, derive from this command's path back to the plugin root
 content_language = <content_language>                   # from Step 0 answer
+other_agents = <other_agents>                           # from Step 1.4 answer (yes / no); No → AGENTS.md + mirror excluded
 ```
 
 Reconcile core executes its 6 sub-steps (Template inventory → Language alignment 2a/2b → NEW file copy → Drift detection → 3-bucket dispatch 5a/5b/5c → Return). On return, capture:
@@ -171,7 +172,7 @@ Reconcile core executes its 6 sub-steps (Template inventory → Language alignme
 ```
 {
   write_counts: { merged: M, overwritten: N, kept: K, failed: Z, new_copied: P, deterministic_fixed: Q },
-  fix_counts: { regenerated, created, deleted, template_copied, section_appended, field_appended, gitignore_appended, claude_agents_lang_fixed, orphan_siblings_left },  # raw `holo_update_check.py --fix --json` output; init's Step 7.5 summary aggregates the per-category counters into `deterministic_fixed=Q`, but the full sub-object is preserved here for parity with `commands/update.md` Step 3's finer-grained mapping
+  fix_counts: { regenerated, created, deleted, template_copied, section_appended, field_appended, gitignore_appended, claude_agents_lang_fixed, orphan_kept },  # raw `holo_update_check.py --fix --json` output; init's Step 7.5 summary aggregates the per-category counters into `deterministic_fixed=Q`, but the full sub-object is preserved here for parity with `commands/update.md` Step 3's finer-grained mapping
   snapshot_dir: "<path or null>",
   remaining_drift: [...],
   translation_log: [...]
@@ -183,9 +184,9 @@ Reconcile core executes its 6 sub-steps (Template inventory → Language alignme
 - **Reconcile.Step 1** classifies every template file as `NEW` (typical for fresh empty-dir init) or `EXISTING` (typical for re-init). Both are handled by Reconcile; init does not branch on the count.
 - **Reconcile.Step 2b** runs whenever `EXISTING` count ≥ 1 (so re-init paths get the in-place translation chain offered; fresh-init paths skip 2b silently since there are no consumer files to compare).
 - **Reconcile.Step 3** does the wholesale NEW file copy (the bulk of fresh-init's work). Copied files retain `<...>` REQUIRED placeholders + PROGRESSIVE markers verbatim — Step 5 (post-Reconcile) substitutes the REQUIRED placeholders.
-- **Reconcile.Step 4 drift detection** runs against the post-Step-3 state. On fresh-init, `claude_agents_lang_drift` will surface because CLAUDE.md / AGENTS.md just landed with template-default values (`content_language: en` / `conversation_language: auto`) that may differ from the user's Step 0 answers; this is expected and resolved by Step 5b's `--fix` in the same dispatch (no separate hand-edit needed).
+- **Reconcile.Step 4 drift detection** runs against the post-Step-3 state, with `--other-agents <other_agents>` passed through (`No` → `AGENTS.md` + the mirror are excluded from every check). On fresh-init, `claude_agents_lang_drift` will surface for `CLAUDE.md` (and `AGENTS.md` too when `<other_agents>` = Yes) because they just landed with template-default values (`content_language: en` / `conversation_language: auto`) that may differ from the user's Step 0 answers; this is expected and resolved by Step 5b's `--fix` in the same dispatch (no separate hand-edit needed).
 - **Reconcile.Step 5a smart-merge** typically does not fire on fresh-init (no EXISTING markdown files → no `sentinel_layout_drift` findings). On re-init it fires for any consumer file whose sentinel structure drifted from the new plugin template — same dispatch as `/holo:update`.
-- **Reconcile.Step 5b `--fix`** populates `.agents/skills/` if Step 1.4 chose Yes (the empty directory pre-created in Step 1.4 makes the script see `agents_sync.missing` findings — one per `SKILL.md` plus one per bundled skill asset — which `--fix` fills: `SKILL.md` via `expected_mirror_content()`, assets via byte-for-byte copy).
+- **Reconcile.Step 5b `--fix`** populates `.agents/skills/` if Step 1.4 chose Yes (the empty directory pre-created in Step 1.4 makes the script see `agents_sync.missing` findings — one per skill `SKILL.md` plus one per bundled skill asset; plugin `commands/` are NOT mirrored — which `--fix` fills: `SKILL.md` via `expected_mirror_content()`, assets via byte-for-byte copy). On Yes, `AGENTS.md` is also landed (via Reconcile.Step 3 NEW-copy, like any template file); on No, both `AGENTS.md` and the mirror are excluded by `--other-agents no` (`ai_context/decisions.md` #32).
 
 ## Step 5: REQUIRED placeholder substitution
 
@@ -230,7 +231,9 @@ Each remaining `<...>` is a real pending placeholder — excluding: (a) format e
 
 Using the values recorded in Step 0 (`<content_language>`, `<conversation_language>`) and Step 2 (`<project_name>`, `<project_goal>`, `<main_branch>`, `<timezone_cmd>`), use `Edit` to write into the landed files:
 
-- `<project-name>` → `<project_name>` in `CLAUDE.md` H1 + `AGENTS.md` H1 + `README.md` H1 (occurrences).
+> **When `<other_agents>` = No**: `AGENTS.md` was not landed (Reconcile excluded it). Skip every `AGENTS.md` write below — the `CLAUDE.md` / `README.md` / `ai_context/` sinks are unaffected. (The 5.1 grep already skips absent files.)
+
+- `<project-name>` → `<project_name>` in `CLAUDE.md` H1 + `AGENTS.md` H1 (skip if No) + `README.md` H1 (occurrences).
 - `<project_goal>` answer fans out to **three sinks** simultaneously:
   1. `README.md` first-paragraph one-line description.
   2. `.claude-plugin/plugin.json` `description` field — write only if a plugin manifest exists in the project (typical consumer projects do not have one; skip silently when absent).
@@ -242,7 +245,7 @@ Using the values recorded in Step 0 (`<content_language>`, `<conversation_langua
 
 1. `ai_context/skills_config.md §Language` (canonical source per `ai_context/decisions.md` §Language Configuration #17) — gap-territory bullets outside the sentinel block (Option A layout).
 2. `CLAUDE.md §Language` (gap-territory `- \`content_language: <value>\`` + `- \`conversation_language: <value>\`` backticked bullets positioned OUTSIDE the `<!-- holo:section start/end -->` block per Layout footer 2026-05-22 — read-cache for the AI's session-start awareness).
-3. `AGENTS.md §Language` (byte-identical to CLAUDE.md §Language except the Sync-section title direction).
+3. `AGENTS.md §Language` (byte-identical to CLAUDE.md §Language except the Sync-section title direction). **Skip when `<other_agents>` = No** (file not landed).
 
 All three carry the same two values, replacing the template defaults (`content_language: en` / `conversation_language: auto`) with the user's chosen values. If the user's choices match the template defaults, this is a no-op (still verify the lines exist and have the chosen values).
 
@@ -313,13 +316,13 @@ Three-category scan (informational summary; only category (a) gates completion):
 
 `Read` `ai_context/skills_config.md` and check whether all required section headers exist (per `ai_context/conventions.md §skills_config.md schema → Required headers`). Any header missing → error and stop (indicates Reconcile or Step 5 damaged the file).
 
-**7.3 CLAUDE.md / AGENTS.md sync check**
+**7.3 CLAUDE.md / AGENTS.md sync check** (only when `<other_agents>` = Yes)
 
-`diff CLAUDE.md AGENTS.md` — should only differ on the first line (`# <project-name> — Claude Entry Point` vs `Agent Entry Point`). Other lines diff → warn (indicates Step 5 updated only one side, or smart-merge wrote asymmetrically).
+**Skip when `<other_agents>` = No** — `AGENTS.md` was not landed, so there is nothing to diff. When Yes: `diff CLAUDE.md AGENTS.md` — should only differ on the first line (`# <project-name> — Claude Entry Point` vs `Agent Entry Point`). Other lines diff → warn (indicates Step 5 updated only one side, or smart-merge wrote asymmetrically).
 
 **7.4 `.agents/skills/` mirror verification** (only when Step 1.4 picked `Yes`)
 
-Verify Reconcile.Step 5b's `--fix` populated the mirror correctly: re-run `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/holo_update_check.py" --json` and assert `agents_sync.stale / missing / orphan / asset_orphan` are all empty (this covers both each `SKILL.md` and its bundled assets — `stale`/`missing` carry `source_type="asset"` items). Any inconsistency → error listing the diverging paths and stop.
+Verify Reconcile.Step 5b's `--fix` populated the mirror correctly: re-run `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/holo_update_check.py" --json --other-agents yes` and assert `agents_sync.stale / missing / asset_orphan` are all empty (this covers both each `SKILL.md` and its bundled assets — `stale`/`missing` carry `source_type="asset"` items). `agents_sync.orphan` is NOT required empty — orphans (a skill the plugin no longer ships, or a consumer's own skill) are kept, never deleted (see `ai_context/decisions.md` #30); surface any as informational. Any other inconsistency → error listing the diverging paths and stop.
 
 **7.5 Summary print**
 
