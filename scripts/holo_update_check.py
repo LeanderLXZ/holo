@@ -169,6 +169,8 @@ def take_snapshot(target_root: str, slug: str, file_paths: list[str]) -> str:
     if not file_paths:
         return snapshot_dir
 
+    # The snapshot root is created on demand here — the project skeleton ships no
+    # `logs/file_snapshots/` placeholder; the dir materializes on the first snapshot.
     os.makedirs(snapshot_dir, exist_ok=True)
     for path in file_paths:
         if os.path.isabs(path):

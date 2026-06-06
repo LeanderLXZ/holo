@@ -1,17 +1,19 @@
 ---
 name: update-docs
-description: Land conversation narrative into ai_context/ + docs/ files (semantic match → file + section; preview before apply). Triggers: /update-docs / update docs / record discussion in ai_context / land discussion into docs.
+description: Land conversation narrative into ai_context/ + docs/ files (semantic match → file + section; direct write + opt-in commit). Triggers: /update-docs / update docs / record discussion in ai_context / land discussion into docs.
 ---
 
-> **Language**: per `ai_context/skills_config.md §Language` — disk-bound output (patch content written into `ai_context/` + `docs/` files, marker-line removals, the trailing reminder appended to the conversation if redirected to a file) uses `content_language`; user-facing surface (chat prose / `AskUserQuestion` prompts and option labels / progress-tool entry `content` / candidate file list rendered in chat / patch preview wrappers / final changed-files summary line) uses `conversation_language`. Code identifiers, file paths, field names, frontmatter keys, section headings (`## §6`, `### [T-XXX]`), and structural prefixes (`Step N:`, `PATCH:`, etc.) stay English regardless.
+> **Language**: per `ai_context/skills_config.md §Language` — disk-bound output (patch content written into `ai_context/` + `docs/` files, marker-line removals, the commit message when the opt-in commit runs) uses `content_language`; user-facing surface (chat prose / `AskUserQuestion` prompts and option labels / progress-tool entry `content` / candidate file list rendered in chat / final changed-files summary line) uses `conversation_language`. Code identifiers, file paths, field names, frontmatter keys, section headings (`## §6`, `### [T-XXX]`), and structural prefixes (`Step N:`, `PATCH:`, etc.) stay English regardless.
 
 # /update-docs — Land conversation narrative into `ai_context/` + `docs/`
 
 Take what the user just discussed in the session and land it as patches
 to the corresponding `ai_context/` + `docs/` files. Lightweight sibling
 of `/go` for **doc-only narrative authoring**: no PRE/POST log, no
-multi-agent review, no commit, no fan-out. Sibling of `/todo-add` for
-**prose content** instead of single todo entries.
+multi-agent review, no fan-out; after the write it **offers an opt-in
+commit** (via `<ask tool>`) of just the files it touched, without
+invoking `/commit`. Sibling of `/todo-add` for **prose content**
+instead of single todo entries.
 
 ## Progress reporting
 
@@ -44,7 +46,7 @@ This skill uses:
 
 ## Step 1: Identify candidate files + compose patches
 
-> **Language**: disk-bound — patch content composed here will land in `ai_context/` + `docs/` files at Step 3 and is therefore disk-bound from the moment of composition. Write the patch text (paragraph additions, marker-line removals, list entries, table rows, decisions log entries) in `content_language` per `ai_context/skills_config.md §Language`. Code identifiers, file paths, field names, section headings (`## Goal`, `### [T-XXX]`, `**Updated**`), and the PROGRESSIVE marker token `_(none yet — delete this marker once content is added)_` stay English regardless. The Step 2 preview wraps the patch in user-facing prose — wrapper prose translates to `conversation_language`; patch content stays in `content_language`.
+> **Language**: disk-bound — patch content composed here will land in `ai_context/` + `docs/` files at Step 3 and is therefore disk-bound from the moment of composition. Write the patch text (paragraph additions, marker-line removals, list entries, table rows, decisions log entries) in `content_language` per `ai_context/skills_config.md §Language`. Code identifiers, file paths, field names, section headings (`## Goal`, `### [T-XXX]`, `**Updated**`), and the PROGRESSIVE marker token `_(none yet — delete this marker once content is added)_` stay English regardless.
 
 > **Language**: user-facing — render the "candidate files" list printed to the conversation (file path + section + one-line patch summary, no patch body yet) in `conversation_language` per `ai_context/skills_config.md §Language`. Structural labels (`file:`, `section:`, `add:` / `replace:` / `remove marker:`) stay English; only the summary prose translates.
 
@@ -92,35 +94,15 @@ Print to the conversation a numbered candidate list — one line per patch — i
 4. ... (rejected) file: docs/todo_list.md → redirect to /todo-add
 ```
 
-Do not print the full patch bodies yet — that is Step 2's preview.
+This numbered list is the only pre-write surface — patches are applied directly in Step 2, with no separate preview or confirmation.
 
-## Step 2: Preview + single batched `<ask tool>`
-
-> **Language**: user-facing — render the preview wrapper (the lead-in prose, the per-patch header lines like "patch 1/3: …", the trailing reminder of out-of-scope rejections from Step 1) in `conversation_language` per `ai_context/skills_config.md §Language`. Patch bodies **shown inside** the wrapper are disk-bound — they stay in `content_language` (the language they will land in at Step 3); do not retranslate.
-
-> **Language**: user-facing — render the `<ask tool>` prompt and option labels in `conversation_language` per `ai_context/skills_config.md §Language`. File paths, section headings, and entry IDs quoted inside the prompt / labels stay English; only surrounding prose translates.
-
-Print every accepted patch in full, each block headed with `patch N/M: <file> → <section>`. After all patches are printed, ask via **<ask tool>** — one question, three options:
-
-Question: `Apply all <M> patches as previewed?`
-
-1. **Confirm — apply all patches as shown (recommended)** — proceed to Step 3
-2. **Tweak first — adjust wording / drop a patch / add a patch** — wait for the user's tweak instruction, recompose draft, re-enter Step 2
-3. **Cancel — drop all patches** — abort the skill, no write
-
-The `<ask tool>`'s auto-appended "Other" fallback covers free-form responses (e.g. "apply patches 1 and 3, drop 2"). Option labels stay concise.
-
-**Tweak-first lockstep self-check** (run on every recompose, before the next preview cycle prints): after applying the user's tweak instruction (drop / wording change / add a patch), re-walk the resulting accepted-patch set against `ai_context/conventions.md §Cross-File Alignment`. If any lockstep pair (e.g. `docs/requirements.md` + `ai_context/requirements.md`; `docs/architecture/<topic>.md` + `ai_context/architecture.md`) has been broken — one half present in the set, the other half dropped — surface a `⚠️ lockstep break:` warn block at the top of the next preview citing the affected pair, **and replace the cycle's third option (`Cancel`) with `Resolve lockstep break (pair: <file A> + <file B>)`**. Picking this option opens one follow-up `<ask tool>` (3 options): `1. Also drop the orphaned <other half> to keep the pair intact (recommended)` / `2. Restore the dropped <half> to keep the pair intact` / `3. Cancel — drop all patches`. This keeps the main cycle at 3 options (Confirm / Tweak first / Resolve lockstep break) while still honoring the AskUserQuestion 4-option-max-per-question contract. Do not silently apply either lockstep fix — the user's intent on lockstep is load-bearing per `## Constraints` and must be confirmed.
-
-**No file is written before user confirmation.**
-
-## Step 3: Apply patches + remind to commit
+## Step 2: Apply patches
 
 > **Language**: disk-bound — patches landed into `ai_context/` + `docs/` files are written in `content_language` per `ai_context/skills_config.md §Language`.
 
-> **Language**: user-facing — render the changed-files summary line ("✓ landed N patches across M files: …") and the trailing reminder ("This skill does not commit. To persist, run /commit.") in `conversation_language` per `ai_context/skills_config.md §Language`. Structural prefixes (`✓`, file paths) stay English; only surrounding prose translates.
+> **Language**: user-facing — render the changed-files summary line ("✓ landed N patches across M files: …") in `conversation_language` per `ai_context/skills_config.md §Language`. Structural prefixes (`✓`, file paths) stay English; only surrounding prose translates.
 
-After confirmation:
+Apply the composed patches directly (no preview, no confirmation gate):
 
 a. **Apply patches via `Edit` (or `Write` only when creating a brand-new file under `ai_context/` or `docs/`).** One `Edit` per patch — do not batch unrelated edits into a single `replace_all`.
 
@@ -158,13 +140,33 @@ b. **Verify by re-reading the changed sections** if a patch touched > 1 surround
 
 c. **Print the summary line**: `✓ landed N patches across M files: <comma-separated file list>`.
 
-d. **Print the reminder**: `This skill does not commit. To persist, run /commit.` (Do not invoke `/commit` automatically.)
+Do not enter `/go`, do not invoke any other skill in Step 2; proceed to Step 3 (commit offer).
 
-Do not enter `/go`, do not invoke any other skill, do not stage or commit any change.
+## Step 3: Commit offer (opt-in)
+
+> **Language**: user-facing — render the `<ask tool>` commit prompt + option labels and the final state line in `conversation_language` per `ai_context/skills_config.md §Language`. The commit message itself is disk-bound — author it in `content_language`. Structural tokens (`✓`, `git`, file paths, short SHA) stay English regardless.
+
+After the patches land, ask via **<ask tool>** whether to commit:
+
+Question: `Commit the N changed file(s) now?`
+
+1. **Commit now** — stage and commit just the files this run wrote / created
+2. **Don't commit** — leave them in the working tree
+
+**On "Commit now"**:
+
+- Stage only the exact paths patched / created in Step 2 (the accepted patch set): `git add <file1> <file2> …` — scope to those paths; do **not** `git add -A` / do not sweep unrelated working-tree changes.
+- Commit with a concise one-line message in `content_language`, conventional-commit style, e.g. `docs: land <topic> into ai_context/ + docs/`.
+- Plain `git commit` only: no `--amend`, no `--no-verify`, no `--force`, **no push**, and **do not invoke `/commit`** (this is a raw `git add` + `git commit`, not a delegation).
+- Print one line: `✓ committed <short-sha> <message>`.
+
+**On "Don't commit"**: print `Left uncommitted — run /commit to persist.` and stop.
+
+Do not enter `/go`, do not push.
 
 ## Constraints
 
-- **No commit / no push** (persistence delegated to `/commit`)
+- **Opt-in commit only / no push** — after the write, offer (via `<ask tool>`) a plain commit of just the files this run touched; never `git add -A`, never `--amend` / `--no-verify` / `--force`, never push, never invoke `/commit`. On decline, persistence is delegated to `/commit`
 - **No code / no schema / no config / no logs / no todo_list** — patches outside `ai_context/` + `docs/` are rejected with a one-line redirect to the right skill (`/go` for code/schema/config, `/todo-add` for todo entries)
 - **No fan-out / no multi-agent review** — single-pass author-and-write; `/full-review` is the audit path
 - **No PRE / POST log** — `logs/change_logs/` is `/go`-only; `/update-docs` writes are attributable via the git diff alone

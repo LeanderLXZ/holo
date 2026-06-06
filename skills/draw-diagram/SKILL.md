@@ -330,7 +330,7 @@ Copy-paste svg in §Pattern — Callout arrow.
 | Node height | 60px single / 80px title+sublabel / content card grows to fit content |
 | Node corner radius (rx) | 12px (container uses 20px) |
 | Min horizontal gap on same row | 60px |
-| Min vertical gap between rows | 120px |
+| Vertical gap between rows | 80px default; expand (≈120px+) when arrows / edge labels route BETWEEN the two rows (e.g. a fan-out with `record` / `archive` labels), so the routing has room — a bare stacked column with nothing between needs only 80px |
 | Container inner padding | 50px sides, 60px top/bottom |
 | Legend gap from diagram content | 30px |
 | Legend gap BETWEEN items | ≥24px (sequential by text width — never a fixed pitch) |

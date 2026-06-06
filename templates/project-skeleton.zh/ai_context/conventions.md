@@ -108,7 +108,7 @@ _(none yet — delete this marker once content is added)_
 - **Config 文件**（TOML / YAML / `.env`）用于运行时常量。
 - **代码常量**用于共享行为阈值。
 
-反例：在 prompt 模板里硬编码 "150–200 chars" 散文，同时在 schema
+反例：在 prompt 模板里硬编码 "150–250 chars" 散文，同时在 schema
 里写 `maxLength: 200`。两者会静默漂移 — 有人改了一处，忘了另一处，
 不一致几个月后才以令人困惑的 bug 形式浮出。
 

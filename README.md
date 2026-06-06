@@ -5,7 +5,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/LeanderLXZ/holo/releases"><img src="https://img.shields.io/badge/version-v1.13.1-blue" alt="Version"></a>
+  <a href="https://github.com/LeanderLXZ/holo/releases"><img src="https://img.shields.io/badge/version-v1.14.0-blue" alt="Version"></a>
   <img src="https://img.shields.io/badge/Claude%20Code-plugin-7857ED" alt="Claude Code Plugin">
   <a href="LICENSE"><img src="https://img.shields.io/github/license/LeanderLXZ/holo?color=blue" alt="License: MIT"></a>
 </p>
@@ -182,6 +182,7 @@ entry lives in its source file under [commands/](commands/) or
 | [`/todo-add`](skills/todo-add/SKILL.md) | Register a just-decided item into `docs/todo_list.md`. |
 | [`/update-docs`](skills/update-docs/SKILL.md) | Land conversation narrative into `ai_context/` + `docs/` files. |
 | [`/compress-ai-context`](skills/compress-ai-context/SKILL.md) | Prune stale + compress bloated entries across `ai_context/` (sentinel-aware, coordinator + scatter-gather, snapshot-on-plan-freeze, multi-axis verify + rollback ask). |
+| [`/save-chat`](skills/save-chat/SKILL.md) | Save the current (or a chosen slice of the) conversation to `logs/chats/` as a self-contained HTML. |
 
 **Review — audit your work:**
 

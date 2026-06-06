@@ -117,7 +117,7 @@ Common canonical locations by project type:
 - **Config files** (TOML / YAML / `.env`) for runtime constants.
 - **Code constants** for shared behavior thresholds.
 
-Anti-pattern: hardcoded "150–200 chars" prose in a prompt template AND
+Anti-pattern: hardcoded "150–250 chars" prose in a prompt template AND
 `maxLength: 200` in a schema. The two will silently drift — someone
 edits one, forgets the other, and the inconsistency surfaces months
 later as a confusing bug.
