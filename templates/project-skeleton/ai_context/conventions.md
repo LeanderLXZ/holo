@@ -60,7 +60,7 @@ Shared:
   no modification" rule above); discipline shifts to the user
   briefing the edit set verbally before invoking `/do`.
 - `/do` is not allowed to mid-flight escalate to `/go`; if the change
-  surface widens past `/do`'s scope (≥ 3 files / cross-file alignment
+  surface widens past `/do`'s scope (≥ 6 files / cross-file alignment
   needed), exit and re-enter via `/go`.
 
 Pre-contract logs (single-timepoint, predating this convention) stay

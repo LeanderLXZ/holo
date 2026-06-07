@@ -1,13 +1,13 @@
 ---
 name: do
-description: Lightweight landing path for already-discussed changes — single intent, ≤2 files, no PRE log / review; auto-suggests /go when scope grows. Triggers: do / do it / quick edit / quick fix / edit in place / land what we just discussed.
+description: Lightweight landing path for already-discussed changes — single intent, ≤5 files, no PRE log / review; auto-suggests /go when scope grows. Triggers: do / do it / quick edit / quick fix / edit in place / land what we just discussed.
 ---
 
 > **Language**: per `ai_context/skills_config.md §Language` — disk-bound output (logs / docs / commit messages / code comments / files written) uses `content_language`; user-facing surface (chat prose / `AskUserQuestion` prompts and option labels / progress-tool entry `content` / status lines / strategy declarations / findings rendered in chat) uses `conversation_language`. Code identifiers, file paths, field names, frontmatter keys, and structural prefixes (`Step N:`, `LOG:`, etc.) stay English regardless.
 
 # /do — default landing path
 
-Execute per the discussion above. `/do` is the default path for landing already-discussed changes — single intent, ≤2 files, short feedback loop. No PRE log gating, no smoke, no review, no cross-file fan-out, no worktree / stash / branch switch. If `$ARGUMENTS` is present, it is the focus / slug hint for this round.
+Execute per the discussion above. `/do` is the default path for landing already-discussed changes — single intent, ≤5 files, short feedback loop. No PRE log gating, no smoke, no review, no cross-file fan-out, no worktree / stash / branch switch. If `$ARGUMENTS` is present, it is the focus / slug hint for this round.
 
 **Discipline (per `CLAUDE.md` §Dilution Self-Check, adapted for `/do`)** — before editing, answer the three:
 
@@ -15,9 +15,9 @@ Execute per the discussion above. `/do` is the default path for landing already-
 2. **Right layer** — does the file I am about to edit sit in the right module / layer for this concern? If unsure → re-read `ai_context/architecture.md`.
 3. **Default-no-doc rule** — do NOT touch any file under `docs/` or `ai_context/` unless **(a)** the user explicitly named it in the discussion, or **(b)** the entire discussion is about that file in the first place. `/do` is NOT for "I noticed the docs were out of date while I was here" — that opportunistic alignment is `/go`'s job (Step 3 / Step 6).
 
-If the change surface widens past `/do`'s envelope mid-flight (≥ 3 files / cross-file alignment needed), exit and re-enter via `/go` — `/do` does **NOT** mid-flight escalate.
+If the change surface widens past `/do`'s envelope mid-flight (≥ 6 files / cross-file alignment needed), exit and re-enter via `/go` — `/do` does **NOT** mid-flight escalate.
 
-**Anti-pattern (hard).** `/do` does NOT call `/post-check` / `/full-review` / `/commit` / `/update-docs`, and the Step 3 commit is a raw `git add` + `git commit` (not a delegated invocation). The ONE allowed delegation is the Step 1.1 ≥ 3-file fork handing off to `/go` when the user explicitly picks "Upgrade to `/go`" — a start-time, user-chosen handoff (see Step 1.1). `/do` does NOT switch branches, open worktrees, stash / pop, or fan out to other branches. `/do` does NOT maintain `ai_context/` durable state (`handoff.md` / `decisions.md`) or `docs/todo_list.md` — those are `/go` Step 6's job.
+**Anti-pattern (hard).** `/do` does NOT call `/post-check` / `/full-review` / `/commit` / `/update-docs`, and the Step 3 commit is a raw `git add` + `git commit` (not a delegated invocation). The ONE allowed delegation is the Step 1.1 ≥ 6-file fork handing off to `/go` when the user explicitly picks "Upgrade to `/go`" — a start-time, user-chosen handoff (see Step 1.1). `/do` does NOT switch branches, open worktrees, stash / pop, or fan out to other branches. `/do` does NOT maintain `ai_context/` durable state (`handoff.md` / `decisions.md`) or `docs/todo_list.md` — those are `/go` Step 6's job.
 
 ## Progress reporting
 
@@ -70,9 +70,9 @@ Run the three Dilution Self-Check questions at the top of this skill. If any ans
 
 Print one line: `Plan: file1 / file2 / file3 / ...` listing every file you expect to modify in this `/do` run, then count. (The `Plan:` prefix translates to `conversation_language` if natural; file paths stay English.)
 
-**What counts toward the threshold**: user-discussed file modifications only. The single-segment LOG file written by Step 2 is an auxiliary record (one file per run, always written) — it does **not** count toward the ≥ 3 threshold.
+**What counts toward the threshold**: user-discussed file modifications only. The single-segment LOG file written by Step 2 is an auxiliary record (one file per run, always written) — it does **not** count toward the ≥ 6 threshold.
 
-**If count ≥ 3** → call **<ask tool>** with this question:
+**If count ≥ 6** → call **<ask tool>** with this question:
 
 > "Planned modification set has `<N>` files, exceeding `/do`'s lightweight envelope. Choose how to proceed."
 
@@ -84,11 +84,11 @@ Options (exactly three, recommended option first):
 
 Branch on the answer:
 
-- Option 1 → **hand off to `/go` immediately** (do NOT stop for a manual re-invoke): print one line `Planned set is ≥ 3 files; handing off to /go: <file list>`, then invoke **<skill tool>** targeting `/go` with `<arg>` = this run's `<arg>` (or a short slug derived from the discussion). The in-conversation discussion `/do` was about IS `/go`'s baseline — `/go` reads it as its Step 2 PRE log "Background / Trigger", then runs its own flow (starting with its Step 1 work-location ask). **<skill tool> resolution**: Claude → `Skill("go")`; runtimes without a structured skill tool → print `User: please run /go <slug> next` and stop (manual fallback only where auto-invoke is unavailable).
+- Option 1 → **hand off to `/go` immediately** (do NOT stop for a manual re-invoke): print one line `Planned set is ≥ 6 files; handing off to /go: <file list>`, then invoke **<skill tool>** targeting `/go` with `<arg>` = this run's `<arg>` (or a short slug derived from the discussion). The in-conversation discussion `/do` was about IS `/go`'s baseline — `/go` reads it as its Step 2 PRE log "Background / Trigger", then runs its own flow (starting with its Step 1 work-location ask). **<skill tool> resolution**: Claude → `Skill("go")`; runtimes without a structured skill tool → print `User: please run /go <slug> next` and stop (manual fallback only where auto-invoke is unavailable).
 - Option 2 → proceed to 1.2.
 - Option 3 → print `/do exited; no files modified` and stop.
 
-**If count < 3** → proceed to 1.2 directly (no ask).
+**If count < 6** → proceed to 1.2 directly (no ask).
 
 ### 1.2 Execute modifications
 
@@ -96,7 +96,7 @@ Edit files per the discussion. Constraints:
 
 - **Default-no-doc/ai_context**: do NOT edit any file under `docs/` or `ai_context/` unless **(a)** the user explicitly named it in the discussion, or **(b)** the entire discussion is about that file. Touching them opportunistically is `/go`'s job, not `/do`'s.
 - **If a `docs/` or `ai_context/` file IS touched**: apply `skills_config.md ## Sensitive content placeholder rules` (skip when `(none)`) and do not introduce `legacy` / `deprecated` / `formerly` / `renamed from` wording (per `ai_context/conventions.md §Generic Placeholders`).
-- **Mid-flight new file** — if while editing you discover a 3rd / 4th file that was not in the Step 1.1 declaration, do **NOT** re-ask. Edit it if you judge it strictly necessary for the current change to be correct, then record the addition in the LOG `## Execution deviations` section at Step 2. (User's recourse is to re-run as `/go` next time; `/do` does not retroactively escalate.)
+- **Mid-flight new file** — if while editing you discover an additional file that was not in the Step 1.1 declaration, do **NOT** re-ask. Edit it if you judge it strictly necessary for the current change to be correct, then record the addition in the LOG `## Execution deviations` section at Step 2. (User's recourse is to re-run as `/go` next time; `/do` does not retroactively escalate.)
 
 ## Step 2: Write single-segment LOG
 
@@ -186,9 +186,9 @@ Options (exactly two, recommended option first):
 
 ## Constraints
 
-- **One delegated skill, by user choice**: `/do` does NOT call `/post-check` / `/full-review` / `/commit` / `/update-docs`, and the Step 3 commit is raw `git add` + `git commit` (not a delegated invocation). The SOLE delegation is the Step 1.1 ≥ 3-file fork: when the user explicitly picks "Upgrade to `/go`", `/do` hands off to `/go` directly (a start-time, user-chosen delegation) instead of stopping for a manual re-invoke.
+- **One delegated skill, by user choice**: `/do` does NOT call `/post-check` / `/full-review` / `/commit` / `/update-docs`, and the Step 3 commit is raw `git add` + `git commit` (not a delegated invocation). The SOLE delegation is the Step 1.1 ≥ 6-file fork: when the user explicitly picks "Upgrade to `/go`", `/do` hands off to `/go` directly (a start-time, user-chosen delegation) instead of stopping for a manual re-invoke.
 - **No environment takeover**: `/do` does NOT switch branches, open worktrees, stash / pop, run background-process probes, or fan out to other branches. Cross-branch sync → `/forward` (user-invoked, separately, after `/do`).
-- **No mid-flight escalation**: once editing has started, `/do` does NOT escalate to `/go` mid-flight — if the scope widens after the first edit, finish minimally or exit and re-enter via `/go`. (Distinct from the Step 1.1 ≥ 3-file fork, which fires BEFORE any edit and, on the user's "Upgrade to `/go`" pick, hands off to `/go` directly.)
+- **No mid-flight escalation**: once editing has started, `/do` does NOT escalate to `/go` mid-flight — if the scope widens after the first edit, finish minimally or exit and re-enter via `/go`. (Distinct from the Step 1.1 ≥ 6-file fork, which fires BEFORE any edit and, on the user's "Upgrade to `/go`" pick, hands off to `/go` directly.)
 - **No durable-doc maintenance**: `/do` does NOT touch `ai_context/handoff.md` / `decisions.md` unless the discussion is explicitly about those files. Durable maintenance is `/go` Step 6's job.
 - **No todo bookkeeping**: `/do` does NOT maintain `docs/todo_list.md` (no entry move to archived, no Index refresh). Use `/todo-add` or `/go` for todo bookkeeping.
 - **No backfill of pre-existing logs**: pre-existing `logs/change_logs/*.md` files are NOT retroactively assigned a `Type` field. Only new logs from `/go` (`Type: GO`) and `/do` (`Type: DO`) onward carry the field.

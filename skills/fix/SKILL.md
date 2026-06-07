@@ -114,13 +114,13 @@ If `gaps > 0`, append one extra line: `Note: {gaps} findings need your input mid
 
 Compute the AI's recommendation per `/do`'s envelope rules (single source of truth: see `skills/do/SKILL.md` Step 1.1):
 
-- **≥ 3 distinct files implicated by the fix-recommended subset** (count the unique `File:line` anchors of every finding whose AI-recommended disposition is `fix`, plus any cross-file file the finding's description explicitly names) → recommend `/go`
+- **≥ 6 distinct files implicated by the fix-recommended subset** (count the unique `File:line` anchors of every finding whose AI-recommended disposition is `fix`, plus any cross-file file the finding's description explicitly names) → recommend `/go`
 - **Any fix-recommended finding's anchor lives under `docs/` or `ai_context/`** (and the discussion target is that file — not opportunistic) → recommend `/go`
 - **Otherwise** → recommend `/do`
 
 Print one line:
 
-`Recommended: /go (or /do). Rationale: <one sentence — e.g. "fix subset touches 4 files across skills/ + docs/", or "fix subset is 2 files inside skills/ only, no docs/ai_context spillover">.`
+`Recommended: /go (or /do). Rationale: <one sentence — e.g. "fix subset touches 7 files across skills/ + docs/", or "fix subset is 3 files inside skills/ only, no docs/ai_context spillover">.`
 
 Cache the recommendation as `<RECOMMENDED>` (and the other as `<OTHER>`) for Step 3 / Step 4.
 
