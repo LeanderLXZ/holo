@@ -124,8 +124,6 @@ Re-init detected: <yes / no>
 
 ## Step 2: Required questions (Round 1)
 
-> **Language**: user-facing — render the Round 1 `<ask tool>` question batch + option labels in `conversation_language` per `ai_context/skills_config.md §Language`. Default-value suggestions probed in Step 1.2 (project name candidates, main branch defaults, timezone strings like `UTC` / `Asia/Shanghai`) stay verbatim.
-
 **Hard rule**: AI MUST surface `<ask tool>` for all 4 questions even when defaults from Step 1.2 are confidently inferred (project name from directory, main branch from git config, timezone from system). Defaults appear as `Recommended` options on the rendered ask; they are NEVER AI-applied silently.
 
 Use **<ask tool>** to ask 4 questions at once (values probed in Step 1.2 act as `Recommended` options; the user can pick `Other` to fill in their own):
@@ -138,8 +136,6 @@ Use **<ask tool>** to ask 4 questions at once (values probed in Step 1.2 act as 
 Record answers as `<project_name>`, `<project_goal>`, `<main_branch>`, `<timezone_cmd>` for Step 5's substitution pass. Do NOT Edit any file here — the files don't exist yet (Reconcile.Step 3 copies them in Step 4). Step 5 writes after Reconcile lands the templates.
 
 ## Step 3: Top-level directory classification questions (Round 2)
-
-> **Language**: user-facing — render in `conversation_language` per `ai_context/skills_config.md §Language`. File paths stay verbatim.
 
 **Hard rule** (when applicable): if Step 1.2 detected top-level directories beyond `.git/` / `ai_context/` / `docs/` / `logs/`, AI MUST surface `<ask tool>` for each detected directory; never auto-classify or auto-skip. When no such directories exist (typical empty-directory init), this step is skipped per its own conditional — that is not the AI exercising discretion, it's the round having no applicable input.
 
@@ -186,7 +182,7 @@ Reconcile core executes its 6 sub-steps (Template inventory → Language alignme
 - **Reconcile.Step 3** does the wholesale NEW file copy (the bulk of fresh-init's work). Copied files retain `<...>` REQUIRED placeholders + PROGRESSIVE markers verbatim — Step 5 (post-Reconcile) substitutes the REQUIRED placeholders.
 - **Reconcile.Step 4 drift detection** runs against the post-Step-3 state, with `--other-agents <other_agents>` passed through (`No` → `AGENTS.md` + the mirror are excluded from every check). On fresh-init, `claude_agents_lang_drift` will surface for `CLAUDE.md` (and `AGENTS.md` too when `<other_agents>` = Yes) because they just landed with template-default values (`content_language: en` / `conversation_language: auto`) that may differ from the user's Step 0 answers; this is expected and resolved by Step 5b's `--fix` in the same dispatch (no separate hand-edit needed).
 - **Reconcile.Step 5a smart-merge** typically does not fire on fresh-init (no EXISTING markdown files → no `sentinel_layout_drift` findings). On re-init it fires for any consumer file whose sentinel structure drifted from the new plugin template — same dispatch as `/holo:update`.
-- **Reconcile.Step 5b `--fix`** populates `.agents/skills/` if Step 1.4 chose Yes (the empty directory pre-created in Step 1.4 makes the script see `agents_sync.missing` findings — one per skill `SKILL.md` plus one per bundled skill asset; plugin `commands/` are NOT mirrored — which `--fix` fills: `SKILL.md` via `expected_mirror_content()`, assets via byte-for-byte copy). On Yes, `AGENTS.md` is also landed (via Reconcile.Step 3 NEW-copy, like any template file); on No, both `AGENTS.md` and the mirror are excluded by `--other-agents no` (`ai_context/decisions.md` #32).
+- **Reconcile.Step 5b `--fix`** populates `.agents/skills/` when Step 1.4 chose Yes (and lands `AGENTS.md` like any template file); on No, both `AGENTS.md` + the mirror are excluded via `--other-agents no`. Mirror-population mechanism (per-skill `SKILL.md` + bundled assets; plugin `commands/` not mirrored): see Step 1.4 + `ai_context/decisions.md` #30 / #32.
 
 ## Step 5: REQUIRED placeholder substitution
 
@@ -276,8 +272,6 @@ For each entry in `<dir_classifications>` (from Step 3), use `Edit` to append to
 
 ## Step 6: Doc bootstrap questions (Round 3)
 
-> **Language**: user-facing — render the Round 3 `<ask tool>` questions in `conversation_language` per `ai_context/skills_config.md §Language`.
-
 Purpose: give the user explicit control over whether `ai_context/architecture.md` and `ai_context/requirements.md` get an AI-survey-based first draft, a user-provided first pass, or are left with template `_(none yet — ...)_` markers for later progressive fill.
 
 **Hard rule**: AI MUST surface `<ask tool>` for both questions even when one option (typically `Skip for now`) looks obviously correct. Default appears as `Recommended` on the rendered ask; the user picks. Skip is a user choice never an AI shortcut.
@@ -350,8 +344,6 @@ Suggested next steps:
 ```
 
 ## Step 8: Commit offer
-
-> **Language**: user-facing — render the `<ask tool>` prompt + option labels and the post-decision line in `conversation_language` per `ai_context/skills_config.md §Language`. File paths and the `/commit` skill name stay verbatim.
 
 After Step 7's wrap-up, offer to land the skeleton this run produced.
 

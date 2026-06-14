@@ -25,7 +25,7 @@ Subsequent steps referring to "skills_config.md `## XX`" cite this config. This 
 `## Timezone` (timestamp on result archival),
 `## Language` (read both `content_language` and `conversation_language` here; print them once on the way out of §0 — see below).
 
-**Language-axes anchor (after skills_config load)**: print one line `Language axes: conversation_language=<value> · content_language=<value> (source: ai_context/skills_config.md §Language)`. Both axis values echoed verbatim from §Language; the natural-language prefix translates to `conversation_language` (rendered in the project's chosen language). This anchor is planted before the four parallel audit lines fan out in "How to work" below.
+**Language-axes anchor (after skills_config load)**: print one line `Language axes: conversation_language=<value> · content_language=<value> (source: ai_context/skills_config.md §Language)`. Both axis values echoed verbatim from §Language; the natural-language prefix translates to `conversation_language` (rendered in the project's chosen language). This anchor is planted before the audit dimensions fan out in "How to work" below.
 
 ## Goals
 
@@ -48,13 +48,12 @@ First read `ai_context/` and `docs/` to follow the current project truth, then r
   - directories listed in skills_config.md `## Data contract directories` (skip if `(none)`), and the prompt-sources path from skills_config.md `## Activity sources.Prompt sources.Path` (skip when `(none)`)
   - directories listed in skills_config.md `## Example artifact directories`
   - `README.md`, `.gitignore`
-> **Language (sub-agent dispatch)**: when the runtime supports parallelism and the four audit lines below run as sub-agents, the parent MUST inject the language axes into each sub-agent's prompt explicitly. Include verbatim: "Reply in `conversation_language`=`<value>`; write any disk artifacts in `content_language`=`<value>`; both values from `ai_context/skills_config.md §Language`." Sub-agents do not inherit the parent's language config — they must be told. Sub-agent report-back to the parent is a USER surface; the consolidated review report file is DISK surface. **Place this injection at the end of the sub-agent prompt** (recency-favorable position), not in the header / middle — sub-agents have just read English source files in their audit scope, so the dispatch directive needs recency advantage over the scanned content to keep the reply in `conversation_language`.
+> **Language (sub-agent dispatch)**: when the runtime supports parallelism and the audit dimensions below run as sub-agents, the parent MUST inject the language axes into each sub-agent's prompt explicitly. Include verbatim: "Reply in `conversation_language`=`<value>`; write any disk artifacts in `content_language`=`<value>`; both values from `ai_context/skills_config.md §Language`." Sub-agents do not inherit the parent's language config — they must be told. Sub-agent report-back to the parent is a USER surface; the consolidated review report file is DISK surface. **Place this injection at the end of the sub-agent prompt** (recency-favorable position), not in the header / middle — sub-agents have just read English source files in their audit scope, so the dispatch directive needs recency advantage over the scanned content to keep the reply in `conversation_language`.
 
-- If the runtime supports parallelism, run at least four audit lines in parallel:
-  1. **Spec line (mandatory)**: `ai_context/`, `docs/`, directories listed in skills_config.md `## Data contract directories` (skip that section's scan if `(none)`), the prompt-sources path from skills_config.md `## Activity sources.Prompt sources.Path` (skip when `(none)`)
-  2. **Implementation line**: scan directories listed in skills_config.md `## Source directories` + scripts / state machines / validations / retries / rollback logic. If the section is `(none)` / empty, degrade to "every subdirectory under the project root except ai_context / docs / logs / .git / directories already listed in `## Data contract directories` / prompts"
-  3. **Risk line**: scope = implementation line, but a different lens — implementation line asks "does it still hook up / are fields drifting / is gating aligned with the docs", risk line asks "is what it does correct": edge cases, null / None, exception paths, concurrency, retry / rollback, error handling that hides bugs; whether new behavior or long-unreviewed code risks data loss / security holes / performance regression; whether the state machine / gates / invariants leave uncovered branches; produce entries under bug / behavior-risk categories under "priority check items" and the same-named Findings sub-section
-  4. **Sample artifact line**: scan directories listed in skills_config.md `## Example artifact directories`, check whether committed progress / artifacts match the spec. Skip this line if the section is `(none)` / empty and print "No example artifact directories declared, sample line skipped"
+- Scan in **two dimensions** (the old four audit lines fold in as their checklists — nothing dropped):
+  1. **Code dimension** — directories listed in skills_config.md `## Source directories` (if `(none)` / empty, degrade to every subdirectory under the project root except ai_context / docs / logs / .git / `## Data contract directories` / prompts) + scripts / state machines / validations / retries / rollback. Two lenses together: **wiring** ("does it still hook up / are fields drifting / is gating aligned with the docs") AND **correctness** ("is what it does correct" — edge cases, null / None, exception paths, concurrency, retry / rollback, error handling that hides bugs; whether new or long-unreviewed code risks data loss / security holes / performance regression; uncovered state-machine / gate / invariant branches).
+  2. **Surface dimension** — `ai_context/` + `docs/` + directories listed in skills_config.md `## Data contract directories` (skip `(none)`) + the prompt-sources path from `## Activity sources.Prompt sources.Path` (skip `(none)`) + `## Example artifact directories` (skip `(none)`, else check committed samples / artifacts match the spec) + `README.md` / `.gitignore`. Spec↔implementation alignment; conflicts / ambiguities / stale descriptions / unfulfilled promises; `doc says A / code does B / sample says C`.
+- **Scale the fan-out to repo / scope size** (do not always spawn the max): small repo or a focused `$ARGUMENTS` scope → a single serial pass over both dimensions, **no sub-agents**; larger → one sub-agent per dimension in parallel; very large → **shard the Code dimension** by directory-group (Surface usually stays one). Whole-repo coverage is preserved in every case — only the agent count scales.
 
 ## Priority check items
 
@@ -72,8 +71,6 @@ First read `ai_context/` and `docs/` to follow the current project truth, then r
 - Is there content claimed externally as "done / verified" that the repo state does not actually support
 
 ## Audit requirements
-
-> **Language**: disk-bound — write this section's audit findings and output-structure prose (folded into the eventual report file at "Result archival") in `content_language` per `ai_context/skills_config.md §Language`. Code identifiers, file paths, field names stay English regardless.
 
 - This is a review, **not a code change**; aside from the new review report from "Result archival (mandatory)" which must be committed, do not modify, commit or push any other file
 - Prioritize "high-value problems" over generic remarks; cover the whole repo but focus on items that genuinely affect follow-up development / extraction quality / runtime correctness
@@ -94,11 +91,7 @@ First read `ai_context/` and `docs/` to follow the current project truth, then r
 
 > **Cross-skill protocol ownership**: this Section defines the review-report 5-section body order (`Findings` → `Alignment Summary` → `Residual Risks` → `Open Questions / Ambiguities` → `Recommendations`) and the finding ID prefix conventions (`H1` / `M1` / `L1` / `OQ1`, stable across merge / withdraw). This is consumed by `/check-review` Step 0 (file pick by pattern), Step 1 (body parse by section names), and Step 3 (per-finding re-check that reuses the original IDs). Renaming any section, reordering them, or changing the ID prefix scheme requires a lockstep edit in `/check-review` per `ai_context/conventions.md §Cross-File Alignment` (row: "Review-report protocol").
 
-> **Language**: user-facing — render the `Findings` / `Alignment Summary` / `Residual Risks` / `Open Questions` / `Recommendations` sections **as printed into the conversation** in `conversation_language` per `ai_context/skills_config.md §Language`. Section headings and finding ID prefixes (`Findings`, `H1`, `M1`, `L1`, `OQ1`, `Recommend:`, etc.) stay English; only the descriptive prose / evidence / recommendation text translate.
-
-> **Language anchor reset (render-time)**: before emitting the in-chat report below, re-echo the language axes verbatim — `conversation_language=<value>` · `content_language=<value>` from `ai_context/skills_config.md §Language`. The "Result archival" step writes a substantial `content_language`-bound report file to disk; this reset refreshes recency at the entry of the USER-facing render so the in-chat sections below stay in `conversation_language` even when the template's structural scaffold (section headings + ID prefixes `H1` / `M1` / `OQ1` / `Recommend:`) is English.
-
-> **Language**: disk-bound — the same sections **as written into the report file** at "Result archival" use `content_language` per `ai_context/skills_config.md §Language`. The on-disk report is the canonical archival surface and stays in `content_language` regardless of `conversation_language`; the in-chat render above is the user-facing surface. Code identifiers, file paths, field names stay English regardless.
+> **Language**: user-facing — render the `Findings` / `Alignment Summary` / `Residual Risks` / `Open Questions` / `Recommendations` sections **as printed into the conversation** in `conversation_language` (re-echo the §Language axes here before rendering — a recency anchor right after the disk-bound report write). Section headings and finding ID prefixes (`Findings`, `H1`, `M1`, `L1`, `OQ1`, `Recommend:`) stay English; only descriptive prose / evidence / recommendation text translate. The same sections written to the report **file** at "Result archival" use `content_language` (that section carries its own anchor).
 
 1. `Findings`
    - Sorted by severity: High → Medium → Low
@@ -144,7 +137,7 @@ declared at `## Activity sources.Review reports.Filename pattern` (defaults: `lo
 - One review = one file; do not append, do not overwrite an old file
 - The review-reports directory only stores review result snapshots; non-overlapping with the change-logs directory (path per `## Activity sources.Change logs.Path`, historical decision records) and the TODO list (path per `## Activity sources.TODO list.Path`)
 
-After writing, **immediately commit this review report file** — do not leave a dirty working tree, otherwise the next `/go` Step 1 prompt will fold this residue into the dirty summary, forcing the user to spend extra attention, with zero benefit to leaving it dirty.
+After writing, **immediately commit this review report file** — do not leave a dirty working tree, otherwise the next `/go` work-location prompt will fold this residue into the dirty summary, forcing the user to spend extra attention, with zero benefit to leaving it dirty.
 
 - Commit on the **current branch** (`/full-review` is usually run on the user's current branch, no need to switch)
 - Only `git add` this review report file — do not casually bundle other unrelated dirty files into the commit

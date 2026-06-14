@@ -29,7 +29,7 @@ Concepts about how the workflow flows, what stages exist, what a step's role is.
 | 复审 | review | The general term for any audit / re-examination pass. Compare with §re-check (revisit a stored review report). |
 | 复核 / 再复查 | re-check | Specific to `/check-review` — revisiting a stored `logs/review_reports/` finding against current state. |
 | 对齐 | alignment | Cross-file / cross-doc / cross-spec consistency. See `ai_context/conventions.md §Cross-File Alignment`. |
-| 收尾 | wrap-up | Final cleanup step of a flow (e.g. `/go` Step 10, `/post-check` Step 7). |
+| 收尾 | wrap-up | Final cleanup step of a flow (e.g. `/go`'s wrap-up, `/post-check` Step 7). |
 | 触发 | trigger | The event chain that surfaced a task / decision (todo_list `**触发链** → **Trigger**`). |
 | 决议 / 决定 / 拍板 | decided / decision | Final position locked in. Verb "拍板" = "lock". |
 | 收敛 | converge | Decisions converge during `/plan` discussion. |
@@ -89,7 +89,7 @@ Concrete operations the AI or user performs.
 | 显式 | explicit | "Explicit user authorization required". |
 | 隐式 | implicit | Avoid implicit behaviors in skill design. |
 | 默认 | default | "Default = current branch" (`/push` $ARGUMENTS). |
-| 选项 | option | Step 1 of `/go` presents 3 / 4 options. |
+| 选项 | option | `/go`'s work-location step presents 3 / 4 options. |
 | 槽 / 单槽 | slot / single slot | "In Progress single slot" — only one task in-flight at a time. |
 | 状态机 | state machine | Phase / segment transitions in todo_list. |
 | 失败模式 | failure mode | Risk-line audit examines failure modes. |
@@ -270,7 +270,7 @@ These tokens stay literal regardless of `content_language` — they are protocol
 **When a translation sub-agent coins a new term**:
 
 1. The sub-agent reports the coined term in its findings (per Phase 2' precedent).
-2. The /go that runs the translation includes a Step 6 alignment item to append the coined term to this glossary.
+2. The /go that runs the translation includes a docs-&-alignment item to append the coined term to this glossary.
 3. Subsequent rounds reuse the canonical form.
 
 **Cross-references**:

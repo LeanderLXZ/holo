@@ -13,7 +13,7 @@ Triage findings from the most recent review surface — `/post-check`, `/full-re
 
 > Anti-over-engineering reminder: post-review fixes — minimal patches only. No opportunistic refactor / "while I'm here" cleanup / new abstractions / new tests / new flags. If a 3-line edit solves it, do not extract helpers. Reviewers picked these findings precisely because they are worth fixing on their own — do not bundle adjacent rewrites unless the reviewer flagged them.
 
-This reminder propagates the discipline of `/do` Step 1.0 (Dilution Self-Check) and `/go` Step 3 (no opportunistic doc edits) into the delegated round.
+This reminder propagates the discipline of `/do` Step 1.0 (Dilution Self-Check) and `/go`'s no-opportunistic-edit discipline into the delegated round.
 
 ## Progress reporting
 
@@ -48,13 +48,9 @@ Subsequent steps referencing "skills_config.md `## XX`" use this config. This sk
 `## Activity sources.Change logs.Path` + `Filename time pattern` (Step 1 disk fallback for `REVIEWED-*` change-log entries),
 `## Activity sources.Review reports.Path` + `Filename pattern` (Step 1 disk fallback for `/full-review` outputs).
 
-> **Language**: user-facing — render the language-axes anchor line below in `conversation_language` per `ai_context/skills_config.md §Language`. Axis values are echoed verbatim from §Language.
-
 After reading, print one line **Language-axes anchor**: `Language axes: conversation_language=<value> · content_language=<value> (source: ai_context/skills_config.md §Language)`. Both axis values are echoed **verbatim** from the §Language section; the bracketed source path stays English; the natural-language prefix translates to `conversation_language` (rendered in the project's chosen language). This is a deliberate high-salience anchor planted before Steps 1–5 accumulate context.
 
 ## Step 1: Locate findings source
-
-> **Language**: user-facing — render the "Selected findings source" line and the parsed finding-count summary in `conversation_language` per `ai_context/skills_config.md §Language`. Structural labels (`Selected findings source:`, `H={h} M={m} L={l} OQ={oq}`, file paths, finding IDs) stay English; the natural-language prefix and any rendered prose translate.
 
 Resolution rule (three-tier; first non-empty wins):
 
@@ -110,8 +106,6 @@ If `gaps > 0`, append one extra line: `Note: {gaps} findings need your input mid
 
 ## Step 2: Recommend `/go` vs `/do`
 
-> **Language**: user-facing — render the recommendation line + the 1-sentence rationale in `conversation_language` per `ai_context/skills_config.md §Language`. Structural prefixes (`Recommended:`, file counts, the option names `/go` / `/do`) stay English; only the rationale prose translates.
-
 Compute the AI's recommendation per `/do`'s envelope rules (single source of truth: see `skills/do/SKILL.md` Step 1.1):
 
 - **≥ 6 distinct files implicated by the fix-recommended subset** (count the unique `File:line` anchors of every finding whose AI-recommended disposition is `fix`, plus any cross-file file the finding's description explicitly names) → recommend `/go`
@@ -126,8 +120,6 @@ Cache the recommendation as `<RECOMMENDED>` (and the other as `<OTHER>`) for Ste
 
 ## Step 3: Top-level mode dispatch (Auto / Item-by-item / Exit)
 
-> **Language**: user-facing — render the `<ask tool>` prompt and option labels in `conversation_language` per `ai_context/skills_config.md §Language`. Structural prefixes (`/go` / `/do` / `Auto` / `Item-by-item`) stay English; only the surrounding prose translates.
-
 Call **<ask tool>** with one question. The 4-option ask is shown unconditionally — ambiguity (`gaps > 0`) is handled inside Step 4a at sub-step 4a.0, not gated here.
 
 Question: `${h+m+l+oq} findings selected (fix={f} todo={t} skip={s} auto-skipped-by-multi={n} (todo-eligible={k}) gaps={gaps}); recommended landing path: /<RECOMMENDED>. Choose how to proceed.`
@@ -141,9 +133,23 @@ Options (exactly four, recommended option first):
 3. **Item-by-item — decide each finding (and each OQ) myself** — proceed to Step 4b (ignores the silent-skip / gap categorization; every finding gets asked)
 4. **Exit — drop the triage** — abort the skill, no delegation, no `/todo-add`; print `/fix exited; no actions taken` and stop
 
-## Step 4a: Auto path (recommended option / other option)
+## Disposition schema (shared by Step 4a.0 + Step 4b.1)
 
-> **Language**: user-facing — render the 4a.0 per-finding `<ask tool>` batches in `conversation_language` per `ai_context/skills_config.md §Language`. Finding IDs / file paths / option names stay English; only the surrounding prose translates.
+Both Step 4a.0 (gap resolution) and Step 4b.1 (item-by-item) ask per-finding with **exactly three options, AI-recommended option first**. The options + order rule are defined once here; each sub-step supplies only its own `<disposition-clause>` / `<suggestion-clause>` wording (below).
+
+**H/M/L findings** — `<ID> (<file:line>): <description>. <disposition-clause>. Choose disposition.`
+1. **Fix** — include in this round's delegated landing (the chosen `/go` / `/do` path)
+2. **Add todo** — register as a `/todo-add` Next entry instead of fixing this round
+3. **Skip** — do not fix, do not register
+
+**Open Questions (OQ)** — same 3-bucket schema, OQ surface — `<OQ ID>: <question text>. <suggestion-clause>. Choose disposition.`
+1. **Adopt** — accept AI's suggested answer and fold into this round's fix delegation
+2. **Defer to todo** — register the open question as a `/todo-add` Discussing entry for later
+3. **Skip** — do not act on this OQ this round
+
+**Option order**: single-token disposition → recommended first, then the rest in `fix → todo → skip` (H/M/L) / `adopt → defer → skip` (OQ); multi-token → AI's offered tokens first by that precedence, then fill the missing one; `unknown` → fixed precedence. A batch may mix H/M/L + OQ — do not split by severity.
+
+## Step 4a: Auto path (recommended option / other option)
 
 > **Language**: disk-bound — the fix brief composed at 4a.1 is disk-bound from the moment of composition (it becomes the discussion context for the delegated `/go` PRE log or `/do` discussion). Write the brief in `content_language` per `ai_context/skills_config.md §Language`. The user-facing wrapper prose around the brief (the "I will hand off the following brief to /go" lead-in line and the `Skill` invocation confirmation) translates to `conversation_language`; the brief content itself stays in `content_language`. Code identifiers, file paths, IDs stay English regardless.
 
@@ -151,37 +157,9 @@ Options (exactly four, recommended option first):
 
 Count `gaps = count(unknown) + count(needs_input)`. If `gaps == 0`, skip directly to 4a.1.
 
-If `gaps > 0`, batch per-finding `<ask tool>` calls (max 4 questions per call; same 3-option schema as Step 4b.1). For each gap finding (H/M/L or OQ):
-
-**For H/M/L gap findings**:
-
-Question: `<ID> (<file:line>): <description trimmed from source>. <disposition-clause>. Choose disposition.`
-
-Where `<disposition-clause>` is:
-- `AI offered: <token1> / <token2>` when the disposition is `needs_input` (echo the recognized tokens in the order they appeared in the prose)
-- `AI recommendation: (none — pick yourself)` when the disposition is `unknown`
-
-Options (semantics for H/M/L) — order rule: AI's offered tokens first (sorted by internal precedence `fix → todo → skip`), then fill the missing third:
-
-1. **Fix — include in this round's delegated landing (`/<RECOMMENDED>` or `/<OTHER>`)**
-2. **Add todo — register as `/todo-add` Next entry instead of fixing this round**
-3. **Skip — do not fix, do not register**
-
-For `unknown` (no AI offered tokens), the order falls back to the fixed precedence `fix → todo → skip`.
-
-**For Open Questions (OQ) gap findings** — adapt the wording to OQ semantics (same 3-bucket schema, different surface):
-
-Question: `<OQ ID>: <question text>. <suggestion-clause>. Choose disposition.`
-
-Where `<suggestion-clause>` is:
-- `AI offered: <candidate1> / <candidate2>` when the disposition is `needs_input`
-- `AI suggestion: (none — pick yourself)` when the disposition is `unknown`
-
-Options (semantics for OQ) — order rule: AI's offered tokens first by internal precedence `adopt → defer → skip` (mapping `fix→adopt`, `todo→defer`), then fill the missing third; for `unknown`, fixed precedence `adopt → defer → skip`:
-
-1. **Adopt — accept AI's suggested answer and fold into this round's fix delegation**
-2. **Defer to todo — register the open question as a `/todo-add` Discussing entry for later resolution**
-3. **Skip — do not act on this OQ this round**
+If `gaps > 0`, batch per-finding `<ask tool>` calls (max 4 per call) using the **Disposition schema** above. Per-finding clause:
+- H/M/L `<disposition-clause>`: `AI offered: <token1> / <token2>` when `needs_input` (echo recognized tokens in prose order); `AI recommendation: (none — pick yourself)` when `unknown`.
+- OQ `<suggestion-clause>`: `AI offered: <candidate1> / <candidate2>` when `needs_input`; `AI suggestion: (none — pick yourself)` when `unknown`.
 
 After all batches are answered, merge user picks back into the findings table (overwrite each gap row's disposition with the chosen single token: `fix` / `todo` / `skip` for H/M/L, `adopt` / `defer` / `skip` for OQ). Then proceed to 4a.1. **Note**: gap-resolved `todo` and `defer` picks do NOT trigger `/todo-add` in Auto mode (consistent with the bulk-accept design — Auto only delegates the `fix` / `adopt` subset; "todo" picks land as dropped with the rest). If the user wants those gap-picks registered as todos, they re-run `/fix` Item-by-item.
 
@@ -216,50 +194,15 @@ Proceed to Step 5.
 
 ## Step 4b: Item-by-item path
 
-> **Language**: user-facing — render the per-finding `<ask tool>` batches, the final summary table, and the optional re-ask for `/go` vs `/do` in `conversation_language` per `ai_context/skills_config.md §Language`. Finding IDs / file paths / option names (`/go` / `/do` / `/todo-add`) stay English; only the surrounding prose translates.
-
 ### 4b.1 Per-finding asks (batched, max 4 per call)
 
 Iterate over the findings table in **source order** (preserving the source's H1, H2, …, M1, …, L1, …, OQ1, … sequence). For each finding, prepare one `<ask tool>` question with **exactly three options** (AI-recommended option first).
 
-**For H/M/L findings**:
+Ask per-finding using the **Disposition schema** above. Per-finding clause:
+- H/M/L `<disposition-clause>`: `AI recommends: <token>` (single token); `AI offered: <t1> / <t2>` (multi-token — list in the row's prose-order); `AI recommendation: (none — pick yourself)` (`unknown` — do NOT print "AI recommends: unknown", it reads as a recommendation literally named "unknown").
+- OQ `<suggestion-clause>`: `AI suggests: "<answer>"` (single-token `adopt`); `AI offered: <c1> / <c2>` (multi); `AI suggestion: (none — pick yourself)` (`unknown`).
 
-Question: `<ID> (<file:line>): <description trimmed from source>. <disposition-clause>. Choose disposition.`
-
-Where `<disposition-clause>` is:
-- `AI recommends: <fix|todo|skip|adopt>` when the disposition is a single token
-- `AI offered: <token1> / <token2>` when the disposition is multi-token (`silent_skip` / `silent_skip_todo_eligible` / `needs_input` — list tokens in the prose-order preserved in the row's token set; under Auto these would have routed differently per Step 4a.1 silent-skip rules or Step 4a.0 ask, but Item-by-item asks them like every other row)
-- `AI recommendation: (none — pick yourself)` when the disposition is `unknown` (do NOT print "AI recommends: unknown" — it reads as if AI made a recommendation literally named "unknown")
-
-Options (semantics for H/M/L):
-
-1. **Fix — include in this round's delegated landing (`/go` or `/do`)**
-2. **Add todo — register as `/todo-add` Next entry instead of fixing this round**
-3. **Skip — do not fix, do not register**
-
-**For Open Questions (OQ)** — adapt the wording to OQ semantics (the same 3-bucket schema, different surface):
-
-Question: `<OQ ID>: <question text>. <suggestion-clause>. Choose disposition.`
-
-Where `<suggestion-clause>` is:
-- `AI suggests: "<suggested answer / candidate direction>"` when the source provided a single candidate (single-token `adopt`)
-- `AI offered: <candidate1> / <candidate2>` when the source surfaced multiple candidates (multi-token)
-- `AI suggestion: (none — pick yourself)` when the disposition is `unknown`
-
-Options (semantics for OQ):
-
-1. **Adopt — accept AI's suggested answer and fold into this round's fix delegation**
-2. **Defer to todo — register the open question as a `/todo-add` Discussing entry for later resolution**
-3. **Skip — do not act on this OQ this round**
-
-For both shapes, the order rule is:
-- **Single-token disposition** — recommended option first, then the other two in `fix→todo→skip` (H/M/L) or `adopt→defer→skip` (OQ) precedence with the recommended one removed from the fixed precedence.
-- **Multi-token disposition** — AI's offered tokens first (sorted by internal precedence `fix→todo→skip` for H/M/L, `adopt→defer→skip` for OQ), then fill the missing third — same as Step 4a.0.
-- **`unknown` disposition** — fixed precedence `fix→todo→skip` (H/M/L) or `adopt→defer→skip` (OQ).
-
-Batch up to **4 findings per `<ask tool>` call** (the Claude `AskUserQuestion` hard limit); the same batch may mix H/M/L and OQ — do not split by severity. Repeat batches until all findings have been answered.
-
-> **Language**: disk-bound — the per-finding result table that this sub-step collects is rendered to the user in 4b.2 (user-facing), but the same data is also referenced when composing the fix brief in 4b.3 (disk-bound) — so internally treat the structured data as language-neutral (raw IDs + file paths + disposition tokens); only the rendered presentation translates. Code identifiers, file paths, IDs stay English regardless.
+Batch up to **4 findings per `<ask tool>` call** (the Claude `AskUserQuestion` hard limit). Repeat batches until all findings have been answered.
 
 ### 4b.2 Summary table
 
@@ -322,8 +265,6 @@ If `/todo-add` for any item is cancelled by the user (per its Step 5 Cancel opti
 
 ## Step 5: Wrap-up
 
-> **Language**: user-facing — render the wrap-up status line in `conversation_language` per `ai_context/skills_config.md §Language`. Structural prefixes (`✓`, `/go`, `/do`, `/todo-add`, source path) stay English; only the surrounding prose translates.
-
 Print one line summarising what was handed off:
 
 - **Auto path (Step 4a)**: `✓ /fix complete — handed off to /<RECOMMENDED|OTHER> with N findings; source review: <path>. Re-verification not auto-run — invoke /post-check yourself when the delegated round finishes if you need it.`
@@ -344,5 +285,5 @@ Do not invoke `/post-check` after fixes land — the user decides whether to re-
 - **Anti-over-engineering reminder is mandatory**. Both Auto and Item-by-item paths embed the same fixed-text reminder paragraph in the fix brief; never omit.
 - **Source-resolution failure is fail-loud**. If no review surface is found across all three tiers (arg / session / disk), stop with a hint — do not guess, do not pull findings from random commit messages.
 - **Per-finding IDs are stable**. Reuse the source's `H1` / `M1` / `L1` / `OQ1` numbering verbatim; backfill only when the source has no IDs and note it explicitly; never rename.
-- **The fix brief is the handoff contract**. The receiving `/go` reads it as its discussion baseline (Step 2 PRE log "Background / Trigger" cites it); the brief must always carry: source review path + finding IDs + anti-over-engineering reminder + per-finding detail.
+- **The fix brief is the handoff contract**. The receiving `/go` reads it as its discussion baseline (its PRE-log "Background / Trigger" cites it); the brief must always carry: source review path + finding IDs + anti-over-engineering reminder + per-finding detail.
 - **No conversation-history rewriting**. `/fix` reads what the review skills already produced; do not re-render the original review report inside `/fix`'s output (that is the source skill's job and the user has it scrolled up).

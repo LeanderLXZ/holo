@@ -13,8 +13,6 @@ Merge the most recent N "actions" in the project into a block view sorted in rev
 2. **change logs** (markdown files under the path declared at `## Activity sources.Change logs.Path` whose filename matches `## Activity sources.Change logs.Filename time pattern`; with file body head)
 3. **todo entries** (the per-entry field named at `## Activity sources.TODO list.Per-entry updated-time field` of each entry in the file at `## Activity sources.TODO list.Path`; only the entry title is expanded)
 
-**Read-only**: no git / file / todo_list mutation, no commit, no external calls.
-
 ## Step 0: Load skills config
 
 `Read` `ai_context/skills_config.md`, taking:
@@ -58,12 +56,7 @@ Split on `==REC==`; parse each record as:
 - Non-empty body → preserve **the first 25 lines** verbatim; if longer, append `(… body truncated, run git show <sha> for full content)`
 - Do **not** escape backticks / pipes / markdown markers in the body — embed directly as a markdown block (output format is block view not table, no cell boundary conflict)
 
-Constraints:
-- Current-branch view (`HEAD`), no cross-branch aggregation
-- Merge commits ignored (`--no-merges`)
-- `3*N` oversampling cap; trimmed to N after merging
-
-## Step 3a: Collect change_logs index (list files only, do not read body; if source includes logs)
+## Step 3: Collect change_logs (if source includes logs)
 
 Per skills_config.md `## Activity sources` change logs path and filename time pattern:
 
@@ -74,9 +67,12 @@ ls -1 <change_logs_path>/*.md | sort -r | head -n <3*N>
 Filenames in reverse order, **build an index only**: parse the timestamp from each filename (e.g.
 `2026-04-30_134108_skills_polish.md` → `2026-04-30T13:41:08`, joined with timezone from skills_config
 `## Timezone`), record `(timestamp, filename, slug)`. slug = filename
-minus the time prefix and the `.md` suffix, with underscores swapped for spaces.
+minus the time prefix and the `.md` suffix, with underscores swapped for spaces. This pass opens no file — building the index first avoids reads on logs that Step 5 trims away after merging.
 
-**Body reading is deferred** — see Step 5b. This step opens no file, avoiding reads on logs that Step 5 will trim away after merging.
+**Deferred body read** — after Step 5's merge+trim, for only the `log` entries that survive, `Read` each corresponding file (git body already grabbed in Step 2, todo not expanded):
+- `Read <change_logs_path>/<filename>` with `limit: 40` (the first 40 lines cover the head section "## Background / ## Change list")
+- When rendering, preserve **the first 25 lines** (including the H1/H2 heading and head section content); if over 25 lines, append `(… log truncated, see <filename>)`
+- File missing or read failure → that entry body shows `(log read failure: <error>)`, do not stop
 
 ## Step 4: Collect todo_list updates (if source includes todo)
 
@@ -95,18 +91,9 @@ Sort by timestamp DESC and take the top `3*N`, recording `(timestamp, T-XXX, tit
 
 ## Step 5: Merge + reverse-sort + take top N
 
-Merge results from Step 2 / 3a / 4, sort by Timestamp **DESC**, trim to N entries.
+Merge results from Step 2 / 3 / 4, sort by Timestamp **DESC**, trim to N entries. (Surviving `log` entries then get their body read per Step 3's deferred-read note.)
 
 If the pre-merge total > N: at the end of the output print one line `(… more earlier actions not listed; use N=<larger> to see more)`.
-
-## Step 5b: Read body for selected log entries
-
-For only the `log` entries that survive Step 5 trimming, `Read` each corresponding file (git body already grabbed in Step 2, todo not expanded):
-
-- `Read <change_logs_path>/<filename>` with `limit: 40` (the first 40 lines cover the head section "## Background / ## Change list")
-- When rendering, preserve **the first 25 lines** (including the H1/H2 heading and head section content)
-- If over 25 lines, append `(… log truncated, see <filename>)`
-- File missing or read failure → that entry body shows `(log read failure: <error>)`, do not stop
 
 ## Step 6: Output (block view)
 
@@ -153,4 +140,5 @@ Ordinal numbers 1..N reflect post-merge reverse position; timestamps always use 
 ## Constraints
 
 - **Read-only**: no `git checkout` / `merge` / `push` / `fetch` / `commit`, no mutation of todo_list / change_logs, no external API calls
+- **Current-branch view** (`HEAD`), no cross-branch aggregation; merge commits ignored (`--no-merges`); each source oversampled to `3*N` then trimmed to N after merging
 - No time-window argument (`24h` / `since=...` unsupported); for time filtering use `/branch-inventory` to view commit times, or run `git log --since` directly

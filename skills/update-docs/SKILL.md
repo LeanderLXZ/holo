@@ -48,8 +48,6 @@ This skill uses:
 
 > **Language**: disk-bound — patch content composed here will land in `ai_context/` + `docs/` files at Step 3 and is therefore disk-bound from the moment of composition. Write the patch text (paragraph additions, marker-line removals, list entries, table rows, decisions log entries) in `content_language` per `ai_context/skills_config.md §Language`. Code identifiers, file paths, field names, section headings (`## Goal`, `### [T-XXX]`, `**Updated**`), and the PROGRESSIVE marker token `_(none yet — delete this marker once content is added)_` stay English regardless.
 
-> **Language**: user-facing — render the "candidate files" list printed to the conversation (file path + section + one-line patch summary, no patch body yet) in `conversation_language` per `ai_context/skills_config.md §Language`. Structural labels (`file:`, `section:`, `add:` / `replace:` / `remove marker:`) stay English; only the summary prose translates.
-
 > **Compactness Requirements**: patches landing in `ai_context/` follow the universal contract —
 > - Shorter is better than longer. Each entry is a summary, not a detail dump.
 > - Compactness must not sacrifice accuracy or completeness — never drop important information just to fit the length target.
@@ -98,41 +96,18 @@ This numbered list is the only pre-write surface — patches are applied directl
 
 ## Step 2: Apply patches
 
-> **Language**: disk-bound — patches landed into `ai_context/` + `docs/` files are written in `content_language` per `ai_context/skills_config.md §Language`.
-
 > **Language**: user-facing — render the changed-files summary line ("✓ landed N patches across M files: …") in `conversation_language` per `ai_context/skills_config.md §Language`. Structural prefixes (`✓`, file paths) stay English; only surrounding prose translates.
 
 Apply the composed patches directly (no preview, no confirmation gate):
 
 a. **Apply patches via `Edit` (or `Write` only when creating a brand-new file under `ai_context/` or `docs/`).** One `Edit` per patch — do not batch unrelated edits into a single `replace_all`.
 
-PROGRESSIVE marker removal — two explicit branches (do not collapse them):
+PROGRESSIVE marker removal — two explicit branches (do not collapse them), picked by the bytes after the marker:
 
-- **Branch A — marker followed by a blank line then next content** (typical when the marker is mid-section and another `## NextSection` or paragraph follows after the blank): `old_string` covers the marker line **plus the one blank line** immediately following it; `new_string` is the new content block (which itself ends with its own trailing newline structure, so the visual spacing between the new block and the next section is preserved).
+- **Branch A — marker + following blank line → consume both lines**: `old_string` covers the marker line **plus the one blank line** after it; `new_string` is the new content block ending with `\n\n` so spacing to the next section is preserved.
+- **Branch B — marker-only (no blank before next content) → consume one line**: `old_string` covers **only the marker line**; `new_string` ends with `\n` so the next section still starts on its own line.
 
-  Example — marker `_(none yet — delete this marker once content is added)_` followed by blank line then `## NextSection`:
-
-  ```
-  ## ThisSection
-
-  _(none yet — delete this marker once content is added)_
-
-  ## NextSection
-  ```
-
-  → `old_string` matches `_(none yet — delete this marker once content is added)_\n\n` (marker + blank). `new_string` is the new content block ending with `\n\n` so the final state is `## ThisSection\n\n<new content>\n\n## NextSection`.
-
-- **Branch B — marker followed directly by next content with no blank line** (rarer; happens when the section is terse and the marker abuts the next heading): `old_string` covers **only the marker line**, no blank consumed; `new_string` is the new content block ending with its own `\n` so the next section still starts on its own line.
-
-  Example:
-
-  ```
-  ## ThisSection
-  _(none yet — delete this marker once content is added)_
-  ## NextSection
-  ```
-
-  → `old_string` matches `_(none yet — delete this marker once content is added)_\n` (marker only). `new_string` is the new content block ending with `\n` so the final state is `## ThisSection\n<new content>\n## NextSection`.
+Inline example (marker = `_(none yet — delete this marker once content is added)_`): Branch A `old_string` = `<marker>\n\n` → `## ThisSection\n\n<new content>\n\n## NextSection`; Branch B `old_string` = `<marker>\n` → `## ThisSection\n<new content>\n## NextSection`.
 
 Pick the branch by **first inspecting the literal bytes around the marker in the target file** (via `Read` or by reusing what was read in Step 1); do not guess. Wrong branch → either two consecutive blank lines (Branch A applied to a Branch-B case) or two headings glued together with no separator (Branch B applied to a Branch-A case).
 

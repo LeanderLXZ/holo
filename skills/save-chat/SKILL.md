@@ -51,8 +51,6 @@ The output directory is `logs/chats/` — a sibling of the `## Activity sources.
 
 ## Step 1: Resolve scope + locate the transcript
 
-> **Language**: user-facing — render the scope echo + the located-file confirmation `<ask tool>` (only when it fires) in `conversation_language` per `ai_context/skills_config.md §Language`. File paths / session ids / CLI flags stay English.
-
 **Scope** (from `$ARGUMENTS`):
 
 - empty → the whole current session
@@ -85,8 +83,6 @@ Use only tags the template styles: `h2` / `h3` / `p` / `ul` / `ol` / `li` / `tab
 
 ## Step 3: Render via the script
 
-> **Language**: disk-bound — the rendered HTML is written by the script; the timestamp follows §Timezone. CLI flags / paths stay English.
-
 Compute the filename timestamp via `skills_config.md ## Timezone` (`Command template`; fallback per §Timezone). Pick:
 
 - `--ai` = the runtime family (`claude` under Claude Code; `codex` under Codex; etc.)
@@ -106,8 +102,6 @@ python3 <script> \
 The script writes `logs/chats/<timestamp>_<ai>_<slug>.html` (auto-creating `logs/chats/`) and prints the path to stdout. It keeps only genuine user/assistant **text** turns — tool calls, tool results, thinking, `isMeta` injections, and sub-agent sidechains are dropped.
 
 ## Step 4: Verify + report
-
-> **Language**: user-facing — render the status line in `conversation_language` per `ai_context/skills_config.md §Language`. The `✓` prefix + file path stay English.
 
 - Confirm the output file exists and is non-trivial (`wc -c`); if the body looks empty or the wrong session was captured, stop and report rather than committing a bad log.
 - Print one line: `✓ saved logs/chats/<file> (<N> turns<, range i–j if a subset>)`.

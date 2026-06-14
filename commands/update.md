@@ -63,8 +63,6 @@ None present → print `Project has not been initialized — run /holo:init firs
 
 **1.4 Cross-agent surface question** (`ai_context/decisions.md` #32)
 
-> **Language**: user-facing — render the question + option labels in `conversation_language` per `ai_context/skills_config.md §Language`.
-
 Probe the current state first: `test -f AGENTS.md` (and `test -d .agents/skills`). Use **<ask tool>** to ask ONE question, with the **presence-based default** as the `Recommended` option:
 
 > 是否为其他 AI agent（Codex / Cursor 等非 Claude 运行时）维护兼容文件？包含 `AGENTS.md`（入口说明）+ `.agents/skills/` 技能镜像。
@@ -130,8 +128,6 @@ Mapping: `Reconcile.Step 6.write_counts.merged` → `M`, `.overwritten` → `N`,
 `total_drift = 0` ⇔ `fix_counts` is all-zero AND smart-merge dispatch list was empty AND `remaining_drift` is empty → print `✅ Project is in sync with <name> v<version>; nothing to do.` and exit (Step 4 is skipped — nothing was written).
 
 ## Step 4: Commit offer
-
-> **Language**: user-facing — render the `<ask tool>` prompt + option labels and the post-decision line in `conversation_language` per `ai_context/skills_config.md §Language`. File paths and the `/commit` skill name stay verbatim.
 
 After Step 3's summary, offer to land the changes this run produced.
 
@@ -338,8 +334,6 @@ Build `<conflict_files>` = set of file paths in bucket 1. If `len(<conflict_file
 
 ### Reconcile.Step 5 — 3-bucket dispatch (Step 5b runs first, then Step 5a; sequential)
 
-> **Language**: user-facing — render the `<ask tool>` prompts, option labels, and the inline display-only finding list in `conversation_language` per the caller's L1 directive. JSON category keys (`missing_section`, `lang_mirror_drift`, `agents_sync.stale`, etc.) and file paths stay verbatim; option-label prose translates.
-
 **Compose the batched ask** (max 4 questions per `<ask tool>` call; both questions fit):
 
 - **Q-conflict** (only when `len(<conflict_files>) ≥ 1`) — Layer 1 aggregate ask per `docs/architecture/smart-merge.md`. One question, 5 options:
@@ -360,8 +354,8 @@ Dispatch Q-conflict + Q-fixable in **one batched `<ask tool>` call** (current be
   ```bash
   python3 "${plugin_root}/scripts/holo_update_check.py" --target <target_root> --plugin-root <plugin_root> --fix --json --other-agents <other_agents>
   ```
-  **`--other-agents <other_agents>` (the Reconcile input) MUST be passed to BOTH this `--fix` invocation AND the post-fix self-check below** — same value as Step 4. On `no` it keeps `--fix` from recreating `AGENTS.md` / touching the mirror; omitting it on `--fix` would re-flag and recreate `AGENTS.md` (`ai_context/decisions.md` #32).
-  **When Step 2a's `translation_log` is non-empty for this run, append `--baseline-root <tmp_root>/<YYYY-MM-DD>_<HHMMSS>/templates/` to BOTH this `--fix` invocation AND the post-fix self-check invocation below.** Same condition as Step 4 (see §Baseline override in Step 4 above). Reason: `--fix` reads `source_path` values from the check pass it runs implicitly, which must use the same baseline that Step 4 used; the post-fix `--json` self-check must do the same so its pass/fail signal compares against the same baseline. Skipping the flag on either would re-resolve `_skeleton_root` to canonical EN, producing a different finding set than Step 4 — the user would see a spurious "post-fix drift remains" anomaly.
+  **`--other-agents <other_agents>` MUST be passed to BOTH this `--fix` invocation AND the post-fix self-check below** (same value as Step 4; rationale — on `no` it stops `--fix` recreating `AGENTS.md` / touching the mirror — see Step 4 §Cross-agent surface flag).
+  **When Step 2a's `translation_log` is non-empty, append `--baseline-root <tmp_root>/<YYYY-MM-DD>_<HHMMSS>/templates/` to BOTH this `--fix` invocation AND the post-fix self-check below** (same condition + rationale as Step 4 §Baseline override — both passes must compare against the same baseline Step 4 used, else a spurious "post-fix drift remains" anomaly).
 
   `--fix` implicitly runs `--check` first; outputs `fix_counts` JSON. Capture this JSON object verbatim and return it as part of Reconcile.Step 6's `fix_counts` field. Then invoke `--json` once more (without `--fix`, but WITH the same `--other-agents <other_agents>` and any `--baseline-root`) for a post-fix self-check:
   - `agents_sync.stale / missing / asset_orphan` should all be 0. `agents_sync.orphan` may be non-zero — orphans are kept, never deleted (display-only via `orphan_kept`; see `ai_context/decisions.md` #30) — so it is NOT a post-fix anomaly.

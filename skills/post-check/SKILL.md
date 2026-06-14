@@ -63,34 +63,31 @@ Subsequent steps referencing "skills_config.md `## XX`" use this config. This sk
 
 ## Step 2: Cross-File Alignment consult
 
-> **Language**: disk-bound — write this track 1 findings list (folded into log writeback at Step 5) in `content_language` per `ai_context/skills_config.md §Language`. Code identifiers, file paths, field names stay English regardless.
-
 Read the Cross-File Alignment table in `ai_context/conventions.md`; for each dimension touched this round (requirements / schema / prompt / code / architecture / ai_context / README / directory structure), list the file set that **should have been changed together**. This set feeds both track 1 (reconcile Missed Updates) and track 2 (spread starting points).
 
 When the table does not exist: skip the reconcile input from this step, track 1 reconciles only the PRE plan list against the actual diff (Missed Updates degrades to the subset "listed in PRE but not changed"), track 2 spread starting points use only the files touched by this diff + upstream/downstream references.
 
-## Step 3: Parallel sub-agent dual-track audit lines
-
-> **Language**: disk-bound — write this track 2 findings list (folded into log writeback at Step 5) in `content_language` per `ai_context/skills_config.md §Language`. Code identifiers, file paths, field names stay English regardless.
+## Step 3: Dual-track audit, scaled by change size
 
 > **Language (sub-agent dispatch)**: when spawning sub-agents at this step, the parent MUST inject the language axes into each sub-agent's prompt explicitly. Include verbatim: "Reply in `conversation_language`=`<value>`; write any disk artifacts in `content_language`=`<value>`; both values from `ai_context/skills_config.md §Language`." Sub-agents do not inherit the parent's language config — they must be told. Sub-agent report-back to the parent is a USER surface; its on-disk findings folded into the log are DISK surface. **Place this injection at the end of the sub-agent prompt** (recency-favorable position), not in the header / middle — sub-agents have just read English source files in their scan scope, so the dispatch directive needs recency advantage over the scanned content to keep the reply in `conversation_language`.
 
-> **Track vs. line**: a **track** is an audit perspective (track 1 reconcile / track 2 spread, 2 total); a **line** is the scan division (file-domain sliced sub-agents, 4 total). The two are orthogonal — each line runs both tracks simultaneously.
+> **Track vs. dimension**: a **track** is the audit perspective (track 1 reconcile / track 2 spread); a **dimension** is the scan division. Both tracks run inside each dimension.
 
-For small change surface, run serially in a single line; across modules or layers, dispatch sub-agents in parallel — four lines each carry both tracks:
+**Two dimensions** (the old four file-domain lines fold in as their checklists — nothing dropped):
 
-1. **Spec line**: `docs/requirements.md` / `docs/architecture/` / `ai_context/` / directories listed in skills_config.md `## Data contract directories` (skip scan when `(none)`) / the prompt-sources path from skills_config.md `## Activity sources.Prompt sources.Path` (skip when `(none)`) — descriptions vs. this change consistent; any residual old descriptions / old fields / old flows
-2. **Implementation line**: code changed this round + its upstream / downstream (callers / callees / importers) — field names / params / return values / state machines / gates / exception paths still coherent; do imports still run
-3. **Risk line**: code changed this round + related code dragged along (callers / callees / shared state / shared data flow) — boundary conditions, null / None, exception paths, concurrency, retry / rollback, error handling hiding bugs; do new behaviors introduce data loss / security holes / performance regressions; do state machines / gates / invariants have missed branches. **Distinct from implementation line**: implementation line asks "does it still hook up" (signatures / imports / upstream-downstream consistency); risk line asks "is what it does correct" (semantic correctness + failure modes); outputs go to Step 4 "bug / behavior risk" and the same-named subsection of the Step 6 report
-4. **Artifact and structure line**: did this round affect samples under directories listed in skills_config.md `## Example artifact directories`, related README displays, directory structure; if directories or filenames changed, trace all reference points. Skip this line when the section is `(none)` / empty
+1. **Code dimension** — code changed this round + its upstream / downstream (callers / callees / importers / shared state / shared data flow). *Track 1*: did the PRE-planned code changes land. *Track 2*: **wiring** (field names / params / return values / state machines / gates / imports still coherent — "does it still hook up") AND **correctness** (boundary conditions, null / None, exception paths, concurrency, retry / rollback, error handling hiding bugs; data-loss / security / performance regressions; missed state-machine / gate / invariant branches — "is what it does correct").
+2. **Surface dimension** — `docs/requirements.md` / `docs/architecture/` / `ai_context/` / `## Data contract directories` (skip `(none)`) / prompt-sources path from `## Activity sources.Prompt sources.Path` (skip `(none)`) / README / directory structure / `## Example artifact directories` samples (skip `(none)`). *Track 1*: did the PRE-planned doc / spec changes land. *Track 2*: descriptions vs. this change consistent; residual old descriptions / fields / flows; `## Sensitive content placeholder rules` violations; `old / legacy / deprecated / formerly` wording; if files / directories were renamed, trace all reference points.
 
-> **Each dispatched sub-agent must re-read the intent baseline PRE log first**: stuff the log path Step 1.5 read into its prompt and **explicitly require it to read the PRE "Conclusion and decisions / Planned action list / Validation criteria / Execution deviations" before starting**, then scan the scope of this line. Sub-agents have independent context; without enforced PRE reading they will spin only on the brief in the prompt, easily drifting from this round's intent; both reconcile and spread judgement must be anchored in the PRE log.
+**Scale the fan-out to the change size** (do not always spawn the max):
+- **Small** (≤ 2 files, no data contract, no cross-module spread) → a single serial inline pass over both dimensions; **no sub-agents**.
+- **Medium** → one sub-agent per dimension (2 in parallel).
+- **Large** → **shard the Code dimension by file-group** across N sub-agents (each does wiring + correctness on its shard); Surface usually stays one. Scale by sharding files, **not** by adding dimensions.
 
-Each line produces: **track 1 reconcile result** (PRE plan items × actual change cross-check) + **track 2 findings** (issues in files outside the plan, with file + line, direct evidence vs. inference).
+> **Each dispatched sub-agent must re-read the intent baseline PRE log first**: stuff the log path Step 1.5 read into its prompt and **explicitly require it to read the PRE "Conclusion and decisions / Planned action list / Validation criteria / Execution deviations" before starting**, then scan its dimension. Sub-agents have independent context; without enforced PRE reading they drift from this round's intent; both reconcile and spread judgement must be anchored in the PRE log.
+
+Each dimension produces: **track 1 reconcile result** (PRE plan items × actual change cross-check) + **track 2 findings** (issues in files outside the plan, with file + line, direct evidence vs. inference).
 
 ## Step 4: Key checks (only for this change)
-
-> **Language**: disk-bound — write this dual-track findings aggregation (folded into log writeback at Step 5) in `content_language` per `ai_context/skills_config.md §Language`. Code identifiers, file paths, field names stay English regardless.
 
 - **Cross-file inconsistency**: do the same field / concept in schema / code / docs / prompt match in naming and definition
 - **Ambiguity**: do requirements / architecture descriptions of new behavior admit two readings
@@ -107,8 +104,6 @@ Each line produces: **track 1 reconcile result** (PRE plan items × actual chang
 > After Step 3 / Step 4 run, hold the dual-track conclusions (plan-item fulfillment status, Findings list, Missed Updates, Open Questions, Residual Risks) **in your head / notes**, do not print immediately. Step 5 writes back a structured summary to the log + commit; Step 6 then expands the full report into the conversation — this way the full report is the last segment of `/post-check` output, the user reads it and decides without scrolling back.
 
 ## Step 5: Write back log (summary) + commit
-
-> **Language**: disk-bound — write this review summary appended to the change log + REVIEWED-* verdict in `content_language` per `ai_context/skills_config.md §Language`. The verdict label `REVIEWED-PASS` / `REVIEWED-PARTIAL` / `REVIEWED-FAIL` stays English verbatim (structural). The commit message follows `content_language`. Code identifiers, file paths, field names stay English regardless.
 
 Append the **structured summary** of the dual-track conclusions to the **intent baseline log file** (the one Step 1.5 read), **without duplicating the full Findings text** (the full text goes to Step 6 in the conversation to avoid log file bloat):
 
@@ -136,7 +131,7 @@ Append the **structured summary** of the dual-track conclusions to the **intent 
 
 Log missing: print "⚠️ no log to write back; review conclusion kept only in conversation" and **go directly to Step 6** (no commit to make).
 
-After writing back, **immediately commit this log file** — do not leave it as a dirty working tree; otherwise the next `/go` Step 1 question would fold this residue into the dirty summary, forcing the user to choose among WIP commit / direct execute / worktree / stash for no benefit.
+After writing back, **immediately commit this log file** — do not leave it as a dirty working tree; otherwise the next `/go` work-location prompt would fold this residue into the dirty summary, forcing the user to choose among WIP commit / direct execute / worktree / stash for no benefit.
 
 - commit on the **current branch** (`/post-check` runs on the user's current branch, no switching needed)
 - only `git add` this log file — do not opportunistically include unrelated dirty files in the commit
@@ -232,11 +227,9 @@ This round's alignment status across requirements / schema / code / README / arc
 
 ## Step 7: Wait for confirmation
 
-> **Language**: user-facing — render the closing "awaiting your call" short line in `conversation_language` per `ai_context/skills_config.md §Language`. One short sentence at most; do not produce additional summary / recommendations / next-step lists.
-
 After the full report prints, **stop**. At most add one more sentence like "awaiting your call" or a similarly very short closing line, **do not write further summaries, do not commit further, do not list next steps** — any tail pushes the dual-track report up. Do not enter `/go`, do not modify code, do not modify schema / prompt / docs / ai_context; wait for the user to decide item by item based on the full report in the conversation. Typical handoffs: `/fix` for triage (bulk-accept AI recommendations OR decide per finding, with delegation to `/go` or `/do`), or `/go` directly when the user has already decided every item.
 
 ## Constraints
 
-- Do not go through the motions just because `/go` Step 7 already reviewed — this round looks again with fresh eyes, focusing on the linked files and ambiguity `/go` missed
+- Do not go through the motions just because `/go`'s review phase already reviewed — this round looks again with fresh eyes, focusing on the linked files and ambiguity `/go` missed
 - **Output order hard constraint**: log writeback + commit (Step 5) **precedes** conversation report output (Step 6). The full dual-track report must be the **last substantive segment** `/post-check` produces in the conversation — Step 7 closes with a single "awaiting confirmation" short phrase, no further summary / commit prompt / next steps after the report, otherwise the user has to scroll back again

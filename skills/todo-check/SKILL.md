@@ -3,7 +3,7 @@ name: todo-check
 description: Render the docs/todo_list.md Index verbatim (trusts the index; no re-parse). Read-only. Triggers: todo-check / what is next / what's on the todo list / what should I do now.
 ---
 
-> **Language**: per `ai_context/skills_config.md §Language` — disk-bound output (logs / docs / commit messages / code comments / files written) uses `content_language`; user-facing surface (chat prose / `AskUserQuestion` prompts and option labels / progress-tool entry `content` / status lines / strategy declarations / findings rendered in chat) uses `conversation_language`. Code identifiers, file paths, field names, frontmatter keys, and structural prefixes (`Step N:`, `LOG:`, etc.) stay English regardless.
+> **Language**: per `ai_context/skills_config.md §Language` — disk-bound output (logs / docs / commit messages / code comments / files written) uses `content_language`; user-facing surface (chat prose / `AskUserQuestion` prompts and option labels / progress-tool entry `content` / status lines / strategy declarations / findings rendered in chat) uses `conversation_language`. Code identifiers, file paths, field names, frontmatter keys, and structural prefixes (`Step N:`, `LOG:`, etc.) stay English regardless. When `content_language` ≠ `conversation_language`, prose cells rendered into chat are translated on the fly into `conversation_language`; this is **display-only** — never write the translation back to disk.
 
 # /todo-check — todo_list index display
 
@@ -32,9 +32,10 @@ No `$ARGUMENTS` → show everything.
 
 Print the index section to the user. Preserve markdown table structure (column count, separators, row order); do not reorder, re-judge, or append recommendations.
 
-**Language**: this is a user-facing surface. Read `content_language` and `conversation_language` from `ai_context/skills_config.md §Language`.
-- Same values → print verbatim.
-- Different values → translate natural-language cells (Title / Brief / Status text / Open decisions / Blocked by / Scope / Ready and similar prose cells) from `content_language` into `conversation_language` on the fly. The translation is display-only — never write back to `docs/todo_list.md`.
+Per-cell render rules (the top-of-file Language directive routes the buckets; these spell out which cells are prose vs structural for this index table):
+
+- When `content_language` = `conversation_language` → print verbatim.
+- When they differ → translate natural-language cells (Title / Brief / Status text / Open decisions / Blocked by / Scope / Ready and similar prose cells) into `conversation_language` on the fly (display-only, per the top directive).
 - Stay verbatim regardless of language: task IDs (`T-XXX`), file paths, dates / timestamps, numeric counts (`Importance`, the `(N)` count after each bucket heading), bucket headings (`### 🟢 In Progress (N)` / `### 🟡 Next (N)` / `### ⚪ Discussing (N)` — emoji + English label is a structural prefix), table column headers (`ID` / `Title` / `Brief` / `Updated` / etc. — field names), and inline `` `code` `` spans.
 - The summary row (`**Total**: N — 🟢 In Progress 0 ｜ 🟡 Next 0 ｜ ⚪ Discussing 1`): translate only the word `Total` if a natural rendering exists in `conversation_language`; bucket labels + numbers stay as-is.
 

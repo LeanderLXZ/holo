@@ -1,114 +1,105 @@
 ---
 name: go
-description: Heavyweight plan-to-ship path (PRE log → implement → smoke → cross-file alignment → review → POST log → commit) for multi-file / cross-file changes. Triggers: go / full /go / this change needs review / spans multiple modules / heavyweight landing.
+description: Heavyweight plan-to-ship path (PRE log → implement → verify → docs & alignment → review → ship) for multi-file / cross-file changes. Triggers: go / full /go / this change needs review / spans multiple modules / heavyweight landing.
 ---
 
-> **Language**: per `ai_context/skills_config.md §Language` — disk-bound output (logs / docs / commit messages / code comments / files written) uses `content_language`; user-facing surface (chat prose / `AskUserQuestion` prompts and option labels / progress-tool entry `content` / status lines / strategy declarations / findings rendered in chat) uses `conversation_language`. Code identifiers, file paths, field names, frontmatter keys, and structural prefixes (`Step N:`, `LOG:`, etc.) stay English regardless.
+> **Language**: per `ai_context/skills_config.md §Language`. Surface → axis (read once; the per-step `> Language` reminders that used to repeat on every step are gone — inline re-anchors survive ONLY at the disk→user seams where drift actually bites):
+>
+> | Surface | Axis |
+> |---|---|
+> | disk-bound output — PRE/POST log, docs, ai_context, code / skill / config edits, commit message | `content_language` |
+> | user-facing — chat prose, `<ask tool>` prompts + labels, progress entries, Strategy / findings / state lines | `conversation_language` |
+> | code identifiers, file paths, field names, frontmatter keys, structural prefixes (`Step N:` / `LOG:` / `PRE` / `POST` / `Status:` / `REVIEWED-*`), quoted tool stdout/stderr | stay English |
+>
+> Re-anchors are kept at: **Step 0** (Language-axes anchor line) · **Step 3** (verify report) · **Step 5** (review render + sub-agent injection) · **Step 6** (wrap-up) — these are the disk→user seams + sub-agent boundary. **Sub-agents do not inherit this config — whoever dispatches one MUST append the two axis values to its prompt.**
 
 # /go — heavyweight landing path
 
 Execute per the discussion above; if a step is N/A this round, say so explicitly ("skip Step X"). If `$ARGUMENTS` is present, it is the focus of this change.
 
+The seven steps map one role each: **Step 0** work-location · **Step 1** PRE-log registration · **Step 2** implement · **Step 3** verify · **Step 4** docs-&-alignment maintenance · **Step 5** review · **Step 6** ship. Other skills cite these roles, not the numbers.
+
 ## Progress reporting
 
-> **Language**: progress-tool entries (`content` field) are user-facing — write them in `conversation_language` per `ai_context/skills_config.md §Language`. The `Step N:` prefix stays English (structural label); subtitle text after the colon translates to `conversation_language`. Same rule applies to sub-task entries `Step Na:` / `Step Nb:` / ….
+> Progress-tool entries (`content` field) are user-facing → `conversation_language` (the `Step N:` prefix stays English; subtitle after the colon translates). Same for sub-task entries `Step Na:` / `Step Nb:` / ….
 
-The flow below is split into `## Step 0:` ~ `## Step 10:`.
+The flow below is split into `## Step 0:` ~ `## Step 6:`.
 
-**Before entering Step 0**: call **<progress tool>** to pre-register Step 0 ~ Step 10 (one entry per step, `content` as `Step N: <sub-section title>`, all `status` = `pending`). This is a hard requirement — **do not proceed without calling <progress tool>**.
+**Before entering Step 0**: call **<progress tool>** to pre-register Step 0 ~ Step 6 (one entry per step, `content` as `Step N: <sub-section title>`, all `status` = `pending`). This is a hard requirement — **do not proceed without calling <progress tool>**.
 
-On entering each step: call **<progress tool>** to flip the current step to `in_progress` (in the same call, mark the previous step `completed`), then do the actual work. **Do not skip the call when crossing steps.** Progress is shown directly through the <progress tool> UI; **do not print progress lines like `[/go] Step N: ...` in the conversation**.
+On entering each step: call **<progress tool>** to flip the current step to `in_progress` (in the same call, mark the previous step `completed`), then do the actual work. **Do not skip the call when crossing steps.** Progress shows through the <progress tool> UI; **do not print progress lines like `[/go] Step N: ...` in the conversation**.
 
-Skipping a step: call **<progress tool>** to mark the corresponding entry `completed` directly, and print one line in the conversation `Step N skipped (reason: …)` — the "reason" is information the UI lacks, so keep this line; do not silently skip.
+Skipping a step: call **<progress tool>** to mark the entry `completed`, and print one line `Step N skipped (reason: …)` — the reason is information the UI lacks, so keep this line; do not silently skip.
 
 Final step done: call **<progress tool>** to mark the last entry `completed`.
 
-**Sub-tasks (optional, enable on demand)**: when a step's internal work is complex and obviously composed of multiple independent small tasks (e.g. Step 4 simultaneously changing schema / prompt / code / config blocks), upon entering that step you may **expand** `Step N: <title>` in the <progress tool> into several entries `Step Na: <sub-title>` / `Step Nb: …` / `Step Nc: …` (alphabetical, replacing the original `Step N` entry in the same call), flipping `in_progress` / `completed` as sub-tasks progress. **Only expand sub-tasks for the currently active step** — other steps stay collapsed as a single `Step M: <title>` entry, not expanded. Once all sub-tasks of the current step are `completed`, **on entering the next step fold these sub-tasks back into one** `Step N: <title>` `status=completed`, then expand the next step (if needed). This way the UI is always "current step fine-grained + other steps collapsed coarse-grained".
+**Sub-tasks (optional, enable on demand)**: when a step's internal work is obviously several independent small tasks (e.g. Step 2 simultaneously changing schema / prompt / code / config blocks), upon entering that step you may **expand** `Step N: <title>` into `Step Na:` / `Step Nb:` / … (alphabetical, replacing the original entry in the same call), flipping state as sub-tasks progress. **Only the currently active step expands**; others stay collapsed. Once its sub-tasks are all `completed`, **on entering the next step fold them back into one** `Step N: <title>` `status=completed`. UI is always "current step fine-grained + others collapsed". Do not nest a second layer (no `2a-1`).
 
-Simple steps need not enable this — just flip state on `Step N: <title>` directly. Sub-task numbering uses the same alphabetical series; **do not nest a second layer** (no `4a-1` / `4a-2`).
+**<progress tool> resolution**: Claude → `TodoWrite` (rendered as "Update Todos"); Codex → `update_plan`; other runtimes (no structured progress tool, e.g. Copilot agent mode) → maintain a markdown checkbox list in the response text, rewriting the whole block before each state change. Semantic alignment: pre-register + flip state + mark complete (incl. sub-task expand / fold-back).
 
-**<progress tool> resolution**: Claude → `TodoWrite` (rendered as "Update Todos"); Codex → `update_plan`; other runtimes (no structured progress tool, e.g. Copilot agent mode) → maintain a markdown checkbox list in the response text as step state, rewriting the whole block before each state change. Semantic alignment: pre-register + flip state + mark complete (including sub-task expand / fold-back).
+**<ask tool> resolution**: Claude → `AskUserQuestion` (max 4 questions per call, batch beyond); other runtimes → enumerate questions + options in the response text and let the user answer in one pass (still max 4 per batch).
 
-**<ask tool> resolution**: Claude → `AskUserQuestion` (max 4 questions per call, batch beyond); other runtimes (no structured ask tool, e.g. Codex / Copilot agent mode) → enumerate questions + options per question in the response text and let the user answer in one pass (still max 4 per batch, batch beyond).
+## Step 0: Setup — load config + lock work location
 
-## Step 0: Load skills config
+> User-facing — render the `<ask tool>` prompts, option labels, the Strategy line, and the Language-axes anchor line in `conversation_language`. Structural prefixes (`Strategy:` / `Language axes:`) lead the line; axis values are echoed verbatim from §Language.
 
-`Read` `ai_context/skills_config.md`.
+**0a — Load skills config.** `Read` `ai_context/skills_config.md`.
 
-- File missing / any section header missing → fail loudly: print the missing items + prompt to complete per plugin template, stop
-- Section content `(none)` or empty → skip the related steps for that section (treat as N/A in this project)
-- Section lists concrete paths but the path does not exist → fail loudly: report the section drifting to a nonexistent path, stop and wait for the user to fix
+- File missing / any section header missing → fail loudly: print the missing items + prompt to complete per plugin template, stop.
+- Section content `(none)` or empty → skip the related steps for that section (treat as N/A).
+- Section lists a concrete path but it does not exist → fail loudly: report the drift, stop, wait for the user to fix.
 
-Subsequent steps referencing "skills_config.md `## XX`" use this config. This skill uses:
-`## Background processes` (Step 1 dirty question's associated-process detection),
-`## Do-not-commit paths` (Step 9 do-not-commit path scan before commit),
-`## Timezone` (Step 2 / Step 8 timestamps),
-`## Sensitive content placeholder rules` (Step 3 / Step 7),
-`## Data contract directories` (Step 5 / Step 7 data contract scan; includes JSON Schema / proto / OpenAPI / Pydantic / SQL DDL etc.).
+This skill uses: `## Background processes` (0b dirty-question process detection), `## Do-not-commit paths` (Step 6 commit scan), `## Timezone` (Step 1 / Step 6 timestamps), `## Sensitive content placeholder rules` (Step 4 / Step 5), `## Data contract directories` (Step 3 / Step 5 contract scan).
 
-## Step 1: Lock the work location (environment probe + question-driven)
+**0b — Lock the work location.** The `/go` git contract: **Step 0 asks once** (work location); **Steps 1–5 never ask mid-run**; **Step 6** decides whether to ask once more (worktree follow-up / stash pop). `/go` does not implicitly "switch to main first" — branch switching / worktree launch is the user's explicit pick here.
 
-> **Language**: user-facing — render the `<ask tool>` prompts, option labels, the strategy declaration, and the language-axes anchor line below in `conversation_language` per `ai_context/skills_config.md §Language`. Structural prefixes (`Strategy:` / `Language axes:`) translate to their `conversation_language` equivalent if natural; the axis values are echoed verbatim from §Language.
+- `git branch --show-current` → current branch `<X>`; `git status --porcelain` → clean / dirty; probe per `## Background processes` (pgrep patterns + artifact paths; skip when empty). Merge the dirty summary + associated processes into one line `<dirty summary / associated process P>`.
+- **Orphan-stash probe** (before either question): `git stash list | grep -F "/go autostash"` to count earlier `/go` autostash entries still on the stack. Non-zero means a previous `/go` crashed between Step 1 and Step 6 (no pop); pushing another autostash on top makes the stack ambiguous. Carry as `<stash-orphan-count>` (default 0).
+- **<ask tool>** one question, different option sets for clean / dirty:
 
-The `/go` git interaction contract: **Step 1 always asks once** (selecting the work location here); **Steps 2 through 9 never ask in the middle**; **Step 10** decides whether to ask once more based on the Step 1 choice (worktree follow-up / stash pop etc.). `/go` no longer implicitly "switches to the main branch first" — whether to switch branches and whether to launch a worktree is explicitly selected by the user in Step 1.
+**Clean path** (working tree clean, no associated processes) — Question: "Current branch is `<X>`. Please choose `/go`'s work location."
 
-- `git branch --show-current` to get current branch `<X>`; `git status --porcelain` to judge clean / dirty; probe per skills_config.md `## Background processes` (pgrep patterns + process artifact paths; skip process detection when the section is empty). Merge the dirty summary + associated processes (if any) into a single line `<dirty summary / associated process P>` as context for the Dirty question
-- **Orphan-stash probe** (runs before either question dispatches): `git stash list | grep -F "/go autostash"` to count any earlier `/go` autostash entries still on the stash stack. A non-zero count means a previous `/go` run crashed between Step 2 and Step 9 (no pop in Step 10); pushing another autostash on top makes the stack ambiguous. Carry the count as `<stash-orphan-count>` (default 0) — referenced inside the Dirty question below
-- **<ask tool>** one question, with different option sets for clean / dirty:
+1. **Execute in place on current branch `<X>` (recommended)** — stay on `<X>`; edits / PRE log / commit all land there.
+2. **Switch to a specified branch then execute** — branch name required; uses `git checkout` (not worktree): local branch exists → `git checkout`; else ask base branch then `git checkout -b <branch> <base>`.
+3. **Execute in a separate worktree** — branch name required; enters worktree follow-up.
 
-**Clean path** (working tree clean and no associated processes):
+**Dirty path** (working tree dirty or associated process) — Question: "Current branch is `<X>`; working tree detected `<dirty summary / associated process P>`. Please choose how to handle it." When `<stash-orphan-count>` > 0, prepend: `⚠️ Detected <stash-orphan-count> existing "/go autostash" entr(y/ies) from a previous crashed run; consider \`git stash drop\` / \`git stash pop\` before re-stashing (option 4 pushes another on top).`
 
-Question: "Current branch is `<X>`. Please choose `/go`'s work location."
+1. **Commit current WIP progress, then execute `/go` (recommended)** — reuse the `/commit` Step 1–3 scan contract (do-not-commit paths + untracked files + large-file fallback; **does not bypass** Step 6 safety checks) for one WIP commit (default `wip: <X> snapshot before /go`, subject overridable by `$ARGUMENTS`), then stay on `<X>`.
+2. **Execute `/go` directly without handling** — uncommitted changes commit together with this change (user confirms intended).
+3. **Execute in a separate worktree** — branch name required; enters worktree follow-up (worktree and current dirty tree do not interfere).
+4. **Stash current changes (`git stash`) then execute `/go`** — `git stash push -u -m "/go autostash <X>"`, stay on `<X>`; Step 6 auto `git stash pop`. When `<stash-orphan-count>` > 0 the label gains a `(WARN: <N> orphan autostash already on stack)` suffix.
 
-1. **Execute in place on current branch `<X>` (recommended)** — stay on `<X>`; subsequent edits / PRE log / commit all land on that branch
-2. **Switch to a specified branch then execute** — branch name required; enters worktree follow-up (see below) but uses `git checkout` rather than `git worktree add`: if the local branch exists, `git checkout` directly; if not, ask for base branch then `git checkout -b <branch> <base>`
-3. **Execute in a separate worktree** — branch name required; enters worktree follow-up
+**Worktree follow-up (Clean opt 3 / Dirty opt 3)** — ask: "Which branch should the worktree check out? Provide the branch name."
+- Branch exists locally → `git worktree add ../<repo>-<branch> <branch>`; edits / PRE log / commit under that path.
+- Branch does not exist → ask "Branch `<branch>` does not exist. Provide the base branch (default = `<X>`)", then `git worktree add -b <branch> ../<repo>-<branch> <base>`.
+- Path conflict (directory exists) → stop and report; let the user decide.
 
-**Dirty path** (working tree dirty or associated process detected):
+**Switch-branch follow-up (Clean opt 2)** — same "branch name → ask base if absent" flow, but `git checkout` / `git checkout -b <branch> <base>`, no worktree. Clean-path only — switching on a dirty tree pollutes it; use Dirty opt 1 / 4 first.
 
-Question: "Current branch is `<X>`; working tree detected `<dirty summary / associated process P>`. Please choose how to handle it." When `<stash-orphan-count>` > 0, append a prefix sentence to the question body: `⚠️ Detected <stash-orphan-count> existing "/go autostash" entr(y/ies) on the stash stack from a previous crashed run; consider \`git stash drop\` / \`git stash pop\` before re-stashing (option 4 below will push another autostash on top).` This surfacing is informational; the user still picks freely.
+After selecting, print **two declaration lines**:
+- **Strategy line**: `Strategy: <chosen path>` (e.g. `current branch develop in place` / `switch to feature/x in place` / `../holo-main worktree isolation (branch=main)` / `WIP commit then stay on develop` / `stash then stay on develop (Step 6 auto pop)`). Natural-language portion translates; `Strategy:` leads.
+- **Language-axes anchor line**: `Language axes: conversation_language=<value> · content_language=<value> (source: ai_context/skills_config.md §Language)` — axis values verbatim from §Language; bracketed source stays English. A deliberate high-salience anchor planted before Steps 1–6 accumulate context.
 
-1. **Commit current WIP progress, then execute `/go` (recommended)** — reuse the `/commit` Step 1–3 scan contract (do-not-commit paths + untracked files + large-file fallback; **does not bypass** the Step 2 safety checks) to make one WIP commit (message defaults to `wip: <X> snapshot before /go`, may be overridden in subject by current `$ARGUMENTS`), then stay on `<X>` and continue `/go`
-2. **Execute `/go` directly without handling** — uncommitted changes will be committed together with this change (user confirms this is intended)
-3. **Execute in a separate worktree** — branch name required; enters worktree follow-up (worktree and current dirty working tree do not interfere)
-4. **Stash current changes (`git stash`) then execute `/go`** — `git stash push -u -m "/go autostash <X>"` then stay on `<X>`; Step 10 at the end auto `git stash pop` to restore (see Step 10). When `<stash-orphan-count>` > 0 the option label gains a `(WARN: <N> orphan autostash already on stack)` suffix so the user sees the ambiguity hazard at the picker
+If `git checkout` / `git worktree add` / WIP commit / `git stash` fails → stop and report, wait for the user. **No further questioning after Step 0** until the end of Step 6.
 
-**Worktree follow-up (only for Clean option 3 / Dirty option 3)**:
+## Step 1: PRE log registration (register before acting)
 
-Ask another question: "Which branch should the worktree check out? Provide the branch name."
+> **Cross-skill protocol ownership**: this Step defines the PRE log template (section names, `Status: PRE` token, the `## Background / Trigger` / `## Conclusion and decisions` / `## Planned action list` / `## Validation criteria` / `## Execution deviations` subsection set) — consumed by `/post-check`'s intent-baseline read. Renaming any subsection, the `Status` token, or the header structure requires a lockstep edit in `/post-check` per `ai_context/conventions.md §Cross-File Alignment` (row: "PRE/POST/REVIEW change-log protocol"). `/recent-activity` reads only the file head 25 lines and is heading-insensitive — not a lockstep consumer.
 
-- The branch the user provided exists locally → `git worktree add ../<repo>-<branch> <branch>`; subsequent edits / PRE log / commit under the worktree path all go through that worktree
-- The branch the user provided does not exist → ask one more: "Branch `<branch>` does not exist. Provide the base branch (default = current branch `<X>`)", then with the base obtained, `git worktree add -b <branch> ../<repo>-<branch> <base>`
-- Worktree path conflict (directory already exists) → stop and report, let the user decide (clean up manually then re-run / pick another branch name)
+> **Language**: the PRE log is a disk artifact → `content_language`, even though its `## Background / Trigger` / `## Conclusion and decisions` paraphrase a `conversation_language` discussion (translate the gist; don't carry the discussion's language over). The `LOG:` echo line is user-facing.
 
-**Switch to specified branch follow-up (only for Clean option 2)**:
+**Before any code / schema / prompt / docs / ai_context / skill change**, create this round's log file and write the PRE section. This is the intent baseline for `/post-check` and the anti-drift anchor for Step 5; mandatory.
 
-Same "branch name → ask base if not exists" flow, but use `git checkout` / `git checkout -b <branch> <base>` and do not open a worktree. This option only appears on the Clean path — switching branches directly on a Dirty path would pollute the working tree; the user should first use Dirty option 1 / 4 to clean up the working tree then switch.
-
-After selecting, print **two declaration lines** in succession:
-
-- **Strategy line**: `Strategy: <chosen path>`, e.g. `Strategy: current branch develop in place` / `Strategy: switch to feature/x in place` / `Strategy: ../holo-main worktree isolation (branch=main)` / `Strategy: WIP commit then stay on develop in place` / `Strategy: stash then stay on develop in place (Step 10 auto pop)`. Natural-language portion translates to `conversation_language`; the structural prefix `Strategy:` (or its `conversation_language` equivalent) leads the line.
-- **Language-axes anchor line**: `Language axes: conversation_language=<value> · content_language=<value> (source: ai_context/skills_config.md §Language)`. Both axis values are echoed **verbatim** from the §Language section read in Step 0; the bracketed source path stays English; the natural-language prefix translates to `conversation_language` (rendered in the project's chosen language). This line is a deliberate high-salience anchor planted before Steps 2–10 accumulate context.
-
-If any of `git checkout` / `git worktree add` / WIP commit / `git stash` fails → stop and report the cause, wait for the user to decide. **No further questioning after Step 1** until the end of Step 10.
-
-## Step 2: PRE log registration (register before acting)
-
-> **Cross-skill protocol ownership**: this Step defines the PRE log template (section names, `Status: PRE` token, the `## Background / Trigger` / `## Conclusion and decisions` / `## Planned action list` / `## Validation criteria` / `## Execution deviations` subsection set) — the canonical definition consumed by `/post-check` Step 1.5 (intent baseline read). Renaming any of these subsection names, the `Status` token, or the file-header structure requires a lockstep edit in `/post-check` Step 1.5 + Step 5 per `ai_context/conventions.md §Cross-File Alignment` (row: "PRE/POST/REVIEW change-log protocol"). `/recent-activity` reads only the file head 25 lines and is heading-insensitive — NOT a lockstep consumer for these renames.
-
-> **Language**: disk-bound — write this PRE log file in `content_language` per `ai_context/skills_config.md §Language`. The `LOG: …` echo printed to the user is user-facing (label `LOG:` stays English, path text translates only if a non-default `conversation_language` makes it natural; default = leave the line as `LOG: <path>`). Code identifiers, file paths, field names stay English regardless.
-
-**Before any code / schema / prompt / docs / ai_context / skill change**, create this round's log file and write the PRE section. This is the intent baseline source for `/post-check`; mandatory.
-
-- Filename: `<change_logs_path>/<filename pattern with slug substituted>` — `<change_logs_path>` is `skills_config.md ## Activity sources.Change logs.Path` and the pattern is `## Activity sources.Change logs.Filename time pattern` (defaults: `logs/change_logs/` + `{YYYY-MM-DD}_{HHMMSS}_{slug}.md`). HHMMSS is mandatory and executed per the skills_config.md `## Timezone` command template; if §Timezone is missing or its command fails, follow the fallback declared in §Timezone (system-tz `date '+%Y-%m-%d_%H%M%S'`). slug is a semantic short English name.
-- Echo the path back to the user (one line `LOG: logs/change_logs/...md`) for later explicit reference by `/post-check`
+- Filename: `<change_logs_path>/<filename pattern with slug substituted>` — `<change_logs_path>` is `## Activity sources.Change logs.Path` and the pattern is `.Filename time pattern` (defaults: `logs/change_logs/` + `{YYYY-MM-DD}_{HHMMSS}_{slug}.md`). HHMMSS per the `## Timezone` command template; if §Timezone is missing / fails, use its declared fallback (system-tz `date '+%Y-%m-%d_%H%M%S'`). slug = semantic short English name.
+- Echo the path back: one line `LOG: logs/change_logs/...md` (label `LOG:` stays English) for later `/post-check` reference.
 
 The PRE section must contain:
 
 ```markdown
 # {slug}
 
-- **Started**: {YYYY-MM-DD HH:MM:SS} {timezone abbrev: per skills_config.md `## Timezone` setting}
+- **Started**: {YYYY-MM-DD HH:MM:SS} {timezone abbrev per `## Timezone`}
 - **Branch**: {work branch at /go entry}
 - **Type**: GO
 - **Status**: PRE
@@ -117,7 +108,7 @@ The PRE section must contain:
 {session context, user original ask, upstream discussion chain summary}
 
 ## Conclusion and decisions
-{plan already decided at /go entry: direction picked, what changes, what does not}
+{plan decided at /go entry: direction picked, what changes, what does not}
 
 ## Planned action list
 - file: {path} → {change focus}
@@ -133,117 +124,95 @@ The PRE section must contain:
 (append during execution; write "none" if no deviation)
 ```
 
-Write the PRE section, then **enter Step 3**. If execution mid-way drifts from the plan → append a `## Execution deviations` paragraph to the log recording the new decision, **do not silently change**.
+Write the PRE section, then **enter Step 2**. If the PRE log write fails (IO error, path not writable, disk full, permission denied) → **stop and report; do not enter Step 2**. `ai_context/conventions.md` §Logging "No PRE log → do not start modifying files" is the operative invariant — a failed write means no PRE log exists.
 
-If the PRE log file write fails (IO error, path not writable, disk full, permission denied) → **stop and report the cause; do not enter Step 3**. `ai_context/conventions.md` §Logging "No PRE log → do not start modifying files" is the operative invariant; a failed write means no PRE log exists, so subsequent steps must not run.
+## Step 2: Implement code / schema / prompt / config
 
-## Step 3: Land discussion conclusions into docs (content authoring)
+Change schema, prompt template, architecture code, config per the discussion.
 
-> **Language**: disk-bound — write these docs / ai_context updates in `content_language` per `ai_context/skills_config.md §Language`. Code identifiers, file paths, field names stay English regardless.
+- **First confirm the PRE "Validation criteria" has ≥ 1 concrete executable item** (e.g. `import has no error` / `grep residue = 0` / `smoke X passes`; not vague "as long as it works"); if vague → add concrete ones now. Step 3 runs exactly this list.
+- Consult the Cross-File Alignment table in `ai_context/conventions.md` to list linked files (skip if the table does not exist; judge by intuition).
+- **Do not stream-edit across files.** If mid-implementation you sense a doc / sibling file also needs changing, append it to the PRE log's **Execution deviations** and handle it in Step 4 — do not chase it now (that is how drift starts).
 
-> **Compactness Requirements**: writes to `ai_context/` in this step follow the universal contract —
-> - Shorter is better than longer. Each entry is a summary, not a detail dump.
-> - Compactness must not sacrifice accuracy or completeness — never drop important information just to fit the length target.
-> - Aim for ≤ 5 lines per entry, and push longer detail to the linked source (`docs/<topic>.md`, schemas, script docstrings).
-> - Do not compress or touch content unrelated to the current edit.
+## Step 3: Verify (adaptive — smoke + data contract)
 
-Translate decisions from the conversation into doc language. **This step only does "writing"** — cross-file alignment verification belongs to Step 6; full-repo review belongs to Step 7. Any "I wrote file A and now feel file B needs changing too" sensation in this step **first goes into the PRE log's "Execution deviations" section**, deferred to Step 6 for systematic patching; do not stream-edit across files while writing.
+> User-facing — render the pass/fail report in `conversation_language`. Quoted tool stdout/stderr stays verbatim; structural labels (`PASS:` / `FAIL:`) stay English.
 
-Filter by scope touched in this discussion (do not blindly run all):
+**Read the PRE "Validation criteria" section first** and run exactly those declared checks — do not silently drop or substitute one (this keeps the verification guarantee honest). Then scale to what actually changed:
 
-- **`docs/requirements.md` + `ai_context/requirements.md`** (paired, lockstep): update the matching sections when this round touches **user-visible functional contract / acceptance criteria / boundary constraint** changes
-- **`docs/architecture/` + `ai_context/architecture.md`** (paired, lockstep): update matching sections when this round touches any of — **new module / new interface / new state machine / call-graph change / new branch strategy / new workflow contract / new entry point**
-- **`ai_context/decisions.md`**: durable decisions produced this round land as entries immediately, not deferred to Step 6 / Step 8; **if the decision touches the trigger words above, simultaneously add a section in architecture / requirements describing it** (decision is "why", architecture / requirements is "what")
-- **Prompt sources** (path per `skills_config.md ## Activity sources.Prompt sources.Path`; skip when `(none)`): update when discussion conclusions include prompt behavior contract / template changes
-- **`README.md`**: only when directory / entry point / startup method changes
+- **Skip the whole step** when this round's diff touches **no executable code AND no data-contract file** (pure docs / ai_context / prompt-text / comments) → print `Step 3 skipped: no executable / data-contract change this round`. The skip criterion is the **file types in the diff** (objective), not a subjective "looks safe".
+- **Executable code changed** → import check + smoke the key functions / touched code paths.
+- **Diff touches `## Data contract directories`** (skip when `(none)`) → run the project's contract validator once (JSON Schema → `jsonschema` / `ajv`; OpenAPI → `openapi-spec-validator` / `redocly lint`; proto → `protoc --lint_out`; pydantic → import + `model_rebuild()`; SQL DDL → migration dry-run).
 
-Authoring constraints:
+Fix errors immediately. Each PRE Validation-criteria item ends this step either checked (passed) or explicitly marked blocked with cause — carried into Step 6's POST "Validation results".
 
-- **Use placeholders per skills_config.md `## Sensitive content placeholder rules` to replace real content** (skip this scan when the section is empty)
-- Descriptions write only the current design; do not write "old / legacy / deprecated / formerly"
+## Step 4: Docs & alignment (durable docs + cross-file alignment + maintenance)
 
-## Step 4: Implement code / schema / prompt / config
+> **Compactness** (ai_context writes): shorter beats longer; each entry is a summary, not a dump; ≤ 5 lines / entry, push detail to `docs/<topic>.md` / schemas / docstrings; never sacrifice accuracy for length; do not touch content unrelated to this edit.
 
-> **Language**: disk-bound — write these code / schema / prompt / config changes in `content_language` per `ai_context/skills_config.md §Language`. Code identifiers, file paths, field names stay English regardless; user-facing chat reports of what changed translate to `conversation_language`.
+Implementation (Step 2) is done — now land the durable record of what was **actually built**, then verify nothing downstream drifted. **Author first, then align in the same step** (no separate pre-implementation authoring pass: docs follow implementation). Findings discovered here that need fresh design prose get written here; findings that need re-discussion go to Step 5's "suggest registering" list, not here.
 
-Change schema, prompt template, architecture code, config per the discussion. **First confirm the PRE log "Validation criteria" section has ≥ 1 concrete executable item** (e.g. `import has no error` / `grep residue = 0` / `smoke X all pass`; not vague "as long as it works"); if vague → immediately add concrete ones then continue. Consult the Cross-File Alignment table in `ai_context/conventions.md` to list linked files (skip this if the table does not exist; judge by intuition based on this change).
+**Author durable docs** (filter by scope actually touched; do not blindly run all):
+- **`docs/requirements.md` + `ai_context/requirements.md`** (paired, lockstep): user-visible functional contract / acceptance criteria / boundary changes.
+- **`docs/architecture/` + `ai_context/architecture.md`** (paired, lockstep): new module / interface / state machine / call-graph change / branch strategy / workflow contract / entry point.
+- **`ai_context/decisions.md`**: durable decisions this round (decision = "why"; architecture / requirements = "what" — add both when a trigger word above is hit).
+- **Prompt sources** (`## Activity sources.Prompt sources.Path`; skip `(none)`): prompt behavior / template changes.
+- **`README.md`**: only on directory / entry-point / startup change.
+- Authoring constraints: replace real content per `## Sensitive content placeholder rules` (skip when empty); write the current design only — no "old / legacy / deprecated / formerly".
 
-## Step 5: Smoke test + data contract validation (only when code / data contract changes)
+**Cross-file alignment** (consult the Cross-File Alignment table in `ai_context/conventions.md`; if absent, judge by the files touched in Step 2 / Step 4) — check schema / prompt / code / docs / ai_context / README consistency across:
+- field names / params / return values / state values / error codes
+- flow descriptions / state machines / gating timing
+- terminology / concept naming
 
-> **Language**: user-facing — render any chat report of smoke / contract validation outcomes (pass / fail summary, tool output rendered for the user) in `conversation_language` per `ai_context/skills_config.md §Language`. Tool stdout / stderr captured verbatim stays in its original form; only the surrounding explanatory prose translates. Code identifiers / file paths / structural labels (`PASS:` / `FAIL:`) stay English.
+A file that should have synced but did not → fix as a gap-fix (one or two lines in place; a whole rewritten paragraph is authoring, do it here too).
 
-Import check + smoke test on key functions; if this change touches directories listed in skills_config.md `## Data contract directories` (schema / proto / openapi / pydantic / SQL DDL etc. data contracts), run the project's corresponding validation tool once (e.g.: JSON Schema → `jsonschema` / `ajv`; OpenAPI → `openapi-spec-validator` / `redocly lint`; proto → `protoc --lint_out`; pydantic → model import + `model_rebuild()`; SQL DDL → migration dry-run). Skip this contract validation when the section is `(none)`. Fix errors immediately.
+**ai_context durable maintenance**: `handoff.md §Current State` (cell updates: Project Stage / What Exists / Current Gaps / Rules In Effect) · `§Next Steps` (new High / Medium / Later rows) · `§What The User Cares About` (new preference / taste rule).
 
-## Step 6: Cross-file alignment + todo_list maintenance
+**todo_list maintenance**: completed entries this round → **move wholesale to the `## Completed` section of the archived TODO list** (`## Activity sources.Archived TODO list.Path`) — slimmed: title + completion form + 1-line summary + this round's log link; then **refresh the top `## Index`** of `docs/todo_list.md` (the `/todo` skill reads only the index). ⚠️ Maintain only entries this change directly produced / completed; Step 5 review findings do **not** register here.
 
-> **Language**: disk-bound — write these ai_context / docs / todo_list maintenance edits in `content_language` per `ai_context/skills_config.md §Language`. Code identifiers, file paths, field names stay English regardless.
+## Step 5: Review (adaptive — scale to change size)
 
-By here, Step 3 / 4 / 5 have written content into docs and code. **This step only does "alignment verification + maintenance wrap-up"**, no content authoring — if something needs re-authoring of a requirements / architecture description paragraph, go back to Step 3 to rewrite rather than cramming it in here.
-
-**Cross-file alignment**:
-
-- Consult the Cross-File Alignment table in `ai_context/conventions.md` (if absent, judge by intuition based on the files actually touched in Step 3 / Step 4), and check whether schema / prompt / code / docs / ai_context / README are consistent across these dimensions:
-  - field names / params / return values / state values / error codes
-  - flow descriptions / state machines / gating timing
-  - terminology / concept naming
-- If a file should have synced but did not → patch as a **gap-fix**; small change (one or two lines of sync) fix in place; large change (rewriting a whole requirements / architecture description paragraph) → go back to Step 3
-
-**ai_context durable maintenance**:
-
-- `ai_context/handoff.md §Current State` (2-col table): does a row's cell value need updating (Project Stage / What Exists / Current Gaps / Rules In Effect)
-- `ai_context/handoff.md §Next Steps` (2-col table): do new directions / blockers from this round need to be logged in a priority row (High / Medium / Later)
-- `ai_context/handoff.md §What The User Cares About`: does the next session need a new preference / taste-rule bullet
-
-**todo_list maintenance**:
-
-- The TODO list (path per `skills_config.md ## Activity sources.TODO list.Path`, typically `docs/todo_list.md`): completed entries this round **move wholesale to the `## Completed` section of the archived TODO list** (path per `## Activity sources.Archived TODO list.Path`, typically `docs/todo_list_archived.md`) — slimmed: title + completion form + 1 line summary + this round's log link; update state changes
-- After moves / additions / updates, **refresh the top `## Index` section in sync** (rule in the "Index maintenance" subsection at the top of `docs/todo_list.md`). The `/todo` skill reads the index only; without refresh it returns stale info
-- ⚠️ Only maintain entries "directly produced / completed by this change"; new issues discovered during Step 7 review **do not register here**; follow Step 7 handling rules
-
-## Step 7: Full-repo multi-line review (parallel)
-
-> **Language**: disk-bound — when a finding is fixed in place inside a target file, the edited file follows that file's existing `content_language` rules (typically `content_language` per `ai_context/skills_config.md §Language`). Code identifiers, file paths, field names stay English.
-
-> **Language**: user-facing — render the "suggest registering to todo_list" chat list (file + line + issue summary + suggested segment) in `conversation_language` per `ai_context/skills_config.md §Language`. Structural labels (`file:`, `line:`, `suggest segment:`) stay English; only the summary prose translates.
-
-> **Language anchor reset (render-time)**: before emitting the "suggest registering to todo_list" chat list below, re-echo the language axes verbatim — `conversation_language=<value>` · `content_language=<value>` from `ai_context/skills_config.md §Language`. Step 6 just wrote `content_language`-bound ai_context / todo_list maintenance edits; this reset refreshes recency at the entry of the USER-facing chat-list render so the listed items stay in `conversation_language` even when sub-agent reports return findings phrased in English source language.
-
-> **Language (sub-agent dispatch)**: when spawning sub-agents at this step, the parent MUST inject the language axes into each sub-agent's prompt explicitly. Include verbatim: "Reply in `conversation_language`=`<value>`; write any disk artifacts in `content_language`=`<value>`; both values from `ai_context/skills_config.md §Language`." Sub-agents do not inherit the parent's language config — they must be told. The sub-agent's report-back to the parent is a USER surface; its on-disk edits (if any) are DISK surface. **Place this injection at the end of the sub-agent prompt** (recency-favorable position), not in the header / middle — sub-agents have just read English source files in their review scope, so the dispatch directive needs recency advantage over the scanned content to keep the reply in `conversation_language`.
-
-Scan in parallel files across the repo related to / dragged along by this change, **at least four lines, sub-agents may run in parallel**; for small change surface, run a single line serially.
-
-**Four lines** (each re-reads the PRE log before scanning):
-
-1. **Spec line**: `ai_context/` / `docs/` / directories listed in skills_config.md `## Data contract directories` (skip scan when `(none)`) / the prompt-sources path from skills_config.md `## Activity sources.Prompt sources.Path` (skip when `(none)`) — descriptions vs. this change consistent; any residual old descriptions / old fields / old flows; also check for real content violating skills_config.md `## Sensitive content placeholder rules`, or `old / legacy / deprecated / formerly` wording
-2. **Implementation line**: code changed this round + its upstream / downstream (callers / callees / importers) — field names / params / return values / state machines / gates / exception paths still coherent; do imports still run
-3. **Risk line**: code changed this round + related code dragged along (callers / callees / shared state / shared data flow) — boundary conditions, null / None, exception paths, concurrency, retry / rollback, error handling hiding bugs; do new behaviors introduce data loss / security holes / performance regressions; do state machines / gates / invariants have missed branches. **Distinct from implementation line**: implementation line asks "does it still hook up" (signature / import consistency); risk line asks "is what it does correct" (semantic correctness + failure modes)
-4. **Structure line**: are README / directory structure / committed example artifacts / artifact directories aligned with this change; if filenames / directory structure changed → trace all reference points
-
-**Findings handling** (**important**: issues discovered in this step do not get written directly into `docs/todo_list.md`):
-
-- **One-line fixes** (typo, missed placeholder, missing import, obvious slip, single dangling reference) → **fix on the spot**, no tail
-- **Big issues / cross-scope / need re-discussion / outside this round's intent** → **do not write into `docs/todo_list.md` yourself**; in the conversation list a "**suggest registering to todo_list**" block, each entry with: file + line, issue summary, suggested segment. After the user decides, `/todo-add` or the next `/go` lands the entry — avoid polluting todo_list history with findings outside this round's intent
-
-> **Before entering this step, re-read the PRE log Step 2 created yourself** — after the editing context of prior steps, you have drifted from "original intent"; recalibrate against the PRE "Conclusion and decisions / Planned action list / Validation criteria" before scanning.
+> Disk-bound — an in-place finding fix follows the edited file's `content_language` rules. User-facing — render the "suggest registering to todo_list" chat list in `conversation_language` (structural labels `file:` / `line:` / `suggest segment:` stay English; only the summary prose translates).
 >
-> **Each dispatched sub-agent must also re-read the same PRE log**: stuff the `LOG:` path into its prompt and **explicitly require it to read the log's PRE section before acting**. Sub-agents have independent context; without enforced PRE reading they will spin only on the brief in the prompt, easily drifting from this round's intent.
+> **Language anchor reset (render-time)**: before emitting the suggest-list, re-echo verbatim `conversation_language=<value>` · `content_language=<value>` from §Language. Step 4 just wrote `content_language`-bound edits; this refreshes recency at the USER-facing render so listed items stay in `conversation_language` even when sub-agent reports return English-phrased findings.
 
-## Step 8: POST log wrap-up
+**Re-read the PRE log first** (Conclusion and decisions / Planned action list / Validation criteria) — after Steps 2–4's editing context you have drifted from original intent; recalibrate before scanning. Anti-over-engineering check: confirm you did **what was planned, no more**.
 
-> **Cross-skill protocol ownership**: this Step defines the POST section template (`## Landed changes` / `## Diff from plan` / `## Validation results` / `## Completed` subsection set) and the `Status: DONE | BLOCKED` state-machine transition from `PRE`. The POST section is consumed by `/post-check` Step 5 (REVIEW append, which expects the POST section to already exist and reads the `Status` token to decide whether to flip to `REVIEWED-*`). Renaming any of these subsection names, the `Status` tokens, or the `Completed` block structure requires a lockstep edit in `/post-check` Step 5 per `ai_context/conventions.md §Cross-File Alignment` (row: "PRE/POST/REVIEW change-log protocol").
+**Two review dimensions** (the old four lines fold in as checklists — nothing dropped):
 
-> **Language**: disk-bound — write this POST log section appended to the same log file in `content_language` per `ai_context/skills_config.md §Language`. Code identifiers, file paths, field names stay English regardless.
+1. **Code dimension** — changed code + its upstream / downstream (callers / callees / importers / shared state / shared data flow). Checks BOTH **wiring** (field names / params / return values / state machines / gates still coherent; imports run) AND **correctness** (boundary conditions, null / None, exception paths, concurrency, retry / rollback, error handling hiding bugs; data-loss / security / performance regressions; missed state-machine / gate / invariant branches). One reviewer reviews a file-group fully — wiring and correctness together, the way a human reads a file.
+2. **Surface dimension** — `ai_context/` / `docs/` / `## Data contract directories` (skip `(none)`) / prompt-sources path (skip `(none)`) / README / directory structure / committed example artifacts. Checks: descriptions consistent with this change; residual old descriptions / fields / flows; `## Sensitive content placeholder rules` violations; `old / legacy / deprecated / formerly` wording; if filenames / directories changed, trace all reference points.
 
-Update **the same log Step 2 created**, appending the POST section:
+**Scale the fan-out to the change size** (do not always spawn the max):
+- **Small** (≤ 2 files, no data contract, no cross-module spread) → a single serial inline pass covering both dimensions; **no sub-agents**.
+- **Medium** → one sub-agent per dimension (2 in parallel).
+- **Large** → **shard the Code dimension by file-group** across N sub-agents (each does wiring + correctness on its shard); Surface usually stays one. Scale by sharding files, **not** by adding more dimensions.
+
+> **Each dispatched sub-agent** must (a) read the PRE log's PRE section before scanning — stuff the `LOG:` path into its prompt and require it; independent context drifts otherwise — and (b) carry the language axes appended at the **end** of its prompt (recency-favorable; sub-agents just read English source, so the directive needs recency over the scanned content): "Reply in `conversation_language`=`<value>`; write any disk artifacts in `content_language`=`<value>`; both from `ai_context/skills_config.md §Language`."
+
+**Findings handling** (issues here do NOT get written directly into `docs/todo_list.md`):
+- **One-line fixes** (typo, missed placeholder, missing import, obvious slip, single dangling reference) → **fix on the spot**, no tail.
+- **Bigger / cross-scope / need re-discussion / outside this round's intent** → **do not write into `docs/todo_list.md` yourself**; list a "**suggest registering to todo_list**" block in chat, each entry with file + line, issue summary, suggested segment. The user decides; then `/todo-add` or the next `/go` lands it — avoid polluting todo_list history with findings outside this round's intent.
+
+## Step 6: Ship — POST log + commit + wrap-up
+
+> **Cross-skill protocol ownership**: this Step defines the POST template (`## Landed changes` / `## Diff from plan` / `## Validation results` / `## Completed` subsection set) and the `Status: DONE | BLOCKED` transition from `PRE`. Consumed by `/post-check` (REVIEW append — expects the POST section to exist and reads `Status` to decide the `REVIEWED-*` flip). Renaming any subsection, the `Status` tokens, or the `Completed` block requires a lockstep edit in `/post-check` per `ai_context/conventions.md §Cross-File Alignment` (row: "PRE/POST/REVIEW change-log protocol").
+>
+> Disk-bound POST log + commit message use `content_language`. User-facing wrap-up `<ask tool>` prompt / final state line / `stash popped` confirmation use `conversation_language` (structural `stash` / `worktree` / `HEAD` stay English).
+>
+> **Language anchor reset (render-time)**: before the wrap-up prose / `<ask tool>` prompt / final state line, re-echo verbatim `conversation_language=<value>` · `content_language=<value>` from §Language. Steps just wrote `content_language`-bound disk artifacts; this refreshes recency at the last USER-facing surface `/go` produces.
+
+**6a — POST log.** Append the POST section to **the same log file Step 1 created** (do not create a new file):
 
 ```markdown
 <!-- POST phase fills in -->
 
 ## Landed changes
-{which files actually changed, what each changed, file + line numbers or diff summary}
+{one-line outcome summary; the file-level detail IS the commit diff — do not re-enumerate it here}
 
 ## Diff from plan
-{compared with PRE "Planned action list", what was added / removed / modified; write "none" if nothing}
+{vs PRE "Planned action list": what was added / removed / modified; "none" if nothing}
 
 ## Validation results
 - [x] {PRE validation 1} — {output summary}
@@ -252,37 +221,21 @@ Update **the same log Step 2 created**, appending the POST section:
 
 ## Completed
 - **Status**: DONE | BLOCKED
-- **Finished**: {timestamp, per skills_config.md `## Timezone` command template, same timezone as PRE Started}
+- **Finished**: {timestamp per `## Timezone`, same timezone as PRE Started}
 ```
 
-Do not create a new log file; update the same file that holds the PRE section in place.
+**6b — Commit.** Step 0 locked the work location; the commit **lands on the branch selected there**.
+- `git status` shows only this change; scan per `## Do-not-commit paths` + (`.gitignore` + `ai_context/conventions.md`) as fallback.
+- Message style aligned with `git log --oneline -10`.
+- **This change + PRE/POST log file are one commit** — not split into `<slug>: ...` + `log(<slug>): ...`.
+- After commit, `git status` confirms clean.
+- **Worktree path**: commit runs inside the worktree; **do not auto-clean** it (cleanup is 6c). `/go` stays at the Step-0 location, never switches back behind the user's back.
 
-## Step 9: Git commit
+**6c — Wrap-up** (stash pop + worktree follow-up). `/go` no longer fans out to other branches — cross-branch sync is `/forward`, invoked explicitly afterward. Handle per the Step-0 path:
+- **Clean opt 1 / Clean opt 2 / Dirty opt 1 / Dirty opt 2** → no leftover state; print "`/go` complete; currently on `<branch>`; commit landed. For sync to other branches, use `/forward`", **no questioning**, end.
+- **Dirty opt 4 (stash)** → on source branch `<X>`, auto `git stash pop`. pop failure (conflict / stash lost) → stop and report; on success print `stash popped and restored`, **no questioning**, end.
+- **Clean opt 3 / Dirty opt 3 (worktree)** → **<ask tool>** once: "`/go` complete; this commit landed on `<branch>`. How to handle worktree `../<path>`?"
+  1. **Keep worktree (recommended — convenient for continued work)** — leave it; print the worktree path for next time.
+  2. **Clean up immediately (`git worktree remove`)** — run `git worktree remove ../<path>` from the source repo root; the commit landed on the branch ref, so removing the directory loses nothing. Failure due to dirty files → stop and report (do not auto-add `--force`).
 
-> **Language**: disk-bound — write this commit message in `content_language` per `ai_context/skills_config.md §Language`. Code identifiers, file paths, field names stay English regardless. The pre-commit confirmation surface (the message preview shown to the user) is user-facing — render explanatory prose around the message in `conversation_language`, but the commit message text itself stays in `content_language`.
-
-Step 1 has locked the work location (current branch in place / branch after switch / branch inside the worktree); commit **lands on the branch selected in Step 1**. Whether to clean up the worktree is left to Step 10 — this step does not touch it.
-
-- `git status` shows only this change; scan per skills_config.md `## Do-not-commit paths` + (`.gitignore` + `ai_context/conventions.md`) as fallback
-- message style aligned with `git log --oneline -10`
-- **This change + PRE/POST log file merge into one commit** — no longer split into `<slug>: ...` + `log(<slug>): /go PRE+POST` two commits
-- After commit, `git status` confirms clean
-- **If Step 1 went the worktree path**: commit executes inside that worktree; after commit **does not auto-clean** the worktree (cleanup goes through the Step 10 end question). `/go` always stays at the work location selected in Step 1 (worktree / switched branch / original branch), does not switch back behind the user's back
-
-## Step 10: Wrap-up (stash pop + worktree follow-up)
-
-> **Language**: user-facing — render the worktree-handling `<ask tool>` prompt, the final state line, and the `stash popped and restored` confirmation in `conversation_language` per `ai_context/skills_config.md §Language`. Structural prefixes (`stash`, `worktree`, `HEAD`) stay English; only surrounding prose translates.
-
-> **Language anchor reset (render-time)**: before emitting the wrap-up prose / `<ask tool>` prompt / final state line below, re-echo the language axes verbatim — `conversation_language=<value>` · `content_language=<value>` from `ai_context/skills_config.md §Language`. Step 9 just wrote a `content_language`-bound commit message; this reset refreshes recency at the entry of the USER-facing wrap-up surface (the last conversation segment `/go` produces) so the prompt + state line + confirmation stay in `conversation_language`.
-
-`/go` **no longer fans out to other branches** — cross-branch sync is `/forward`'s job, explicitly invoked by the user after this `/go` completes. This step only handles the state left by the Step 1 choice.
-
-Handle per the path actually taken in Step 1:
-
-- **Clean option 1 (current branch in place) / Clean option 2 (switched branch in place) / Dirty option 1 (WIP commit in place) / Dirty option 2 (execute without handling)** → no leftover state; print directly "`/go` complete; currently on `<branch>`; commit landed. For subsequent sync to other branches, use `/forward`", **no questioning**, end
-- **Dirty option 4 (stash then execute)** → on source branch `<X>`, auto `git stash pop` to restore the working tree. pop failure (conflict / stash lost) → stop and report, let the user decide; on success, print one line `stash popped and restored`, **no questioning**, end
-- **Clean option 3 / Dirty option 3 (worktree path)** → use **<ask tool>** to ask once: "`/go` complete; this commit landed on `<branch>`. How to handle worktree `../<path>`?"
-  1. **Keep worktree (recommended — convenient for continued work on that branch)** — leave the worktree alone; print the current worktree path for next-time use
-  2. **Clean up immediately (`git worktree remove`)** — execute `git worktree remove ../<path>` from the source repo root; the commit has landed on the branch ref, removing the worktree directory does not lose data. If `git worktree remove` fails due to dirty files → stop and report, let the user decide (do not auto-add `--force`)
-
-Print a final state line: `/go` complete; current HEAD = `<branch>`; worktree handling result (kept / cleaned). **Does not switch back to any "main branch"** — `/go` always respects the work location selected in Step 1, leaving "which branch I am on" to the user.
+Print a final state line: `/go` complete; current HEAD = `<branch>`; worktree handling (kept / cleaned). **Does not switch back to any "main branch"** — `/go` respects the Step-0 work location, leaving "which branch I am on" to the user.

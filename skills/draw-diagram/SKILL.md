@@ -365,7 +365,7 @@ At display 825 / viewBox 1500 the scale is `0.55` (18px text → ≈10px); at a 
 
 Mechanism: put `width` / `height` on the `<svg ...>` tag in the v1 HTML — the extract script copies the open tag verbatim, so the size carries into the standalone `.svg`. (The HTML preview's `svg { width: 100% }` CSS still wins there, so the editable preview stays responsive.) For the PNG review raster, render at full viewBox resolution (strip the width/height first, or render the HTML) so labels stay legible.
 
-In the Step 11 report, give the recommended markdown embed line per diagram, e.g. `<img src="flowchart-foo.svg" width="825">`.
+In the Step 6 report, give the recommended markdown embed line per diagram, e.g. `<img src="flowchart-foo.svg" width="825">`.
 
 ### Routing Rules (CRITICAL)
 
@@ -681,135 +681,108 @@ All artifacts go in `./tmp_diagram/` relative to the current working directory (
    - `yes — rounded, custom radius` — round with a user-supplied integer radius (viewBox user units; capture it via the ask tool's free-text path)
    - `no — square corners`
 
-   Record all four answers. The format answer determines which files survive Step 11 (the intermediate workflow always produces HTML → SVG → PNG — PNG is needed for subagent review regardless of choice). The canvas-width answer sets the viewBox cap for Step 4 layout; for a multi-diagram SET, apply the chosen policy once and use ONE shared width across the set. The theme answer fixes the preset for Steps 5–6 and is what §Reference examples' "read ONLY your theme" keys off — load only the chosen theme's color table + example, never all three. The corner-rounding answer sets `<radius>` (25 / custom / 0 for square), threaded to `extract_svg.py --radius <radius>` at Steps 6 + 10; for a multi-diagram SET use ONE shared radius across the set.
+   Record all four answers. The format answer determines which files survive Step 6 (the workflow always builds HTML → SVG; a PNG is rendered only when the Step 5 heavyweight review runs or the format itself needs it — `png` / `all three`). The canvas-width answer sets the viewBox cap for Step 2 layout; for a multi-diagram SET, apply the chosen policy once and use ONE shared width across the set. The theme answer fixes the preset for Steps 3–4 and is what §Reference examples' "read ONLY your theme" keys off — load only the chosen theme's color table + example, never all three. The corner-rounding answer sets `<radius>` (25 / custom / 0 for square), threaded to `extract_svg.py --radius <radius>` at Steps 4 + 5; for a multi-diagram SET use ONE shared radius across the set.
 
-2. **Understand the diagram** — restate node + edge spec; ask one clarifying question if material ambiguity remains.
+2. **Plan** — three passes before writing any coordinate:
+   - **Understand** — restate the node + edge spec. Ask **one** clarifying question ONLY if material ambiguity remains (the sole conditional interrupt outside the two standard asks — Step 1 + Step 5); otherwise proceed on the most reasonable reading and record the assumption in the Step 6 report.
+   - **Map domain → roles** — list every node + its role (`action` / `agent` / `data` / `decision` / `event` / `state` / `terminal` / `callout`, or an `accent` slot); **all process steps / commands → `action`** (don't sub-categorize); decide the **legend label** for each used role per project domain (e.g. "agent" for AI runtimes, "log" for log dirs).
+   - **Layout reasoning** — apply the §Layout Reasoning 13-point checklist.
 
-3. **Map domain → roles**:
-   - List every node + its role (`action` / `agent` / `data` / `decision` / `event` / `state` / `terminal` / `callout`, or an `accent` slot)
-   - **All process steps / commands → `action`**. Don't sub-categorize.
-   - Decide **legend label** for each used role per project domain (e.g., "agent" for AI runtimes; "log" for log dirs).
-
-4. **Layout reasoning** — apply 13-point checklist before writing coordinates.
-
-5. **Read the matching reference example(s), THEN generate v1 HTML** — first Read (both `.html` and `.svg`) the example(s) matching your diagram's features; for the theme trio read ONLY your chosen theme (see §Reference examples — MANDATORY). Then write `./tmp_diagram/flowchart-v1-<slug>.html` with inline SVG: copy the chosen preset's `<style>` block verbatim from `examples/<preset>.html`, and match the example's geometry for any feature it shows.
+3. **Read the matching reference example(s), THEN generate v1 HTML** — first Read (both `.html` and `.svg`) the example(s) matching your diagram's features; for the theme trio read ONLY your chosen theme (see §Reference examples — MANDATORY). Then write `./tmp_diagram/flowchart-v1-<slug>.html` with inline SVG: copy the chosen preset's `<style>` block verbatim from `examples/<preset>.html`, and match the example's geometry for any feature it shows.
 
    > **Language (L3 · DISK)**: the diagram's own visible text — node labels / sublabels / legend entries / captions / content-card detail lines — is disk-bound output baked into the `.html` / `.svg`, so write it in `content_language` per `ai_context/skills_config.md §Language` (exception: label text the user supplied verbatim is kept as given). Role / CSS class names, `--var` tokens, file paths, and code identifiers stay English regardless.
 
-6. **Extract v1 .svg from .html**. The HTML's `<style>` block is moved into the SVG (wrapped in CDATA), with a `var(--bg)` background rect added (rounded to `rx` / `ry` = `<radius>` per the Step 1 corner-rounding answer; omit `--radius` / pass `0` for square corners), and an explicit `text { font-family: var(--font); }` rule injected (otherwise SVG `<text>` elements lose the body's font inheritance and fall back to browser default — usually serif):
-   ```bash
-   python3 "${CLAUDE_PLUGIN_ROOT}/skills/draw-diagram/scripts/extract_svg.py" \
-     ./tmp_diagram/flowchart-v1-<slug>.html \
-     ./tmp_diagram/flowchart-v1-<slug>.svg \
-     --radius <radius>
-   ```
+4. **Build & lint v1 (always — cheap, no interrupt)** — extract the SVG, then run the deterministic linter and fix every HIGH before anyone reviews. Rendering is NOT done here — it belongs to the Step 5 review branch.
+   - **Extract** the `.svg` from the `.html`: the `<style>` block is moved into the SVG (CDATA-wrapped) with a `var(--bg)` background rect (rounded to `rx` / `ry` = `<radius>` per the Step 1 answer; omit `--radius` / pass `0` for square) and an explicit `text { font-family: var(--font); }` rule injected (otherwise SVG `<text>` loses the body font inheritance and falls back to browser default — usually serif):
+     ```bash
+     python3 "${CLAUDE_PLUGIN_ROOT}/skills/draw-diagram/scripts/extract_svg.py" \
+       ./tmp_diagram/flowchart-v1-<slug>.html \
+       ./tmp_diagram/flowchart-v1-<slug>.svg --radius <radius>
+     ```
+   - **Lint** the extracted SVG — zero-token, no false positives; checks exactly from the source coordinates the invariants subagents historically eyeballed wrong (~50% false-positive rate): marker `refX=0` / `markerUnits=userSpaceOnUse` / 14×12 size, content clipped outside the viewBox, loop-back endpoints off the node center-x, an edge segment crossing a non-endpoint node, and pure-black strokes/fills.
+     ```bash
+     python3 "${CLAUDE_PLUGIN_ROOT}/skills/draw-diagram/scripts/lint_svg.py" \
+       ./tmp_diagram/flowchart-v1-<slug>.svg
+     ```
+     Exit code `1` = at least one HIGH. **Always fix every lint HIGH** — these are deterministic real bugs: `Edit` the `.html`, re-extract, re-lint until clean. This runs regardless of the Step 5 choice. The linter does NOT judge palette / text-overflow / balance / requirement match / padding symmetry — those are the review subagent's job (Step 5).
 
-7. **Render v1 to PNG** — needed for subagent review (Read tool needs raster):
-   ```bash
-   google-chrome --headless --disable-gpu --no-sandbox --hide-scrollbars \
-     --window-size=<W>,<H> \
-     --default-background-color=00000000 \
-     --screenshot=./tmp_diagram/flowchart-v1-<slug>.png \
-     "file://$(pwd)/tmp_diagram/flowchart-v1-<slug>.svg"
-   ```
-   `<W>` = viewBox width + 64; `<H>` = viewBox height + 32. The `--default-background-color=00000000` flag keeps the area outside a rounded background rect transparent (so the PNG renders rounded corners instead of opaque triangles); for square corners the bg rect covers the whole canvas, so it is a harmless no-op — always include it.
+5. **Ask: heavyweight review + fix?** (`AskUserQuestion`, ONE question — the second and last standard ask). Geometry is already lint-clean; this gates only the EXPENSIVE pass (PNG render + 1 review subagent + visual-claim verification + patch). Two options, default the lightweight one:
+   - **No — ship the lint-clean v1 (recommended)** — skip the subagent entirely; render a PNG ONLY if the Step 1 format needs it (`png` / `all three`); promote `flowchart-v1-<slug>.*` → `flowchart-<slug>.*`; go to Step 6.
+   - **Yes — run the heavyweight review** — then, in order:
+     1. **Render** v1 to PNG (the Read tool needs a raster):
+        ```bash
+        google-chrome --headless --disable-gpu --no-sandbox --hide-scrollbars \
+          --window-size=<W>,<H> --default-background-color=00000000 \
+          --screenshot=./tmp_diagram/flowchart-v1-<slug>.png \
+          "file://$(pwd)/tmp_diagram/flowchart-v1-<slug>.svg"
+        ```
+        `<W>` = viewBox width + 64; `<H>` = viewBox height + 32. `--default-background-color=00000000` keeps the area outside a rounded bg rect transparent (a harmless no-op for square corners — always include it).
+     2. **Dispatch ONE review subagent** (merged Visual + Logical + Requirement — see §Subagent Review Prompt). It reads the PNG **only** — NOT this SKILL.md (the prompt's checklist is self-contained); the deterministic geometry is already covered by Step 4's lint. It owns ONLY the judgements a coordinate check cannot make: palette, text overflow, balance / horizontal-space pressure, fan-in/out shape, padding symmetry, and requirement match (all nodes / edges / labels present).
+     3. **Synthesize + verify** — categorize the subagent's findings critical / important / nitpick. Its VISUAL claims carry a ~50% false-positive risk (e.g. "text overflows", "looks unbalanced") — **verify each against the PNG yourself with Read before acting**.
+     4. **Patch or promote** — no critical / important fix → promote v1 (rename to `flowchart-<slug>.*`). Otherwise **patch in place**: `Edit` the real fixes into the `.html` (targeted edits — do NOT rewrite from scratch), re-extract the SVG (same `--radius <radius>`), **re-lint** (must come back clean), re-render for visual confirmation; save as `flowchart-<slug>.*`. **Hard cap: 2 patch iterations.**
 
-8. **Dispatch 3 review subagents in PARALLEL** (Visual / Logical / Requirement — see §Subagent Review Prompts). Each subagent reads the PNG.
+6. **Filter outputs per Step 1 choice + Present**. Always delete any leftover intermediate (`-v1-`) files. **The final `.html` source is kept by DEFAULT regardless of format choice** — it is the editable source, and deleting it strands re-editing (the extracted `.svg` is awkward to hand-edit: CDATA-wrapped CSS + injected bg rect). Keep per choice:
+    - `svg` (default) → keep `.svg` **+ `.html` source**; delete `.png`
+    - `png` → keep `.png` **+ `.html` source**; delete `.svg`
+    - `html` → keep `.html`; delete `.svg` + `.png`
+    - `all three` → keep `.html` + `.svg` + `.png`
 
-9. **Synthesize findings** — categorize critical / important / nitpick. **Verify subagent claims against the PNG yourself** (subagents have false-positive rate ~50% on visual claims like "edge crossing"; main thread must verify with Read tool before acting on a finding).
-
-10. **Regenerate v2** — apply real fixes (drop false positives). Write `./tmp_diagram/flowchart-v2-<slug>.html`. Re-extract SVG (same `--radius <radius>`), re-render PNG for visual confirmation.
-
-11. **Filter outputs per Step 1 choice + Present**. Always delete all v1 files. **The v2 `.html` source is kept by DEFAULT regardless of format choice** — it is the editable source, and deleting it strands re-editing (the extracted `.svg` is awkward to hand-edit: CDATA-wrapped CSS + injected bg rect). Keep per choice:
-    - `svg` (default) → keep v2 `.svg` **+ v2 `.html` source**; delete `.png`
-    - `png` → keep v2 `.png` **+ v2 `.html` source**; delete `.svg`
-    - `html` → keep v2 `.html`; delete `.svg` + `.png`
-    - `all three` → keep v2 `.html` + `.svg` + `.png`
-
-    Report: kept paths, preset, node/edge counts, v1→v2 changes, AND the **re-extract command** so the user can regenerate the deliverable after editing the HTML source:
+    Report: kept paths, preset, node/edge counts, lint result (`clean` / HIGHs fixed), whether the Step 5 heavyweight review ran (+ any v1→final changes), AND the **re-extract command** so the user can regenerate the deliverable after editing the HTML source:
     ```bash
     python3 "${CLAUDE_PLUGIN_ROOT}/skills/draw-diagram/scripts/extract_svg.py" \
       tmp_diagram/flowchart-<slug>.html tmp_diagram/flowchart-<slug>.svg --radius <radius>
     ```
 
-**Hard cap: 2 iterations.** No infinite loops.
+## Subagent Review Prompt
 
-## Subagent Review Prompts
-
-### Subagent 1 — Visual Quality
+ONE merged subagent. It reads the PNG **only** — NOT this SKILL.md (the checklist below is self-contained) — and owns only the visual / requirement judgements a coordinate check cannot make. The deterministic geometry (marker `refX` / `markerUnits` / size, viewBox clipping, loop-back center-x alignment, edge-through-node collisions, pure-black strokes) is already verified by Step 4's `lint_svg.py` — the subagent must NOT re-report those.
 
 ```
-Inputs: PNG <path>, spec ${CLAUDE_PLUGIN_ROOT}/skills/draw-diagram/SKILL.md
+Inputs: PNG <path>, original user description (mermaid source / prose), the node/edge spec. If a reference image was provided its path is in this prompt.
 
-Use Read tool to view PNG. **ALSO Read the user's reference image if one was provided** (path will be in the task prompt) — compare diagram against reference visually.
+Use the Read tool to view the PNG (and the reference image, if any). Do NOT read any spec file — this checklist is complete. Do NOT re-check marker geometry, loop-back centering, edge-through-node collisions, viewBox clipping, or pure-black colors: a deterministic linter already owns those. Focus on what only an eye can judge:
 
-Check per spec (the hard-to-eyeball ones — minor constants like r=12 / stroke weights are trusted from the copied preset):
+VISUAL
 1. **Crossings** — flag ONLY undifferentiated ones (two identical solid lines overlapping with no bridge/hop arc, distinct color, or dash).
-2. **Node overlaps + edge-through-node collisions** — ZERO. For EACH arrow segment (each `L` between corners), check it does NOT pass through a node's rect that isn't its source/destination (subagents miss this — verify each segment vs each node rect).
-3. **Container fit** — container's rect fully encloses every contained node with ≥30px padding; flag any container edge cutting through a node. Also: a loop-back whose source AND destination are both INSIDE a container must route inside the box (internal gutter), NOT in the page margin outside it — flag a return arc drawn outside its own container.
-4. **Arrow tips** — every `marker-end` shows a visible triangle; the apex touches the destination edge (gap >1px or overshoot >3px = fail); `refX=0` geometry (triangle base at the line endpoint, not a spike on top of the line).
-5. **Loopback origins** — exit/entry at the EXACT box center-x. Off by any amount = fail.
-6. **ViewBox padding symmetry** — all four paddings 50px; top=bottom and left=right.
-7. **Text** — no cut-off / overflow; node labels uniformly 18px.
-8. **Palette** — only locked-palette colors; no pure black text/arrows.
-9. **Legend** — present (for the roles used), not cut off, labels 18px, items spaced sequentially by text width (no swatch under a prior label) AND the whitespace gaps between items look UNIFORM (a noticeably wider gap after one item = its width was over-reserved by the estimate; flag it).
-10. **ALIGNMENT AUDIT** — same-row Y / same-column X / same-role uniform width / line origin from box center / edge labels offset (above horizontal, right of vertical) / fan-OUT = SYMMETRIC arced-split Y / fan-IN = independent arrows (no merged stem).
-11. **No in-SVG title** — the SVG holds only nodes, edges, labels, legend (no baked-in heading).
-12. **Reference image match** — if a reference image was provided, does the render's composition / arrow style / layout match it? Note any divergence.
-13. **Label backgrounds** — edge/line labels have NO background fill: flag any opaque box behind an edge label that covers a stroke (especially the loop-back / flow line the label annotates), leaving a gap in the line. Container/group labels DO keep an opaque `var(--bg)` gap that fully breaks the dashed border behind the text: flag dashes poking through the label text.
-14. **Background card** — the rounded `var(--bg)` background covers the WHOLE viewBox: all four corners rounded identically, no transparent strip / void between content and any viewBox edge, no square-cut side (a non-zero viewBox origin with a `100%`-sized bg is the classic cause).
+2. **Container fit** — container rect fully encloses every contained node with ≥30px padding; flag an edge cutting through a node. A loop-back whose source AND destination are both INSIDE a container must route inside the box (internal gutter), NOT in the page margin outside it.
+3. **Arrow tips** — every arrow shows a visible triangle whose apex touches the destination edge (visible gap or overshoot = fail).
+4. **Text** — no cut-off / overflow; node labels uniformly 18px.
+5. **Palette** — only locked-palette colors.
+6. **Legend** — present (for the roles used), not cut off, labels 18px, items spaced sequentially by text width (no swatch under a prior label) AND inter-item gaps look UNIFORM (a noticeably wider gap = over-reserved width; flag it).
+7. **ViewBox padding symmetry** — the four paddings look ≈50px; top≈bottom and left≈right (no framed-wrong feel).
+8. **ALIGNMENT AUDIT** — same-row Y / same-column X / same-role uniform width / line origin from box center / edge labels offset (above horizontal, right of vertical) / fan-OUT = SYMMETRIC arced-split Y / fan-IN = independent arrows (no merged stem).
+9. **No in-SVG title** — the SVG holds only nodes, edges, labels, legend (no baked-in heading).
+10. **Label backgrounds** — edge/line labels have NO background fill (flag an opaque box covering a stroke); container/group labels DO keep an opaque `var(--bg)` gap fully breaking the dashed border (flag dashes poking through).
+11. **Background card** — the rounded `var(--bg)` background covers the WHOLE viewBox: all four corners rounded identically, no transparent strip / square-cut side.
+12. **Reference image match** — if one was provided, does composition / arrow style / layout match? Note any divergence.
 
-Report HIGH/MEDIUM/LOW findings. Under 350 words. Do NOT propose fixes.
-```
+LOGICAL
+13. **Same-role color** — same-role nodes share ONE color (don't split one role into sub-colors).
+14. **Legend labels** project-domain-appropriate (e.g. "agent" for AI runtimes, not "actor").
+15. **Data-store siblings** share width when labels permit; arrows leave from box CENTER.
+16. **HORIZONTAL SPACE PRESSURE** — overflowing / cramped / tiny text from too much in one row? Name the relieving fix (move a mid-flow node to a parallel row / stack fan-in sources vertically over their target / redistribute gaps), or say it should be re-done VERTICAL. Do not pass a cramped wide layout silently.
+17. **Fan-IN vs fan-OUT** — convergence (N→1) = INDEPENDENT arrows; divergence (1→N) = SYMMETRIC shared-trunk Y with an ARCED split. Flag a merged-Y fan-in, a lopsided fan-out, or a hard-T split.
 
-### Subagent 2 — Logical Layout
+REQUIREMENT (against the user's source)
+18. All nodes present; all edges present (count); no wiring errors; no extras.
+19. Edge + node labels match the source exactly (including paths like "logs/review_reports").
+20. Role assignments fit the project semantics.
 
-```
-Inputs: PNG, user description, node spec.
-
-Use Read tool to view PNG. Think DEEPLY:
-1-12: standard checklist (flow direction, role clustering, critical path, parallel alignment, loop-back length, re-ordering, entry/exit, adjacency, balance, alternate topology, edge label clarity, alignment audit)
-
-Specifically verify:
-- Are SAME-ROLE nodes given the SAME color? (e.g., all slash commands → action; don't split into 3 sub-colors)
-- Is the LEGEND LABEL project-domain-appropriate? (e.g., "agent" for AI runtimes, not "actor")
-- Do data store siblings share width when their labels permit?
-- Do arrows from a node leave from the box CENTER, not from corners?
-- **HORIZONTAL SPACE PRESSURE**: is the diagram overflowing the width, cramped, or is the text tiny because too much is crammed into one row? If so, name the fix that would relieve it (move a mid-flow node to a parallel row / stack fan-in sources vertically over their target / redistribute gaps), OR — if it genuinely can't fit at readable text size — say it should be re-done as a VERTICAL (top-to-bottom) flow. Do not pass a cramped wide layout silently.
-- **Fan-IN vs fan-OUT**: convergence (N→1) uses INDEPENDENT arrows; divergence (1→N) uses a SYMMETRIC shared-trunk Y whose split ARCS out (rounded fork, not a hard T). Flag a fan-in drawn as a merged Y, a lopsided fan-out, or a hard-T split.
-
-Report findings. Under 400 words.
-```
-
-### Subagent 3 — Requirement Match
-
-```
-Inputs: PNG, original user description (mermaid source / prose).
-
-Verify per source:
-1. All nodes present
-2. All edges present (count)
-3. No wiring errors
-4. Edge labels match source exactly
-5. Node labels match source exactly (including paths like "logs/review_reports" if source uses that)
-6. No extras
-7. Role assignments per project semantic
-
-Report findings. Under 200 words.
+Report HIGH/MEDIUM/LOW findings. Under 450 words. Do NOT propose fixes.
 ```
 
 ## Output
 
-All artifacts live in `./tmp_diagram/` (relative to the cwd, NOT `/tmp/`). What survives Step 11 depends on the user's Step 1 format choice:
+All artifacts live in `./tmp_diagram/` (relative to the cwd, NOT `/tmp/`). What survives Step 6 depends on the user's Step 1 format choice:
 
 | Format choice | Kept in `./tmp_diagram/` |
 |---|---|
-| `svg` (default) | `flowchart-v2-<slug>.svg` + `.html` source |
-| `png` | `flowchart-v2-<slug>.png` + `.html` source |
-| `html` | `flowchart-v2-<slug>.html` |
-| `all three` | v2 `.html` + `.svg` + `.png` |
+| `svg` (default) | `flowchart-<slug>.svg` + `.html` source |
+| `png` | `flowchart-<slug>.png` + `.html` source |
+| `html` | `flowchart-<slug>.html` |
+| `all three` | `.html` + `.svg` + `.png` |
 
-All v1 files are always deleted at Step 11. SVG is the canonical deliverable (standalone, embeds CSS + Google Font @import, opens in any browser). **The v2 `.html` source is retained alongside the deliverable by default** so the diagram can be re-edited and re-extracted (Step 11 prints the re-extract command) without redrawing from scratch. PNG is a raster export.
+All intermediate (`-v1-`) files are deleted at Step 6. SVG is the canonical deliverable (standalone, embeds CSS + Google Font @import, opens in any browser). **The `.html` source is retained alongside the deliverable by default** so the diagram can be re-edited and re-extracted (Step 6 prints the re-extract command) without redrawing from scratch. PNG is a raster export.
 
 If the user wants the diagram permanently in the project (e.g., `assets/diagrams/`), `cp` from `./tmp_diagram/` to the chosen path.
 
@@ -818,9 +791,9 @@ If the user wants the diagram permanently in the project (e.g., `assets/diagrams
 Boundary rules not already enforced by a §Section above:
 
 - **Diagonal arrows / cubic curves anywhere** — every edge (including callout) is orthogonal; the callout uses exactly ONE rounded corner (no Z-elbow, no cubic). The SOLE non-orthogonal exception is the bridge/hop arc at a crossing.
-- **Edge crossing a node it doesn't connect to** — if an arrow segment passes through a non-source/dest node's bounding rect, reroute or reposition. Subagents have missed this; verify each arrow vs each node rect manually.
-- **Pure-black text or arrows** — use the palette's softened greys (`--text`, `--flow-line`); pure `#000` clashes with the cream / slate backgrounds.
-- **Skipping the 3-subagent review** or accepting subagent claims without verifying against the rendered PNG yourself (subagent visual-claim false-positive rate ~50%).
+- **Edge crossing a node it doesn't connect to** — if an arrow segment passes through a non-source/dest node's bounding rect, reroute or reposition. `lint_svg.py` (Step 4) catches this deterministically — do NOT ship a diagram with an unresolved `edge-through-node` HIGH.
+- **Pure-black text or arrows** — use the palette's softened greys (`--text`, `--flow-line`); pure `#000` clashes with the cream / slate backgrounds. `lint_svg.py` flags literal `#000` / `black` / `rgb(0,0,0)`.
+- **Skipping the Step 4 lint** (it always runs — geometry safety net), or, when the Step 5 heavyweight review IS chosen, accepting the subagent's VISUAL claims without verifying against the rendered PNG yourself (subagent visual-claim false-positive rate ~50%). Lint findings are deterministic and trusted as-is — re-verify only the subagent's visual claims, never the lint output.
 - **Outputting `.html` or `.png` as the deliverable** — SVG is what the user gets; HTML is editable source; PNG is throwaway review raster.
 - **Extracting SVG without injecting `text { font-family: var(--font); }`** — the body rule's font inheritance is gone in standalone SVG; without an explicit text rule, every `<text>` falls back to browser default (serif).
 

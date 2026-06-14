@@ -13,11 +13,11 @@ Execute per the discussion above. `/do` is the default path for landing already-
 
 1. **Scope check** — am I doing exactly what the user asked, or am I expanding into proactive refactor / "while I'm here" fixes? If expanding → stop and ask first.
 2. **Right layer** — does the file I am about to edit sit in the right module / layer for this concern? If unsure → re-read `ai_context/architecture.md`.
-3. **Default-no-doc rule** — do NOT touch any file under `docs/` or `ai_context/` unless **(a)** the user explicitly named it in the discussion, or **(b)** the entire discussion is about that file in the first place. `/do` is NOT for "I noticed the docs were out of date while I was here" — that opportunistic alignment is `/go`'s job (Step 3 / Step 6).
+3. **Default-no-doc rule** — do NOT touch any file under `docs/` or `ai_context/` unless **(a)** the user explicitly named it in the discussion, or **(b)** the entire discussion is about that file in the first place. `/do` is NOT for "I noticed the docs were out of date while I was here" — that opportunistic alignment is `/go`'s job (its docs-&-alignment maintenance).
 
 If the change surface widens past `/do`'s envelope mid-flight (≥ 6 files / cross-file alignment needed), exit and re-enter via `/go` — `/do` does **NOT** mid-flight escalate.
 
-**Anti-pattern (hard).** `/do` does NOT call `/post-check` / `/full-review` / `/commit` / `/update-docs`, and the Step 3 commit is a raw `git add` + `git commit` (not a delegated invocation). The ONE allowed delegation is the Step 1.1 ≥ 6-file fork handing off to `/go` when the user explicitly picks "Upgrade to `/go`" — a start-time, user-chosen handoff (see Step 1.1). `/do` does NOT switch branches, open worktrees, stash / pop, or fan out to other branches. `/do` does NOT maintain `ai_context/` durable state (`handoff.md` / `decisions.md`) or `docs/todo_list.md` — those are `/go` Step 6's job.
+**Anti-pattern (hard).** `/do` is raw edits + one `Type: DO` LOG + an optional commit — nothing more. It does not delegate to other skills (sole exception: the Step 1.1 ≥ 6-file fork to `/go`), does not touch the git environment (branch / worktree / stash / fan-out), and does not do durable-doc / todo maintenance. Full boundary list: **Constraints** (bottom).
 
 ## Progress reporting
 
@@ -52,15 +52,9 @@ Subsequent steps referencing "skills_config.md `## XX`" use this config. This sk
 `## Timezone` (Step 2 LOG timestamp),
 `## Activity sources.Change logs.Path` + `Filename time pattern` (Step 2 LOG file path).
 
-> **Language**: user-facing — render the language-axes anchor line below in `conversation_language` per `ai_context/skills_config.md §Language`. Axis values are echoed verbatim from §Language.
-
 After reading, print one line **Language-axes anchor**: `Language axes: conversation_language=<value> · content_language=<value> (source: ai_context/skills_config.md §Language)`. Both axis values are echoed **verbatim** from the §Language section; the bracketed source path stays English; the natural-language prefix translates to `conversation_language` (rendered in the project's chosen language). This is a deliberate high-salience anchor planted before Steps 1–3 accumulate context.
 
 ## Step 1: Plan + modify
-
-> **Language**: user-facing — render the `Plan:` declaration line, the `<ask tool>` 3-option fork prompt + option labels (if it fires), and any exit lines in `conversation_language` per `ai_context/skills_config.md §Language`. Structural labels (`Plan:`, `/do exited`, file paths) stay English; only surrounding prose translates.
-
-> **Language**: disk-bound — file edits themselves follow the target file's existing `content_language` rules (typically `content_language` per `ai_context/skills_config.md §Language`). Code identifiers, file paths, field names stay English regardless.
 
 ### 1.0 Self-check
 
@@ -84,7 +78,7 @@ Options (exactly three, recommended option first):
 
 Branch on the answer:
 
-- Option 1 → **hand off to `/go` immediately** (do NOT stop for a manual re-invoke): print one line `Planned set is ≥ 6 files; handing off to /go: <file list>`, then invoke **<skill tool>** targeting `/go` with `<arg>` = this run's `<arg>` (or a short slug derived from the discussion). The in-conversation discussion `/do` was about IS `/go`'s baseline — `/go` reads it as its Step 2 PRE log "Background / Trigger", then runs its own flow (starting with its Step 1 work-location ask). **<skill tool> resolution**: Claude → `Skill("go")`; runtimes without a structured skill tool → print `User: please run /go <slug> next` and stop (manual fallback only where auto-invoke is unavailable).
+- Option 1 → **hand off to `/go` immediately** (do NOT stop for a manual re-invoke): print one line `Planned set is ≥ 6 files; handing off to /go: <file list>`, then invoke **<skill tool>** targeting `/go` with `<arg>` = this run's `<arg>` (or a short slug derived from the discussion). The in-conversation discussion `/do` was about IS `/go`'s baseline — `/go` reads it as its PRE-log "Background / Trigger", then runs its own flow (starting with its Step 1 work-location ask). **<skill tool> resolution**: Claude → `Skill("go")`; runtimes without a structured skill tool → print `User: please run /go <slug> next` and stop (manual fallback only where auto-invoke is unavailable).
 - Option 2 → proceed to 1.2.
 - Option 3 → print `/do exited; no files modified` and stop.
 
@@ -102,7 +96,7 @@ Edit files per the discussion. Constraints:
 
 > **Cross-skill protocol ownership**: this Step defines the `/do` single-segment LOG template — `Type: DO`, single `Status: DONE | BLOCKED` token, `## Motivation` / `## Change list` / `## Verification summary` / `## Execution deviations` subsection set. **NOT** consumed by `/post-check` (which targets `Type: GO` only — see `skills/post-check/SKILL.md` Step 1.5). Renaming any subsection / the `Type` value / the `Status` tokens requires a lockstep edit per `ai_context/conventions.md §Cross-File Alignment` (row: "PRE/POST/REVIEW change-log protocol"). `/recent-activity` reads only the file head 40 lines and is heading-insensitive — NOT a lockstep consumer for renames.
 
-> **Language**: disk-bound — write this LOG file in `content_language` per `ai_context/skills_config.md §Language`. The `LOG: …` echo printed to the user is user-facing (label `LOG:` stays English, path text translates only if a non-default `conversation_language` makes it natural; default = leave the line as `LOG: <path>`). Code identifiers, file paths, field names stay English regardless.
+> **Language**: the LOG is a disk artifact → `content_language`, even though its `## Motivation` / `## Change list` paraphrase a `conversation_language` discussion (translate the gist; don't carry the discussion's language over). The `LOG:` echo line is user-facing.
 
 Write to `<change_logs_path>/<filename pattern with slug substituted>` — `<change_logs_path>` is `skills_config.md ## Activity sources.Change logs.Path` and the pattern is `## Activity sources.Change logs.Filename time pattern` (defaults: `logs/change_logs/` + `{YYYY-MM-DD}_{HHMMSS}_{slug}.md`). HHMMSS is executed per the skills_config.md `## Timezone` command template; on missing / failure, follow the §Timezone-declared fallback (system-tz `date '+%Y-%m-%d_%H%M%S'`). `slug` is a semantic short English name; use `$ARGUMENTS` as a hint if it was provided.
 
@@ -137,9 +131,7 @@ If the LOG write fails (IO error, path not writable, permission denied) → **st
 
 ## Step 3: Commit ask
 
-> **Language**: user-facing — render the `git status` / `git diff --stat` summary explanation, the `<ask tool>` commit question + option labels, and the final state line in `conversation_language` per `ai_context/skills_config.md §Language`. Tool stdout / stderr captured verbatim stays in its original form; only the surrounding explanatory prose translates. Code identifiers / file paths / structural labels (`HEAD`, `branch`) stay English.
-
-> **Language**: disk-bound — commit message written in `content_language` per `ai_context/skills_config.md §Language`. Code identifiers, file paths, field names stay English regardless. The pre-commit confirmation surface (message preview shown to the user) is user-facing — explanatory prose around the message translates to `conversation_language`, but the commit message text itself stays in `content_language`.
+> **Language** (re-anchor — first user surface after the Step 2 LOG write): the `git status` / `diff` summary, the commit `<ask tool>` question + labels, and the final state line use `conversation_language` (quoted git stdout/stderr stays verbatim); the commit message itself uses `content_language`. Structural labels (`HEAD`, `branch`) stay English.
 
 ### 3.0 Protected branch check
 
@@ -189,6 +181,6 @@ Options (exactly two, recommended option first):
 - **One delegated skill, by user choice**: `/do` does NOT call `/post-check` / `/full-review` / `/commit` / `/update-docs`, and the Step 3 commit is raw `git add` + `git commit` (not a delegated invocation). The SOLE delegation is the Step 1.1 ≥ 6-file fork: when the user explicitly picks "Upgrade to `/go`", `/do` hands off to `/go` directly (a start-time, user-chosen delegation) instead of stopping for a manual re-invoke.
 - **No environment takeover**: `/do` does NOT switch branches, open worktrees, stash / pop, run background-process probes, or fan out to other branches. Cross-branch sync → `/forward` (user-invoked, separately, after `/do`).
 - **No mid-flight escalation**: once editing has started, `/do` does NOT escalate to `/go` mid-flight — if the scope widens after the first edit, finish minimally or exit and re-enter via `/go`. (Distinct from the Step 1.1 ≥ 6-file fork, which fires BEFORE any edit and, on the user's "Upgrade to `/go`" pick, hands off to `/go` directly.)
-- **No durable-doc maintenance**: `/do` does NOT touch `ai_context/handoff.md` / `decisions.md` unless the discussion is explicitly about those files. Durable maintenance is `/go` Step 6's job.
+- **No durable-doc maintenance**: `/do` does NOT touch `ai_context/handoff.md` / `decisions.md` unless the discussion is explicitly about those files. Durable maintenance is `/go`'s docs-&-alignment maintenance.
 - **No todo bookkeeping**: `/do` does NOT maintain `docs/todo_list.md` (no entry move to archived, no Index refresh). Use `/todo-add` or `/go` for todo bookkeeping.
 - **No backfill of pre-existing logs**: pre-existing `logs/change_logs/*.md` files are NOT retroactively assigned a `Type` field. Only new logs from `/go` (`Type: GO`) and `/do` (`Type: DO`) onward carry the field.

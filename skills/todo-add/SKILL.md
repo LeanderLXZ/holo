@@ -46,8 +46,6 @@ When `$ARGUMENTS` is not passed: UPDATE mode defaults to the existing segment; C
 
 ## Step 2: Lock the item to register
 
-> **Language**: user-facing — render the gap-filling question to the user in `conversation_language` per `ai_context/skills_config.md §Language`. Structural label `T-XXX` stays English; only the question prose translates.
-
 From the last few turns of the current session, grab the "item" to register — typically the specific
 problem + conclusion + trigger that the user just decided / discussed.
 
@@ -56,8 +54,6 @@ ask the user to fill the gap** — "Which discussion is being registered? Add a 
 background / trigger / desired outcome." Do not guess, do not stitch on the user's behalf.
 
 ## Step 3: Decide UPDATE vs CREATE
-
-> **Language**: user-facing — render the disambiguation `<ask tool>` prompt and option labels in `conversation_language` per `ai_context/skills_config.md §Language`. ID prefixes (`T-AAA`, `T-BBB`) stay English as file-side labels; only the question prose and option label prose translate.
 
 Grab the full set of existing entries from the two paths declared at `ai_context/skills_config.md ## Activity sources.TODO list.Path` (live) and `## Activity sources.Archived TODO list.Path` (archive):
 `grep -hoE 'T-[A-Z0-9-]+' <todo_list_path> <archived_todo_list_path> | sort -u`
@@ -94,7 +90,7 @@ Segment decision in UPDATE mode:
 - **Solution details** (optional; positioned between **Requirements** and **Change manifest**): the final converged plan — what the solution is, what parts compose it. **Only the final converged version** — do NOT include rejected alternatives or debate history. Plain prose, no special format rules. Include when this session converged a concrete plan worth preserving.
 - **Done criteria**
 - **Dependencies**
-- Updated-time field (label per `ai_context/skills_config.md ## Activity sources.TODO list.Per-entry updated-time field`, typically `**Updated**`): YYYY-MM-DD HH:MM timezone abbreviation (per skills_config.md `## Timezone`), on CREATE = current moment
+- **Updated-time field** (label per `ai_context/skills_config.md ## Activity sources.TODO list.Per-entry updated-time field`, typically `**Updated**`): `YYYY-MM-DD HH:MM` + timezone abbreviation (per skills_config.md `## Timezone`). **Always set to the current moment** — on CREATE, and on every UPDATE (including same-segment edits); if an existing entry lacks the field (legacy format), backfill it in the same pass. This is the single statement of the rule — the UPDATE-mode note below does not restate it.
 
 Per-segment differences:
 
@@ -110,12 +106,9 @@ field titles as `**field name**`).
 
 **UPDATE mode**: take the existing entry as baseline and merge the new info from this round in.
 Unchanged fields **stay verbatim**, do not restate; changed fields are merged in. On
-segment change, fill in any missing fields per **target segment** field requirements (e.g. Discussing → Next must add **change list**).
-**The updated-time field (label per `ai_context/skills_config.md ## Activity sources.TODO list.Per-entry updated-time field`, typically `**Updated**`) is always refreshed = current moment** (per skills_config.md `## Timezone`); if the existing entry lacks the field (legacy format), backfill it in the same pass.
+segment change, fill in any missing fields per **target segment** field requirements (e.g. Discussing → Next must add **change list**). The **Updated-time field** is refreshed per the rule stated once in CREATE mode above.
 
 ## Step 5: Write to todo_list.md
-
-> **Language**: disk-bound — write this entry inserted into `docs/todo_list.md` segment + the `## Index` section refresh in `content_language` per `ai_context/skills_config.md §Language`. Segment headings (`## Next`, `## Discussing (Undecided)`, `## In Progress`, `## Index (auto-generated; do not hand-edit)`), the `### [T-XXX]` entry heading, the `**field name**` labels, and the `T-XXX` ID stay English regardless. Code identifiers, file paths, field names stay English regardless.
 
 Write the composed result directly (no preview, no confirmation gate):
 
@@ -147,8 +140,6 @@ sub-table rows + summary row per the column rules and field-inference rules defi
 that section is the single source of truth.
 
 ## Step 6: Wrap-up report
-
-> **Language**: user-facing — render the wrap-up status line (✓ registered / ✓ updated / ✓ moved) and the Index-refresh delta line in `conversation_language` per `ai_context/skills_config.md §Language`. Structural prefixes (`✓`, `T-XXX`, segment headings quoted from the file like `"In Progress"`) stay English; only surrounding prose translates.
 
 Print (pick one based on this round's mode):
 

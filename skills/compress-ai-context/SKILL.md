@@ -62,8 +62,6 @@ Also `Read` `ai_context/conventions.md §Compactness Requirements` — this is t
 
 ## Step 1: Gateway ask (prune phase opt-in)
 
-> **Language**: user-facing — render the `<ask tool>` prompt and option labels in `conversation_language` per `ai_context/skills_config.md §Language`. Structural label `Step 1` stays English; only question prose translates.
-
 Ask via **<ask tool>** — one question, two options:
 
 Question: `Scan ai_context for stale entries to prune before compressing?`
@@ -74,8 +72,6 @@ Question: `Scan ai_context for stale entries to prune before compressing?`
 Default = option 1 (no). Most invocations are pure compression. The prune phase is opt-in because (a) it requires whole-repo grep for live-ref detection and is materially slower, and (b) stale detection is LLM-semantic so it should be deliberately invoked, not implicit.
 
 ## Step 2: Prune scan (when Step 1 = yes)
-
-> **Language**: user-facing — render the scan summary printed to the conversation (file count + candidate count + per-file finding count) in `conversation_language` per `ai_context/skills_config.md §Language`. Structural labels (`file:`, `entry:`, `verdict:`) stay English; only summary prose translates.
 
 For each of the 5 ai_context files
 (`decisions.md` / `conventions.md` / `requirements.md` /
@@ -110,8 +106,6 @@ If `Total: 0 stale`, skip to Step 5 with a one-line `0 stale entries found, prun
 
 ## Step 3: Prune per-case ask (only when `stale + has live refs` set is non-empty)
 
-> **Language**: user-facing — render the `<ask tool>` prompt + option labels + per-case context in `conversation_language` per `ai_context/skills_config.md §Language`. File paths, entry IDs, reference paths quoted inside the prompt stay English; only surrounding prose translates.
-
 For each `stale + has live refs` case (batched up to 4 questions per `AskUserQuestion` call; batch beyond if > 4 cases):
 
 Question: `Stale entry "<file>:<entry-id-or-title>" still has N live ref(s) at <file:line>, <file:line>, … . How to handle?`
@@ -124,13 +118,7 @@ Question: `Stale entry "<file>:<entry-id-or-title>" still has N live ref(s) at <
 
 ## Step 4: Prune apply
 
-> **Language**: disk-bound — pruned-entry deletions land in 5 ai_context files; follow-up todo (if any case picked option 1) lands in `docs/todo_list.md`. All disk writes use `content_language` per `ai_context/skills_config.md §Language`. Snapshot files are byte-copies of the source files (no language transformation).
-
-> **Compactness Requirements**: any new content this step writes (the bundled follow-up todo entry created when "Auto-prune + create follow-up todo" was picked) follows the universal contract —
-> - Shorter is better than longer. Each entry is a summary, not a detail dump.
-> - Compactness must not sacrifice accuracy or completeness — never drop important information just to fit the length target.
-> - Aim for ≤ 5 lines per entry, and push longer detail to the linked source (`docs/<topic>.md`, schemas, script docstrings).
-> - Do not compress or touch content unrelated to the current edit.
+> **Compactness Requirements**: any new content this step writes (the bundled follow-up todo entry created when "Auto-prune + create follow-up todo" was picked) follows the universal contract — see the 4-rule blockquote in Step 7 (and `ai_context/conventions.md §Compactness Requirements`, the canonical source).
 
 a. **Snapshot-on-plan-freeze**: by the end of Step 3 the prune plan is frozen (which entries delete + whether a follow-up todo is needed). Before any `Edit`, call `take_snapshot(target_root, slug='compress-ai-context-prune', file_paths=[touched ai_context files + docs/todo_list.md if a follow-up todo will land])` **once**, covering all files in the frozen plan. Not pre-emptively at skill startup, and not piecemeal per-Edit. Snapshot root is resolved by the helper from `ai_context/skills_config.md ## File snapshots` (default `<target_root>/logs/file_snapshots/`); callers do not pass the root, the helper reads it. Capture the returned snapshot dir path for the wrap-up.
 
@@ -149,8 +137,6 @@ SNAPSHOT: <snapshot_root>/<YYYY-MM-DD_HHMMSS>_compress-ai-context-prune/   (defa
 ```
 
 ## Step 5: Compress scan + plan freeze (scatter-gather)
-
-> **Language**: user-facing — render the scan summary printed to the conversation in `conversation_language` per `ai_context/skills_config.md §Language`. Structural labels stay English.
 
 **Trigger** (per file): file > 150 lines OR any single entry > 5 lines. Files matching neither are skipped silently.
 
@@ -191,8 +177,6 @@ Docs landings: docs/architecture/section-version-sentinel.md (+rationale block);
 If `Total: 0 bloated`, skip to Step 8 with a one-line `0 bloated entries found, compress phase no-op` notice.
 
 ## Step 6: Simple plan report + single batched ask
-
-> **Language**: user-facing — render the plan report (per-file entry-ID one-liners + docs landing schedule + classification counts) and the `<ask tool>` prompt + option labels in `conversation_language` per `ai_context/skills_config.md §Language`. File paths, entry IDs, classification tags `(a)` / `(b)` / `(c)`, section headings, and the `(NEW)` marker stay English as structural labels; only surrounding prose translates.
 
 **Print a simple plan report** (per-entry one-liner; do NOT print before/after snippets, do NOT print landing-block bodies — the safety net is the snapshot taken at Step 7a + Step 8's multi-axis verify + rollback ask, not pre-confirmation preview). The report's header MUST surface the coverage ratio `<M planned> / <T total bloated> ; <D deferred>` so the user can immediately see whether the coordinator scoped down — `M + D == T` is enforced by Step 5d's coverage invariant; if the printed ratio shows otherwise, the coordinator violated the invariant and the user should reject the plan via the Step 6 ask:
 
@@ -340,8 +324,6 @@ Do not enter `/go` or invoke any skill other than the user-confirmed `/commit` h
 
 ## Step 9: Commit ask
 
-> **Language**: user-facing — render the `<ask tool>` prompt and option labels in `conversation_language` per `ai_context/skills_config.md §Language`. Structural label `Step 9` stays English; only question prose translates.
-
 **Skip wholesale** (mark progress-tool entry directly `completed` + print one line `Step 9 skipped (reason: no on-disk changes)`) when the run produced no on-disk changes — i.e. Step 8d wrap-up hit the "nothing to do" branch, OR Step 8c chose Full rollback. Partial rollback still leaves some changes landed, so Step 9 still runs.
 
 Ask via **<ask tool>** — one question, two options:
@@ -361,9 +343,9 @@ This is the only commit handoff; no push regardless of answer.
 - **Snapshot-on-plan-freeze, not snapshot-on-apply** — `take_snapshot` is invoked once per phase, **after that phase's plan is frozen (end of Step 3 for prune; end of Step 6 for compress) and before any `Edit`**, covering all files in the frozen plan in a single call. Skill startup does NOT snapshot. Sub-agents in Step 7b do NOT call `take_snapshot` — the snapshot precedes their dispatch.
 - **Coordinator owns shared-file writes** — sub-agents (Step 5b scan / Step 7b apply) write only to their assigned ai_context file. Docs / new-doc / `docs/architecture/README.md` Contents writes are coordinator-serial in Step 7c. This is a load-bearing invariant against parallel-writer races on shared docs targets.
 - **Sub-agents do NOT call `take_snapshot` and do NOT write to shared files** — Step 5b scan sub-agents, Step 7b apply sub-agents, and Step 8b verify sub-agents are all forbidden from invoking `take_snapshot` (snapshot is coordinator-driven at the end of each phase's plan-freeze, in Step 4a / Step 7a) and from writing to shared files (`docs/`, `README.md`, `docs/architecture/README.md`, etc.). Step 7b sub-agents write only to their assigned ai_context file; Step 8b sub-agents are read-only by contract.
-- **Completion contract: compress Step 7d re-scan + residue split** — after Step 7 apply, the coordinator re-runs the Step 5 trigger (file > 150 lines OR any entry > 5 lines). Residual entries are classified against Step 6's frozen `deferred` list: residue matching deferred = deferred-by-design (acceptable, NOT a gate failure); residue NOT matching deferred = missed-by-coordinator (hard FAIL, the entry was promised in `proposed_edits` but the apply phase didn't shrink it). The two paths surface differently — `✓ deferred-by-design` vs `✗ missed-by-coordinator` — so "gate fail" is never silenced as "by-design".
-- **Scatter-mode hard contract above threshold** — `total_bloated ≥ 8 → MUST scatter` (Step 5b). Coordinator inline mode at or above threshold is forbidden; it is exactly the [decisions.md #19](../../ai_context/decisions.md) single-pass-incomplete anti-pattern that scatter-gather was introduced to defeat. If the runtime cannot dispatch sub-agents, the coordinator MUST surface `scatter-mode unavailable: <runtime reason>` before falling back, so the user sees the deviation.
-- **Plan coverage invariant** — by end of Step 5d, every id in Step 5a's `bloated_ids` MUST be either in `proposed_ids` (compressed this round) OR in `deferred_ids` (with one-line structural rationale visible to the user at Step 6). Silent narrow-scoping is a contract violation; the set conditions `set(proposed_ids) | set(deferred_ids) == set(bloated_ids)` AND `set(proposed_ids) & set(deferred_ids) == ∅` together block plan freeze. Step 6 plan report prints the ratio + the deferred list inline so the user can reject scope-evasion via Tweak. Scan thresholds (entry > 5 lines / file > 150 lines) are taken verbatim from `conventions.md §Compactness Requirements` — coordinator may NOT raise them locally to shrink `bloated_ids` (that defeats the invariant on a smaller set).
+- **Completion contract: compress Step 7d re-scan + residue split** — canonical statement in Step 7d. In one line: re-run the Step 5 trigger after apply; residue matching Step 6's `deferred` list = deferred-by-design (`✓`, acceptable), residue not matching = missed-by-coordinator (`✗`, hard FAIL).
+- **Scatter-mode hard contract above threshold** — `total_bloated ≥ 8 → MUST scatter`; coordinator inline mode at/above threshold is forbidden (the [decisions.md #19](../../ai_context/decisions.md) anti-pattern). Canonical statement + valid/invalid runtime-reason taxonomy + the `scatter-mode unavailable: <runtime reason>` fallback in Step 5b.
+- **Plan coverage invariant** — canonical statement in Step 5d: every id in `bloated_ids` is either compressed or deferred-with-rationale; `set(proposed_ids) | set(deferred_ids) == set(bloated_ids)` AND `set(proposed_ids) & set(deferred_ids) == ∅` block plan freeze. Scan thresholds taken verbatim from `conventions.md §Compactness Requirements`; coordinator may NOT raise them locally to shrink `bloated_ids`.
 - **Step 6 ask framing** — recommended option must commit to the full planned set (`Compress all <M>`); per-entry deferral is an explicit opt-out the user picks via Tweak. The coordinator MAY NOT default the user toward accepting a narrowed plan; the deferred list is always visible.
 - **No batched confirm for stale + no live refs** — the safety net is the snapshot + Step 8 verify + rollback ask, not user pre-confirmation. The only ask in the prune phase is the per-case 3-option ask for `stale + has live refs`. The only ask in the compress phase is the Step 6 simple-plan 3-option ask + the conditional Step 8c rollback ask.
 - **No per-entry preview in Step 6** — the safety net is the snapshot + Step 8 multi-axis verify + rollback ask, not preview-then-confirm. Step 6 prints a simple plan report (per-entry one-liner: id + classification + docs target) without body content. Reverting to full per-entry preview is a contract regression.
