@@ -44,7 +44,9 @@ Dilution self-check（何时重读哪个文件）写在 `CLAUDE.md` /
 
 **默认不读** —— 大型或以写为主的目录：`logs/change_logs/`（完整
 历史）、`logs/review_reports/`（过往审计快照）、`logs/file_snapshots/`
-（smart-merge 备份归档）。仅当任务明确要求时才加载。把项目专属的
+（smart-merge 备份归档）、`docs/decisions.md`（决策完整条目 ——
+会话开始只读索引 `ai_context/decisions.md`；仅当需要某条决策的
+理据时才打开归档）。仅当任务明确要求时才加载。把项目专属的
 跳过路径追加到下方 user-territory 列表。
 
 **何时深入阅读** —— 用户明确要求；任务依赖来自更重源的特定证据；

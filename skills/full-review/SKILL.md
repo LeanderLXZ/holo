@@ -58,6 +58,7 @@ First read `ai_context/` and `docs/` to follow the current project truth, then r
 ## Priority check items
 
 - Are `ai_context` and `docs` consistent
+- Is the decisions pair in lockstep: every `#N` in the `ai_context/decisions.md` index has a matching `#N` in the `docs/decisions.md` archive and vice versa (skip if the project has no `docs/decisions.md`), sections match, and no `decisions.md #N` citation in the repo points at a number absent from the index
 - Are `docs/requirements.md` and `docs/architecture/*` consistent
 - Do directories listed in skills_config.md `## Data contract directories` (data contract layer including schema / proto / openapi / pydantic / SQL DDL etc.) cover the core data structures promised in docs (skip if section is `(none)`)
 - Do prompt templates still reference stale fields, old flows, deprecated files

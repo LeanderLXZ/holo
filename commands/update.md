@@ -8,7 +8,7 @@ description: Project sync check after a plugin upgrade — template inventory + 
 
 Thin user-entry shell around the shared **`## Reconcile core`** SOP defined later in this same file. The Reconcile core implements the 6-sub-step per-file landing protocol that both `/holo:update` (this command, `mode="update"`) and `/holo:init` Step 4 (`mode="init-post-bootstrap"`) invoke. `/holo:update`'s shell adds plugin-upgrade-specific framing — print plugin name + version, gate on init-presence — then calls Reconcile core and renders its return values.
 
-**Detection rules single source of truth = `${CLAUDE_PLUGIN_ROOT}/scripts/holo_update_check.py`**. The skill body **does not re-implement detection logic**; to adjust rules, edit the script. Background in `ai_context/decisions.md` §Skill Implementation #5.
+**Detection rules single source of truth = `${CLAUDE_PLUGIN_ROOT}/scripts/holo_update_check.py`**. The skill body **does not re-implement detection logic**; to adjust rules, edit the script. Background in `docs/decisions.md` §Skill Implementation #5.
 
 No arguments. **Touches plugin-owned content** (sentinel blocks, plugin canonical sections, mirrored `.agents/skills/`); **preserves user-territory content** (everything outside `<!-- holo:section start/end -->` blocks + user-added non-marker headings — see `docs/architecture/section-version-sentinel.md`). Conflict-triggering findings invoke smart-merge dispatch via Reconcile.Step 5a (`docs/architecture/smart-merge.md`); deterministic-fixable findings run via Reconcile.Step 5b's `--fix`; display-only findings surface inline via Reconcile.Step 5c.
 
@@ -300,6 +300,7 @@ The script outputs the JSON structure documented as the **interface contract**:
   "l1_directive_drift":   [{"rel": "commands/<name>.md|skills/<name>/SKILL.md", "missing_substrings": ["..."]}],
   "lang_mirror_drift":    [{"variant": "project-skeleton.<lang>", "rel": "...", "kind": "MISSING|ORPHAN"}],
   "legacy_skip_marker":   [{"rel": "ai_context/<...>.md", "line": N, "snippet": "..."}],
+  "decisions_fat_format": [{"rel": "ai_context/decisions.md", "entry": N, "line": L, "nonempty_lines": K, "has_pointer": bool}],
   "sentinel_layout_drift": [{"rel": "...",
                              "sub_shape": "missing_sentinel | partial_sentinel | heading_drift | block_content_drift",
                              // common: "source_path"
@@ -326,11 +327,12 @@ The script outputs the JSON structure documented as the **interface contract**:
    - `claude_agents.unexpected_diffs` (CLAUDE↔AGENTS asymmetric guidance; script never auto-merges).
    - `lang_mirror_drift` (variant template directory parity; auto-fix would either delete legitimate translations or copy English canonical content into a translated variant — both unacceptable per script docstring. The maintainer reconciles via a translation pass — Reconcile.Step 2a on-the-fly 4-agent chain or a dedicated `/full-review` round).
    - `legacy_skip_marker` (out of `--fix` scope per T-INIT-SKIP-SEMANTICS).
+   - `decisions_fat_format` (entries in `ai_context/decisions.md` still in the single-file fat format instead of the two-tier index form — see `docs/decisions.md` #35; migrating the full text into `docs/decisions.md` and distilling the index line is LLM semantic work: point the user at `/compress-ai-context`, whose format-migration step owns the move).
    - `missing_l1_directive` / `l1_directive_drift` (skill-body prose; fix via `/go` on the affected skill body).
 
-Build `<conflict_files>` = set of file paths in bucket 1. If `len(<conflict_files>) == 0` AND bucket 2 = ∅ AND bucket 3 surfaces nothing actionable → `total_drift == 0`; Step 5 short-circuits and Step 6 returns with all counters zero.
+Build `<conflict_files>` = set of file paths in bucket 1. The short-circuit condition is strict emptiness: `len(<conflict_files>) == 0` AND bucket 2 = ∅ AND bucket 3 = ∅ → Step 5 short-circuits and Step 6 returns with all counters zero. Display-only findings COUNT as non-empty for this gate — when only bucket 3 is non-empty, Steps 5a/5b are skipped but Step 5c still runs (its findings must reach `remaining_drift` and the final print; e.g. a consumer whose only findings are `decisions_fat_format` must still see the `/compress-ai-context` pointer, never a bare "✅ in sync").
 
-**Important**: this step does NOT allow the skill body to re-author detection rules — no custom grep / Python comparison, no filter / exclusion additions. If a case is mis-detected, edit the script (see `ai_context/decisions.md` §Skill Implementation #5).
+**Important**: this step does NOT allow the skill body to re-author detection rules — no custom grep / Python comparison, no filter / exclusion additions. If a case is mis-detected, edit the script (see `docs/decisions.md` §Skill Implementation #5).
 
 ### Reconcile.Step 5 — 3-bucket dispatch (Step 5b runs first, then Step 5a; sequential)
 
@@ -365,6 +367,7 @@ Dispatch Q-conflict + Q-fixable in **one batched `<ask tool>` call** (current be
   - `claude_agents.unexpected_diffs` may still be > 0 (display-only by design).
   - `lang_mirror_drift` may still be > 0 (display-only by design — per-language variant content is human translation work that `--fix` deliberately does not touch).
   - `legacy_skip_marker` may still be > 0 (display-only by design).
+  - `decisions_fat_format` may still be > 0 (display-only by design — resolved by `/compress-ai-context`'s format-migration step, not by `--fix`).
   - `sentinel_layout_drift` (any sub_shape) may still be > 0 (resolved by Step 5a smart-merge, not by `--fix`).
 - `Skip all` → no script invocation; `fix_counts` in the Step 6 return is set to an all-zero object.
 
@@ -386,7 +389,7 @@ For Layer 1 options 1 and 2 (and Layer 2 options 1 and 2): `take_snapshot` runs 
 
 **Step 5c — display-only**:
 
-No ask, no execution. Append every bucket-3 finding to `remaining_drift` with its category + per-finding detail so Step 3's final print can surface the count + list inline.
+No ask, no execution. Append every bucket-3 finding to `remaining_drift` with its category + per-finding detail so Step 3's final print can surface the count + list inline. For `decisions_fat_format` findings, the surfaced line ends with the pointer `→ run /compress-ai-context to migrate these entries to the two-tier index + archive format`.
 
 ### Reconcile.Step 6 — Return
 

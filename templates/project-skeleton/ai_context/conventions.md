@@ -92,7 +92,7 @@ Per-cell discipline — each cell ≤ 1 line / ≤ ~120 chars:
   `docs/architecture/` (moving bloat between directories does not fix
   the bloat).
 
-Framing rationale: `ai_context/decisions.md §Skill Implementation #25`.
+Framing rationale: see the decisions archive (`docs/decisions.md` §Skill Implementation).
 
 Table shape (header only — fill rows in the gap below):
 
@@ -169,8 +169,9 @@ project-agnostic in tone:
   "renamed from") — describe the current design only.
 
 Exempt (history is the point): `logs/change_logs/`,
-`logs/review_reports/`, archived TODOs, this file's `decisions.md`
-peer, git commit messages.
+`logs/review_reports/`, archived TODOs, `docs/decisions.md` (the
+decisions archive — supersede traces live there, never in the
+`ai_context/decisions.md` index), git commit messages.
 <!-- holo:section end -->
 
 ## Naming and Identifiers <!-- holo:heading -->

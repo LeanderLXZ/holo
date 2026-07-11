@@ -27,6 +27,10 @@ Final step done: call **<progress tool>** to mark the last entry `completed`.
 
 **<progress tool> resolution**: Claude → `TodoWrite` (rendered as "Update Todos"); Codex → `update_plan`; other runtimes (no structured progress tool, e.g. Copilot agent mode) → maintain a markdown checkbox list in the response text as step state, rewriting the whole block before each state change. Semantic alignment: pre-register + flip state + mark complete.
 
+**<ask tool> resolution**: Claude → `AskUserQuestion`; other runtimes (no structured ask tool, e.g. Codex / Copilot agent mode) → enumerate the question + options in the response text and let the user answer.
+
+**<skill tool> resolution**: Claude → `Skill` (handoff to `/fix` with the intent-baseline slug as the args field); other runtimes (no structured skill tool) → print "User: please run `/fix <slug>` next" and let the user invoke manually.
+
 ## Step 0: Load skills config
 
 `Read` `ai_context/skills_config.md`.
@@ -94,11 +98,11 @@ Each dimension produces: **track 1 reconcile result** (PRE plan items × actual 
 - **Conflict**: do "docs say A, code does B, samples say C" emerge
 - **Residual old logic / legacy wording**: any paragraphs describing the old flow, replaced fields, dead imports, dead branches; also check the docs / prompts / ai_context touched this round for real content violating skills_config.md `## Sensitive content placeholder rules`, or `old / legacy / deprecated / formerly` wording
 - **Dangling references / over-deletion**: if this diff deleted a symbol / file / section, grep the rest of the repo to see if references remain un-updated; this is the inverse of "residual old logic" — the old target is gone but the old reference stays
-- **change_log / docs internal-link breakage**: this round's log or modified docs reference `decisions.md #25` / `[xxx](path)` / `see logs/change_logs/.../X.md` etc.; verify the numbers have not drifted, relative paths exist, anchors are real
+- **change_log / docs internal-link breakage**: this round's log or modified docs reference `decisions.md #25` / `docs/decisions.md #25` / `[xxx](path)` / `see logs/change_logs/.../X.md` etc.; verify the numbers have not drifted, relative paths exist, anchors are real. A `decisions.md #N` cite resolves against the index (`ai_context/decisions.md`); `docs/decisions.md #N` against the archive — a number must exist in **both** (lockstep pair) whenever either file was touched this round
 - **todo_list drift**: if this round materially completes a todo entry (PRE log "Completion criteria" section says "this todo entry moves to archived", or the diff equals the "change list" of some Next/Discussing entry), check whether the TODO list (path per `skills_config.md ## Activity sources.TODO list.Path`, typically `docs/todo_list.md`) has moved the entry wholesale into the archived TODO list (path per `## Activity sources.Archived TODO list.Path`, typically `docs/todo_list_archived.md`) `## Completed` + whether the Index section has been refreshed in sync. Missed move → add to Missed Updates
 - **bug / behavior risk**: will new code crash under boundary / null / exception paths; state machines / gates / retry / rollback have holes
 - **README / directory structure**: are added / deleted / renamed files synced to the relevant README and directory descriptions
-- **ai_context drift**: have durable decisions this round landed in `ai_context/decisions.md`; does `handoff.md` (Current State / Next Steps tables + What The User Cares About bullets) need updating
+- **ai_context drift**: have durable decisions this round landed in the `ai_context/decisions.md` index AND the `docs/decisions.md` archive (same `#N`, same section — one side missing = drift); does `handoff.md` (Current State / Next Steps tables + What The User Cares About bullets) need updating
 - **commit message vs diff match**: commit body description vs `git diff --stat` actual changes — do they cover each other; body lists N items but diff only touches M, or diff changed files the body did not mention
 
 > After Step 3 / Step 4 run, hold the dual-track conclusions (plan-item fulfillment status, Findings list, Missed Updates, Open Questions, Residual Risks) **in your head / notes**, do not print immediately. Step 5 writes back a structured summary to the log + commit; Step 6 then expands the full report into the conversation — this way the full report is the last segment of `/post-check` output, the user reads it and decides without scrolling back.
@@ -146,7 +150,7 @@ When log is missing (no writeback), skip the commit.
 
 > **Language anchor reset (render-time)**: before emitting the report below, re-echo the language axes verbatim — `conversation_language=<value>` · `content_language=<value>` from `ai_context/skills_config.md §Language`. Step 5 just wrote a substantial `content_language`-bound block to disk (log writeback + commit message); this reset refreshes recency at the entry of the USER-facing render so the dual-track report below stays in `conversation_language` even when the template's structural scaffold (Markdown headings + table column labels + ID prefixes) is largely English.
 
-**This is the primary surface for the user's decision; all Findings / Missed Updates / Open Questions print fully into the conversation**, no omissions, no summary-only. **This is the last substantive segment `/post-check` produces in the conversation** — placed after log writeback, the user reads the report and decides without scrolling back.
+**This is the primary surface for the user's decision; all Findings / Missed Updates / Open Questions print fully into the conversation**, no omissions, no summary-only. **This is the last substantive text segment `/post-check` produces in the conversation** — placed after log writeback, the user reads the report and decides without scrolling back (Step 7 then raises only a structured handoff ask, no further prose).
 
 Markdown template:
 
@@ -225,11 +229,21 @@ This round's alignment status across requirements / schema / code / README / arc
 - ...
 ```
 
-## Step 7: Wait for confirmation
+## Step 7: Handoff ask
 
-After the full report prints, **stop**. At most add one more sentence like "awaiting your call" or a similarly very short closing line, **do not write further summaries, do not commit further, do not list next steps** — any tail pushes the dual-track report up. Do not enter `/go`, do not modify code, do not modify schema / prompt / docs / ai_context; wait for the user to decide item by item based on the full report in the conversation. Typical handoffs: `/fix` for triage (bulk-accept AI recommendations OR decide per finding, with delegation to `/go` or `/do`), or `/go` directly when the user has already decided every item.
+After the full report prints, **do not write further summaries, do not commit further, do not list next steps in conversation text** — any prose tail pushes the dual-track report up. Do not enter `/go` on your own, do not modify code, do not modify schema / prompt / docs / ai_context.
+
+- **Nothing to triage** (track 1 fully landed AND track 2 Findings / Missed Updates / Open Questions all empty — the zero-finding REVIEWED-PASS case): skip the ask; close with one short line like "REVIEWED-PASS, nothing to hand off" and stop.
+- **Otherwise** call **<ask tool>** with this question:
+
+> "Full report above. Run `/fix` now to triage this round's findings?"
+
+Options (exactly two, recommended option first):
+
+1. **Run `/fix` now (recommended)** — hand off immediately: invoke **<skill tool>** targeting `/fix` with args = this round's intent-baseline log slug from Step 1.5 (omit args when the baseline is missing — `/fix`'s own source resolution then picks up this session's report). `/fix` triages findings into fix / todo / skip and delegates landings to `/go` or `/do`.
+2. **Not now** — stop; the user decides item by item based on the full report in the conversation. Typical manual handoffs: `/fix` later, or `/go` directly when the user has already decided every item.
 
 ## Constraints
 
 - Do not go through the motions just because `/go`'s review phase already reviewed — this round looks again with fresh eyes, focusing on the linked files and ambiguity `/go` missed
-- **Output order hard constraint**: log writeback + commit (Step 5) **precedes** conversation report output (Step 6). The full dual-track report must be the **last substantive segment** `/post-check` produces in the conversation — Step 7 closes with a single "awaiting confirmation" short phrase, no further summary / commit prompt / next steps after the report, otherwise the user has to scroll back again
+- **Output order hard constraint**: log writeback + commit (Step 5) **precedes** conversation report output (Step 6). The full dual-track report must be the **last substantive text segment** `/post-check` produces in the conversation — the only thing allowed after it is Step 7's structured <ask tool> handoff prompt (a UI element, not prose; it does not push the report up), or its one-line skip closing. No further summary / commit prompt / next-steps prose after the report, otherwise the user has to scroll back again

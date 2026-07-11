@@ -300,7 +300,7 @@ After receiving answers for both, **immediately** use `Edit` to write to disk. F
 
 Three-category scan (informational summary; only category (a) gates completion):
 
-(a) Re-run the Step 5.1 grep; list any remaining `<...>` as a list — **MUST be 0** under the three-bucket schema (REQUIRED `<...>` blocks are filled by Step 0 + Step 2 + Step 5.4 + Step 6 `Auto-scan` / `Manual input` paths; PROGRESSIVE sections never had `<...>` to begin with — they ship with `_(none yet — ...)_` markers). If > 0 → error and stop; this indicates a Step 2 / Step 5.4 / Step 6 write missed its target file (a bug, not user discretion). See `ai_context/decisions.md` §Skill Implementation #15 for the schema rationale.
+(a) Re-run the Step 5.1 grep; list any remaining `<...>` as a list — **MUST be 0** under the three-bucket schema (REQUIRED `<...>` blocks are filled by Step 0 + Step 2 + Step 5.4 + Step 6 `Auto-scan` / `Manual input` paths; PROGRESSIVE sections never had `<...>` to begin with — they ship with `_(none yet — ...)_` markers). If > 0 → error and stop; this indicates a Step 2 / Step 5.4 / Step 6 write missed its target file (a bug, not user discretion). See `docs/decisions.md` §Skill Implementation #15 for the schema rationale.
 
 (b) PROGRESSIVE marker inventory — `grep -rn '_(none yet — delete this marker once content is added)_' CLAUDE.md AGENTS.md ai_context/ docs/ 2>/dev/null` lists every PROGRESSIVE section that is still empty (template default state). This is **informational only**: PROGRESSIVE markers are by-design intentional empties; they do not gate completion. Print as a single block so the user sees the remaining onboarding surface.
 
@@ -364,7 +364,7 @@ On `现在提交`, invoke `/commit` directly — the user's pick is the gate, so
 - **Never silently overwrite**: any template conflict (re-init paths) flows through Reconcile.Step 5a smart-merge dispatch's three-layer ask + `take_snapshot` backup.
 - **Do not touch non-template files**: existing files outside template paths are not touched (Reconcile.Step 2b's CJK-detection scope is restricted to the canonical manifest).
 - **Never commits directly**: `/holo:init` itself never runs `git add` / `git commit` — it only generates / modifies files. Step 8 offers an opt-in commit at the end — on the user's `现在提交` pick it **chains into `/commit`** (which runs the actual commit behind its do-not-commit-path / large-file / logical-split safety net); on decline the user commits manually.
-- **Placeholder marker conventions (three-bucket schema)** — see `ai_context/decisions.md` §Skill Implementation #15 for rationale:
+- **Placeholder marker conventions (three-bucket schema)** — see `docs/decisions.md` §Skill Implementation #15 for rationale:
   - **REQUIRED** `<...>` syntax: filled by Step 0 (Language) or Step 2 (Project basics) or Step 5.4 (deterministic AI-infer) or Step 6 `Auto-scan` / `Manual input` paths. Step 7.1(a) gates residue = 0.
   - **PROGRESSIVE** `_(none yet — delete this marker once content is added)_` line: template ships with this marker; user deletes when adding first content. Not reported as drift / not gated.
   - **INFERRED**: same `<...>` syntax as REQUIRED, filled by Step 5.4 from probed repo state without user ask.

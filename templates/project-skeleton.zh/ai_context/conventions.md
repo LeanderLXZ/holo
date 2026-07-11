@@ -84,7 +84,7 @@
   笔记、内嵌 step-by-step。这类内容应 **删除**，**不要** 迁移到
   `docs/architecture/`（膨胀换房间并不能解决膨胀）。
 
-定位依据：`ai_context/decisions.md §Skill Implementation #25`。
+定位依据：见决策归档（`docs/decisions.md` §Skill Implementation）。
 
 下方表格的形状（仅表头 —— 用户在下方 gap 内补行）：
 
@@ -154,8 +154,9 @@ _(none yet — delete this marker once content is added)_
   "renamed from"）— 只描述当前设计。
 
 例外（历史本身就是重点）：`logs/change_logs/`、
-`logs/review_reports/`、归档 todo、本文件的 `decisions.md`
-同伴、git commit 消息。
+`logs/review_reports/`、归档 todo、`docs/decisions.md`
+（决策归档 —— supersede 痕迹放那里，永不进
+`ai_context/decisions.md` 索引）、git commit 消息。
 <!-- holo:section end -->
 
 ## Naming and Identifiers <!-- holo:heading -->

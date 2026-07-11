@@ -5,7 +5,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/LeanderLXZ/holo/releases"><img src="https://img.shields.io/badge/version-v1.16.0-blue" alt="Version"></a>
+  <a href="https://github.com/LeanderLXZ/holo/releases"><img src="https://img.shields.io/badge/version-v1.17.0-blue" alt="Version"></a>
   <img src="https://img.shields.io/badge/Claude%20Code-plugin-7857ED" alt="Claude Code Plugin">
   <a href="LICENSE"><img src="https://img.shields.io/github/license/LeanderLXZ/holo?color=blue" alt="License: MIT"></a>
 </p>
@@ -140,11 +140,12 @@ your-project/
 │   ├── project_background.md      # Why this project exists — goals, scope, stakeholders
 │   ├── requirements.md            # Mirrors docs/requirements.md (lockstep)
 │   ├── architecture.md            # How the system is built — modules, boundaries, key design
-│   ├── decisions.md               # Durable architecture-level decisions log ("why")
+│   ├── decisions.md               # Decisions index — 1–2 lines per entry, points into docs/decisions.md
 │   ├── handoff.md                 # Current state + next steps + user preferences (3-section table layout)
 │   └── skills_config.md           ★ Per-project anchors read by skills — see §Configuration
 ├── docs/
 │   ├── requirements.md            # User-facing functional spec
+│   ├── decisions.md               # Full decision entries ("why") — read on demand, indexed by ai_context/decisions.md
 │   ├── todo_list.md               # Planned-but-unfinished engineering tasks
 │   ├── todo_list_archived.md      # Completed / abandoned (slim)
 │   └── architecture/              # Formal architecture documents

@@ -1,6 +1,6 @@
 ---
 name: compress-ai-context
-description: Prune stale + compress bloated ai_context entries (sentinel-aware, snapshot + rollback, opt-in /commit at the end). Triggers: /compress-ai-context / compress ai_context / prune stale ai_context entries.
+description: Prune stale + compress bloated ai_context entries; migrate old single-file decisions logs to the two-tier index + archive format. Triggers: /compress-ai-context / compress ai_context / prune stale ai_context entries / migrate decisions format.
 ---
 
 > **Language**: per `ai_context/skills_config.md §Language` — disk-bound output (prune deletions, compress patches, snapshot files copied, follow-up todo entry written into `docs/todo_list.md`, the trailing reminder line if redirected to a file) uses `content_language`; user-facing surface (chat prose / `AskUserQuestion` prompts and option labels / progress-tool entry `content` / scan summary printed in chat / per-entry preview wrappers / final wrap-up status line) uses `conversation_language`. Code identifiers, file paths, field names, frontmatter keys, section headings (`## Decisions`, `### [T-XXX]`), and structural prefixes (`Step N:`, `PRUNE:`, `COMPRESS:`, `SNAPSHOT:`, etc.) stay English regardless.
@@ -14,7 +14,10 @@ canonical compactness contract. Two phases (both optional / opt-in via
 Step 1 gateway): **prune** stale entries (entries that no longer
 reflect current architecture / requirements), then **compress**
 bloated-but-still-accurate entries by pushing rationale to linked
-docs.
+docs. A third conditional phase — **decisions format migration**
+(Step 4.5) — runs between them when Step 1's probe detects
+`ai_context/decisions.md` entries still in the single-file fat format
+instead of the two-tier index + archive pair (`docs/decisions.md` #35).
 
 **Architecture (post-T-COMPRESS-AI-CONTEXT-PARALLEL refactor)**:
 coordinator + scatter-gather. The main agent owns gateway asks /
@@ -33,7 +36,7 @@ Sentinel-aware throughout (won't touch plugin-canonical territory).
 
 The flow below is split into `## Step 0:` ~ `## Step 9:`.
 
-**Before entering Step 0**: call **<progress tool>** to pre-register all of Step 0 ~ Step 9 (one entry per step, `content` = `Step N: <sub-section title>`, `status` = `pending` for all). This is a hard requirement — **do not proceed without calling <progress tool>**.
+**Before entering Step 0**: call **<progress tool>** to pre-register all of Step 0 ~ Step 9 (one entry per step, `content` = `Step N: <sub-section title>`, `status` = `pending` for all). Step 4.5 (decisions format migration) is conditional — insert its entry only when Step 1's probe fires AND the user confirms migration (Q2 = yes). This is a hard requirement — **do not proceed without calling <progress tool>**.
 
 Each time you enter a step: call **<progress tool>** to flip the current step to `in_progress` (mark the previous step `completed` in the same call), then do the real work. **Do not skip the call across step boundaries**. Progress is rendered directly by the <progress tool> UI — **do not print `[/compress-ai-context] Step N: ...` style progress lines in the conversation**.
 
@@ -60,16 +63,34 @@ This skill uses:
 
 Also `Read` `ai_context/conventions.md §Compactness Requirements` — this is the canonical contract this skill enforces; do not re-author its rules locally.
 
-## Step 1: Gateway ask (prune phase opt-in)
+## Step 1: Gateway ask (prune + migration opt-in)
 
-Ask via **<ask tool>** — one question, two options:
+**Migration probe (deterministic, before the ask)**: run
 
-Question: `Scan ai_context for stale entries to prune before compressing?`
+```
+python3 -c "import sys, json; sys.path.insert(0, '${CLAUDE_PLUGIN_ROOT}/scripts'); \
+from holo_update_check import decisions_fat_format_check; \
+print(json.dumps(decisions_fat_format_check('.')))"
+```
 
-1. **No — compress only (recommended; faster)** — skip Steps 2–4, jump to Step 5 (compress scan)
-2. **Yes — prune first, then compress** — enter Steps 2–4 (prune phase), then continue to Step 5
+Non-empty result = `ai_context/decisions.md` still carries fat-format
+entries (block > 3 non-empty lines, or no `→ docs/decisions.md #N`
+pointer) → carry `<fat_entries>` (the finding list) into the ask below.
+Empty result / file absent → no migration question; `<fat_entries>` = ∅.
 
-Default = option 1 (no). Most invocations are pure compression. The prune phase is opt-in because (a) it requires whole-repo grep for live-ref detection and is materially slower, and (b) stale detection is LLM-semantic so it should be deliberately invoked, not implicit.
+Ask via **<ask tool>** — one batched call; question 2 only when `<fat_entries>` ≠ ∅:
+
+Question 1: `Scan ai_context for stale entries to prune before compressing?`
+
+1. **No — compress only (recommended; faster)** — skip Steps 2–4 (prune phase)
+2. **Yes — prune first, then compress** — enter Steps 2–4 (prune phase)
+
+Question 2 (conditional): `Detected <N> decisions entries in the old single-file format. Migrate to the two-tier index + archive format (ai_context index + docs/decisions.md) before compressing?`
+
+1. **Yes — migrate (recommended)** — enter Step 4.5 after the prune phase (or directly, when prune was declined)
+2. **No — keep the current format** — skip Step 4.5; fat entries are then eligible for plain compression in Step 5 like any other bloated entry, and `/holo:update` will keep surfacing them as `decisions_fat_format` findings
+
+Default = Q1 option 1 (no) + Q2 option 1 (yes). Most invocations are pure compression. The prune phase is opt-in because (a) it requires whole-repo grep for live-ref detection and is materially slower, and (b) stale detection is LLM-semantic so it should be deliberately invoked, not implicit. The migration question is asked only on positive detection, so it costs nothing on already-migrated projects.
 
 ## Step 2: Prune scan (when Step 1 = yes)
 
@@ -77,7 +98,7 @@ For each of the 5 ai_context files
 (`decisions.md` / `conventions.md` / `requirements.md` /
 `architecture.md` / `handoff.md`):
 
-1. **Parse via `scripts/sentinel_parse.py`** (`parse(path) -> ParsedFile`). Consider **only gap-territory content** (`ParsedFile.preamble_user_gaps` + each `Section.user_gaps`). **Skip plugin-canonical territory** (`preamble_plugin_blocks` + each `Section.plugin_blocks`) — that content is owned by `/holo:update`, out of scope for this skill.
+1. **Parse via `${CLAUDE_PLUGIN_ROOT}/scripts/sentinel_parse.py`** (`parse(path) -> ParsedFile`). Consider **only gap-territory content** (`ParsedFile.preamble_user_gaps` + each `Section.user_gaps`). **Skip plugin-canonical territory** (`preamble_plugin_blocks` + each `Section.plugin_blocks`) — that content is owned by `/holo:update`, out of scope for this skill.
 
 2. **Apply file-type starter heuristics** (inspection triggers, NOT sufficient evidence on their own):
    - `decisions.md` — pointer-target file/function in the `→` line does not exist; entry self-marks `superseded by #N`; entry references a removed/renamed module that `grep` cannot find.
@@ -136,11 +157,40 @@ PRUNE applied:
 SNAPSHOT: <snapshot_root>/<YYYY-MM-DD_HHMMSS>_compress-ai-context-prune/   (default snapshot_root = logs/file_snapshots/)
 ```
 
+## Step 4.5: Decisions format migration (conditional — Step 1 Q2 = yes)
+
+> **Language**: disk-bound — the rewritten index entries, the archive entries, and any archive skeleton created here land in `content_language` per `ai_context/skills_config.md §Language`. Entry text being MOVED is copied verbatim — never translated, never re-authored.
+
+Runs only when Step 1's probe fired AND the user picked "Yes — migrate". Numbered 4.5: it sits between the prune and compress phases without renumbering Steps 5–9 (cross-doc citations pin those numbers).
+
+a. **Precondition**: `docs/decisions.md` must exist. If absent, stop this step and print `docs/decisions.md missing — run /holo:update first (its --fix lands the archive template), then re-run /compress-ai-context`. Do NOT hand-author the archive skeleton here — template landing is Reconcile's job.
+
+b. **Snapshot**: `take_snapshot(target_root, slug='compress-ai-context-migrate', file_paths=['ai_context/decisions.md', 'docs/decisions.md'])` — once, before any Edit (same snapshot-on-plan-freeze contract as Steps 4a / 7a). The plan is the `<fat_entries>` list from Step 1 — but when the prune phase (Steps 2–4) deleted or edited any `ai_context/decisions.md` entry, re-run the Step 1 probe first and use the refreshed list (the Step-1 freeze predates those edits).
+
+c. **Migrate each fat entry** (coordinator-serial; one entry = one pair of Edits; process in file order):
+   - **Move**: append the entry's full text **verbatim** to `docs/decisions.md`, under a theme section matching the entry's section in the index (create the `## <section>` header in the archive if absent, mirroring the index's section order; remove the archive's PROGRESSIVE `_(none yet — …)_` marker on first landing). Keep the entry's number unchanged.
+   - **Rewrite**: replace the index entry's body with the 1–2-line index form — decision statement distilled from the entry's first sentence(s) + `→ docs/decisions.md #N` pointer. No fact inversion, no dropped negation; boundaries / measurements / history stay in the archive text only.
+   - Entries already in index form (≤ 3 non-empty lines AND pointer present) are untouched even if they sit between fat ones.
+
+d. **Verify before proceeding** (hard gate; any failure → print the failure + jump to Step 8c's rollback ask, scoped to the `_compress-ai-context-migrate/` snapshot from 4.5b instead of the compress snapshot; on rollback, the run continues into Step 5 with the migration undone):
+   - Numbering lockstep: the sorted `#N` set of index entries == the sorted `#N` set of archive entries (both from `^N. ` line-starts, HTML comments stripped).
+   - No dangling refs: every `decisions.md #N` / `docs/decisions.md #N` reference outside `logs/` resolves in the index.
+   - Probe re-run: the Step 1 probe command now returns `[]`.
+
+e. **Print migration summary**:
+
+```
+MIGRATE applied:
+- <N> entries moved to docs/decisions.md (sections created: <list or none>)
+- index rewritten to 1–2-line form; numbering lockstep verified (#min–#max, <count> entries)
+SNAPSHOT: <snapshot_root>/<YYYY-MM-DD_HHMMSS>_compress-ai-context-migrate/
+```
+
 ## Step 5: Compress scan + plan freeze (scatter-gather)
 
-**Trigger** (per file): file > 150 lines OR any single entry > 5 lines. Files matching neither are skipped silently.
+**Trigger** (per file): file > 150 lines OR any single entry > 5 lines. Files matching neither are skipped silently. The thresholds come verbatim from `conventions.md §Compactness Requirements` — the decisions index's own tighter 1–2-line-per-entry target is enforced at write time by `/go` / `/update-docs` and by Step 4.5's migration, NOT re-checked by this scan. Landing-target routing: when a bloated entry lives in `ai_context/decisions.md` (two-tier index form), its compression moves the surplus into the paired `docs/decisions.md` entry (same `#N`; lockstep pair) instead of a `docs/architecture/<topic>.md` landing.
 
-a. **Coordinator pre-scan**: parse each of the 5 ai_context files via `scripts/sentinel_parse.py` (gap-territory only, same as Step 2). Produce a **stable bloated-id list** `bloated_ids = [(file_path, entry_id), ...]` using the thresholds **verbatim from `ai_context/conventions.md §Compactness Requirements`** (entry > 5 lines OR file body > 150 lines — DO NOT raise the thresholds locally "to limit scope"; the coordinator both counts and acts on this list, so any local threshold relaxation trivially defeats the Step 5d coverage invariant on a smaller set). Set `<total_bloated> = len(bloated_ids)`. The list (not just the count) is the union anchor consumed by Step 5d's coverage invariant; entry-id is whatever stable identifier the file's format provides (`decisions.md` #N / `conventions.md §<section>` / `requirements.md` #N / `architecture.md §<section>` / `handoff.md §<section>.<row-label-or-bullet-keyword>`).
+a. **Coordinator pre-scan**: parse each of the 5 ai_context files via `${CLAUDE_PLUGIN_ROOT}/scripts/sentinel_parse.py` (gap-territory only, same as Step 2). Produce a **stable bloated-id list** `bloated_ids = [(file_path, entry_id), ...]` using the thresholds **verbatim from `ai_context/conventions.md §Compactness Requirements`** (entry > 5 lines OR file body > 150 lines — DO NOT raise the thresholds locally "to limit scope"; the coordinator both counts and acts on this list, so any local threshold relaxation trivially defeats the Step 5d coverage invariant on a smaller set). Set `<total_bloated> = len(bloated_ids)`. The list (not just the count) is the union anchor consumed by Step 5d's coverage invariant; entry-id is whatever stable identifier the file's format provides (`decisions.md` #N / `conventions.md §<section>` / `requirements.md` #N / `architecture.md §<section>` / `handoff.md §<section>.<row-label-or-bullet-keyword>`).
 
 b. **Dispatch decision (hard contract — coordinator inline mode is forbidden above threshold)**:
    - `<total_bloated> ≥ 8` → **MUST scatter**: dispatch up to 5 sub-agents in parallel, one per file that has ≥ 1 bloated entry. Each sub-agent receives: (i) its file path; (ii) the gap-territory content; (iii) the §Compactness Requirements contract; (iv) the classification rubric (a)/(b)/(c) below; (v) the language-axes directive at the **tail** of its prompt per `ai_context/conventions.md §Cross-File Alignment` (sub-agent dispatch tail-position rule, decisions.md #16). Sub-agents must read `ai_context/conventions.md §Compactness Requirements` before classifying. The coordinator MAY NOT choose inline mode at this threshold "to save context" or "because I already have the files in scope" — that reasoning is exactly the [decisions.md #19](../../ai_context/decisions.md) anti-pattern (single-pass-incomplete from main-agent context exhaustion) the scatter-gather architecture was introduced to defeat. If the coordinator nonetheless lacks parallel-dispatch capability in its runtime (e.g. a non-Claude harness that cannot fan out sub-agents), it MUST surface that as an explicit one-line declaration `scatter-mode unavailable: <runtime reason>` BEFORE entering inline fallback, so the user can see the deviation and decide. **Valid runtime-reason** = structural unavailability the runtime cannot fix mid-run (e.g. `harness lacks Task/sub-agent dispatch primitive`; `parallel-tool-use disabled in this client`; `sub-agent quota exhausted for this session`). **Invalid runtime-reason** (= disguised coordinator preference; coordinator MUST NOT use these) = `I have all files in context already`; `context budget too tight`; `to save tokens / API cost`; `dispatch is slow`. If the runtime has the primitive at all, scatter is mandatory above threshold — efficiency reasoning is exactly the anti-pattern.
@@ -149,7 +199,7 @@ b. **Dispatch decision (hard contract — coordinator inline mode is forbidden a
 c. **Per-entry classification** (executed by sub-agent in scatter mode, by coordinator in inline mode):
    1. **Identify the linked-doc target** — typically the entry's `→` pointer line (`→ docs/architecture/<topic>.md`); or, when the entry has no explicit pointer, grep `docs/` for the entry's key terms to find a plausible existing doc. If no target exists, the new-doc creation case (rare).
    2. **Classify** as:
-      - **(a) doc already covers rationale** — the linked doc already documents the design / rationale this entry contains; compression simply removes the duplication, leaving a one-line decision + one-line rationale + pointer in ai_context.
+      - **(a) doc already covers rationale** — the linked doc already documents the design / rationale this entry contains; compression simply removes the duplication, leaving a one-line decision + one-line rationale + pointer in ai_context. Decisions-index carve-out: for `ai_context/decisions.md` entries in the two-tier form, the compressed shape is statement + `→ docs/decisions.md #N` pointer ONLY — the rationale line lands in the paired archive entry, never stays in the index.
       - **(b) rationale needs landing in docs first** — the linked doc exists but does not cover this entry's rationale yet; compression includes a docs/ patch that lands the rationale **then** trims ai_context.
       - **(c) no linked doc exists** — needs a brand-new `docs/architecture/<topic>.md` file; rare; flagged in the plan so user can confirm before `Write`-ing a new file.
    3. **Propose the patch** (does NOT Edit anything in this step) — record the proposed compressed body for ai_context + the proposed docs landing block + the docs target path + classification tag.
@@ -265,10 +315,10 @@ SNAPSHOT: <snapshot_root>/<YYYY-MM-DD_HHMMSS>_compress-ai-context-compress/   (d
 
 These checks are cheap and deterministic; any failure here means the apply phase broke something structural and the user should likely rollback before proceeding.
 
-1. **Sentinel integrity**: `python3 scripts/sentinel_parse.py --self-test` (12-group regression). Failure → flag `axis: sentinel — script self-test FAILED`.
-2. **Sentinel parse on touched files**: for each ai_context file touched by this run, re-parse via `scripts/sentinel_parse.py`'s `parse(path)`; failure → flag `axis: sentinel — <path> parse FAILED`. The Edits in Step 7 are confined to gap-territory so this should not break sentinels; if it does, something went wrong.
-3. **Drift sanity**: `python3 scripts/holo_update_check.py --target . --plugin-root . --json` produces a JSON dict where every finding-category list is empty (`agents_sync.stale/missing/orphan/asset_orphan = []`, `missing_template = []`, `missing_section = []`, `missing_field = []`, `gitignore_missing_lines = []`, `claude_agents_lang_drift = []`, `missing_l1_directive = []`, `l1_directive_drift = []`, `lang_mirror_drift = []`, `legacy_skip_marker = []`, `sentinel_layout_drift = []`). Any non-empty list → flag `axis: drift — <category>: <N> findings` with the JSON snippet. (The no-arg invocation is the script's check mode; `--fix` enables the auto-fix branch — this skill does NOT pass `--fix` here.)
-4. **Import sanity**: `python3 -c "import sys; sys.path.insert(0, 'scripts'); import holo_update_check; import sentinel_parse"` exits 0. Failure → flag `axis: import — <error>`.
+1. **Sentinel integrity**: `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/sentinel_parse.py" --self-test` (12-group regression). Failure → flag `axis: sentinel — script self-test FAILED`.
+2. **Sentinel parse on touched files**: for each ai_context file touched by this run, re-parse via `${CLAUDE_PLUGIN_ROOT}/scripts/sentinel_parse.py`'s `parse(path)`; failure → flag `axis: sentinel — <path> parse FAILED`. The Edits in Step 7 are confined to gap-territory so this should not break sentinels; if it does, something went wrong.
+3. **Drift sanity**: `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/holo_update_check.py" --plugin-root "${CLAUDE_PLUGIN_ROOT}" --target . --json` produces a JSON dict where every finding-category list is empty (`agents_sync.stale/missing/orphan/asset_orphan = []`, `missing_template = []`, `missing_section = []`, `missing_field = []`, `gitignore_missing_lines = []`, `claude_agents_lang_drift = []`, `missing_l1_directive = []`, `l1_directive_drift = []`, `lang_mirror_drift = []`, `legacy_skip_marker = []`, `decisions_fat_format = []`, `sentinel_layout_drift = []`). Any non-empty list → flag `axis: drift — <category>: <N> findings` with the JSON snippet. Exception: `decisions_fat_format` non-empty when Step 4.5 did not run to completion this round (user declined at Step 1 Q2, or the Step 4.5a precondition stopped it) is expected and does NOT count as a verify failure — note it in the Step 8d wrap-up (one line: `decisions_fat_format: <N> entries remain unmigrated (migration declined/skipped)`); when Step 4.5 DID complete, also carry its Step 4.5e migration summary into the wrap-up. (The no-arg invocation is the script's check mode; `--fix` enables the auto-fix branch — this skill does NOT pass `--fix` here.)
+4. **Import sanity**: `python3 -c "import sys; sys.path.insert(0, '${CLAUDE_PLUGIN_ROOT}/scripts'); import holo_update_check; import sentinel_parse"` exits 0. Failure → flag `axis: import — <error>`.
 5. **External-reference sanity** — for each pruned `decisions.md` entry, grep the repo (excluding `logs/` + `docs/todo_list_archived.md`) for `decisions.md #N` references where `N` is the deleted entry's number; flag any that now point at a non-existent entry. (Compress preserves numbers — this is empty for compress-only runs; prune with "leave dangling refs" picked produces expected flagged refs that DO NOT count as a verify failure.)
 
 Any failure in scripts 1–4 → print the failure summary and jump directly to the **rollback ask** in Step 8c without dispatching the LLM sub-agents (their work is moot if the apply phase is structurally broken).
@@ -338,8 +388,8 @@ This is the only commit handoff; no push regardless of answer.
 ## Constraints
 
 - **No push** — commit is opt-in via Step 9's user-confirmed `/commit` handoff; this skill never pushes.
-- **No touching code / schema / `.gitignore` / `plugin.json` / `logs/` / `templates/`** — out of scope; touches limited to `ai_context/*.md` + `docs/architecture/<topic>.md` (+ `docs/architecture/README.md` Contents when a new doc is created) + `docs/todo_list.md` (only when "Auto-prune + create follow-up todo" was picked).
-- **Sentinel-block protection is load-bearing** — every parse goes through `scripts/sentinel_parse.py`; this skill operates only on gap-territory content. Sentinel-bearing blocks are plugin-canonical (owned by `/holo:update`); editing them is out of scope. Step 8a re-parses every touched file to catch any accidental sentinel break.
+- **No touching code / schema / `.gitignore` / `plugin.json` / `logs/` / `templates/`** — out of scope; touches limited to `ai_context/*.md` + `docs/architecture/<topic>.md` (+ `docs/architecture/README.md` Contents when a new doc is created) + `docs/decisions.md` (Step 4.5 migration target + Step 5/7 index-entry compression landings) + `docs/todo_list.md` (only when "Auto-prune + create follow-up todo" was picked).
+- **Sentinel-block protection is load-bearing** — every parse goes through `${CLAUDE_PLUGIN_ROOT}/scripts/sentinel_parse.py`; this skill operates only on gap-territory content. Sentinel-bearing blocks are plugin-canonical (owned by `/holo:update`); editing them is out of scope. Step 8a re-parses every touched file to catch any accidental sentinel break.
 - **Snapshot-on-plan-freeze, not snapshot-on-apply** — `take_snapshot` is invoked once per phase, **after that phase's plan is frozen (end of Step 3 for prune; end of Step 6 for compress) and before any `Edit`**, covering all files in the frozen plan in a single call. Skill startup does NOT snapshot. Sub-agents in Step 7b do NOT call `take_snapshot` — the snapshot precedes their dispatch.
 - **Coordinator owns shared-file writes** — sub-agents (Step 5b scan / Step 7b apply) write only to their assigned ai_context file. Docs / new-doc / `docs/architecture/README.md` Contents writes are coordinator-serial in Step 7c. This is a load-bearing invariant against parallel-writer races on shared docs targets.
 - **Sub-agents do NOT call `take_snapshot` and do NOT write to shared files** — Step 5b scan sub-agents, Step 7b apply sub-agents, and Step 8b verify sub-agents are all forbidden from invoking `take_snapshot` (snapshot is coordinator-driven at the end of each phase's plan-freeze, in Step 4a / Step 7a) and from writing to shared files (`docs/`, `README.md`, `docs/architecture/README.md`, etc.). Step 7b sub-agents write only to their assigned ai_context file; Step 8b sub-agents are read-only by contract.
@@ -350,6 +400,7 @@ This is the only commit handoff; no push regardless of answer.
 - **No batched confirm for stale + no live refs** — the safety net is the snapshot + Step 8 verify + rollback ask, not user pre-confirmation. The only ask in the prune phase is the per-case 3-option ask for `stale + has live refs`. The only ask in the compress phase is the Step 6 simple-plan 3-option ask + the conditional Step 8c rollback ask.
 - **No per-entry preview in Step 6** — the safety net is the snapshot + Step 8 multi-axis verify + rollback ask, not preview-then-confirm. Step 6 prints a simple plan report (per-entry one-liner: id + classification + docs target) without body content. Reverting to full per-entry preview is a contract regression.
 - **Sub-agent dispatch thresholds** — Step 5/7 scatter mode requires `total_bloated ≥ 8`; Step 8b multi-axis verify requires `compress entries ≥ 5`. Below these, the coordinator runs the phase inline serially. Thresholds exist to avoid dispatch overhead on small jobs.
-- **No numbering check / no auto-reorder** — `decisions.md` global-append-only numbering is enforced by `decisions.md §Format` rule text only; this skill does not validate, fix, or rearrange numbers.
+- **No numbering check / no auto-reorder** — `decisions.md` global-append-only numbering is enforced by `decisions.md §Format` rule text only; this skill does not validate, fix, or rearrange numbers. Sole exception: Step 4.5d's migration gate verifies index ↔ archive numbering-set equality (it moves entries between the pair, so lockstep verification is part of its own contract) — it still never renumbers.
+- **Migration moves verbatim** — Step 4.5 copies entry text into `docs/decisions.md` unchanged (no re-authoring, no translation, no summarizing of the archive side); only the index side is distilled. Numbers never change; entries already in index form are untouched; a declined migration is skipped for the whole run (no re-ask).
 - **Compactness contract is owned by `conventions.md §Compactness Requirements`** — this skill body MUST NOT re-author the rules. Edits to the contract rule itself happen via `/go` editing `conventions.md`, not via this skill.
 - **No fan-out / no PRE-POST log** — auditing of cross-file alignment is `/full-review`'s job. `logs/change_logs/` is `/go`-only. The Step 8 multi-axis verify is THIS round's verify (scoped to the touched file set), not a cross-repo review.

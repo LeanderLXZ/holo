@@ -60,7 +60,7 @@ Scan the recent conversation turns and identify "what the user just decided / di
    - project goal / scope / stakeholders → `ai_context/project_background.md` + matching `docs/` section if present
    - current state snapshot → `ai_context/handoff.md §Current State` (2-col table)
    - architecture decisions → `ai_context/architecture.md` + `docs/architecture/<topic>.md`
-   - durable engineering decisions ("why" rationale) → `ai_context/decisions.md` (append entry; do **not** renumber)
+   - durable engineering decisions ("why" rationale) → `ai_context/decisions.md` + `docs/decisions.md` (lockstep pair — index line + full archive entry, same `#N`). Entry criterion: only genuinely contested decisions a future reader might re-propose. **Lifecycle check before appending**: overturns an existing `#N` → supersede in place in BOTH files (number stays; a tried-and-reverted approach keeps a half-line `(tried X, reverted, see log)` trace in the archive entry); topic killed with in-conversation evidence → prune from both files (gap stays); otherwise append — do **not** renumber
    - user-visible requirements → `docs/requirements.md` (long-form) + `ai_context/requirements.md` (summary line) — lockstep pair
    - planned-but-unfinished tasks → **redirect to `/todo-add`**, this skill does not touch `docs/todo_list.md`
    - user preferences / taste rules → `ai_context/handoff.md §What The User Cares About`
@@ -77,7 +77,7 @@ Scan the recent conversation turns and identify "what the user just decided / di
    - `logs/change_logs/` / `logs/review_reports/` → owned by `/go` and `/full-review` respectively
    - any path outside `ai_context/` + `docs/`
 
-5. **Compose patches.** For each accepted candidate, draft the exact patch text in `content_language`. Use the same field-label / heading conventions as the surrounding file. For `decisions.md` append: number = previous max + 1 (do not renumber existing entries); for `requirements.md` lockstep: long-form + summary line in matching numbering. For `handoff.md` bulleted sections: append bullets in alphabetical / logical order. For appended content: 1 blank line before the new block; for marker-line removal: remove the single marker line plus its trailing blank line if present.
+5. **Compose patches.** For each accepted candidate, draft the exact patch text in `content_language`. Use the same field-label / heading conventions as the surrounding file. For `decisions.md` append: number = previous max + 1 (do not renumber existing entries); the patch is a pair — 1–2-line index entry in `ai_context/decisions.md` (statement + `→ docs/decisions.md #N`) + full entry in `docs/decisions.md` (same number, same theme section); a supersede/prune patch likewise edits both files. For `requirements.md` lockstep: long-form + summary line in matching numbering. For `handoff.md` bulleted sections: append bullets in alphabetical / logical order. For appended content: 1 blank line before the new block; for marker-line removal: remove the single marker line plus its trailing blank line if present.
 
 If `$ARGUMENTS` is provided, treat it as a focus filter (file path / section name / topic keyword) and narrow candidates to those matching the filter; do not broaden beyond the user's stated focus.
 
@@ -87,7 +87,7 @@ Print to the conversation a numbered candidate list — one line per patch — i
 
 ```
 1. file: ai_context/handoff.md → section: ## Mental Model → add: <one-line summary>
-2. file: ai_context/decisions.md → append: §<bucket> #<N> <one-line summary>
+2. file: ai_context/decisions.md + docs/decisions.md (lockstep) → append: §<bucket> #<N> <one-line summary>
 3. file: docs/requirements.md + ai_context/requirements.md (lockstep) → §6.2 + bullet 6 → add: <one-line summary>
 4. ... (rejected) file: docs/todo_list.md → redirect to /todo-add
 ```

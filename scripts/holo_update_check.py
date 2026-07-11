@@ -1470,6 +1470,87 @@ def legacy_skip_marker_check(target_root: str) -> list[dict]:
     return findings
 
 
+_DECISION_ENTRY_RE = re.compile(r"^(\d+)\. ")
+_DECISION_ARCHIVE_POINTER_RE = re.compile(r"docs/decisions\.md\s*#\d+")
+# Index entries are 1–2 lines by contract; 3 tolerates a wrapped statement.
+_FAT_ENTRY_MAX_LINES = 3
+
+
+def decisions_fat_format_check(target_root: str) -> list[dict]:
+    """Scan the consumer's ``ai_context/decisions.md`` for entries still in
+    the single-file "fat" format instead of the two-tier index form
+    (1–2-line statement + ``→ docs/decisions.md #N`` pointer; see
+    ``docs/decisions.md`` §Skill Implementation #35).
+
+    An entry is flagged when its block (from the ``^N. `` line to the next
+    entry / heading / EOF, HTML comments stripped) exceeds
+    ``_FAT_ENTRY_MAX_LINES`` non-empty lines OR carries no
+    ``docs/decisions.md #N`` pointer.
+
+    Informational only — NO ``--fix`` branch and excluded from
+    ``total_drift`` (same contract as ``legacy_skip_marker``): the fix is
+    LLM semantic work (move full text to the archive, distill the index
+    line), owned by ``/compress-ai-context``'s format-migration step, not
+    a deterministic script. The companion case "``docs/decisions.md``
+    missing entirely" is already surfaced (and fixed) by
+    ``template_file_check`` as a normal ``missing_template`` finding.
+
+    Findings shape: ``[{"rel": "ai_context/decisions.md", "entry": N,
+    "line": L, "nonempty_lines": K, "has_pointer": bool}, ...]``.
+    """
+    findings: list[dict] = []
+    path = os.path.join(target_root, "ai_context", "decisions.md")
+    if not os.path.isfile(path):
+        return findings
+    try:
+        with open(path, encoding="utf-8") as fh:
+            text = fh.read()
+    except OSError:
+        return findings
+    # Strip HTML comments (the MAINTENANCE block carries a numbered list
+    # that must not parse as entries) while preserving line numbers.
+    def _blank_comments(m: re.Match) -> str:
+        return "\n" * m.group(0).count("\n")
+    stripped = re.sub(r"<!--.*?-->", _blank_comments, text, flags=re.S)
+    lines = stripped.split("\n")
+    # Track fenced code blocks (``` or ~~~): a line-initial ``N. `` or
+    # ``#`` inside a fence is quoted content, not an entry start / heading.
+    in_fence = [False] * len(lines)
+    fence_open = False
+    for i, line in enumerate(lines):
+        if line.lstrip().startswith(("```", "~~~")):
+            fence_open = not fence_open
+            in_fence[i] = True  # the fence delimiter itself never starts an entry
+        else:
+            in_fence[i] = fence_open
+    entries: list[tuple[int, int]] = []  # (entry number, 0-based line idx)
+    for i, line in enumerate(lines):
+        if in_fence[i]:
+            continue
+        m = _DECISION_ENTRY_RE.match(line)
+        if m:
+            entries.append((int(m.group(1)), i))
+    for pos, (num, start) in enumerate(entries):
+        end = entries[pos + 1][1] if pos + 1 < len(entries) else len(lines)
+        block = lines[start:end]
+        # trim at the next heading inside the slice, if any
+        for j, bl in enumerate(block[1:], 1):
+            if bl.startswith("#") and not in_fence[start + j]:
+                block = block[:j]
+                break
+        nonempty = [bl for bl in block if bl.strip()]
+        has_pointer = any(_DECISION_ARCHIVE_POINTER_RE.search(bl) for bl in nonempty)
+        if len(nonempty) > _FAT_ENTRY_MAX_LINES or not has_pointer:
+            findings.append({
+                "rel": os.path.join("ai_context", "decisions.md"),
+                "entry": num,
+                "line": start + 1,
+                "nonempty_lines": len(nonempty),
+                "has_pointer": has_pointer,
+            })
+    return findings
+
+
 # ---------------------------------------------------------------------------
 # Sentinel-aware drift detection
 # ---------------------------------------------------------------------------
@@ -2313,6 +2394,7 @@ def run_check(
         "l1_directive_drift": l1_directive_drift_check(plugin_root),
         "lang_mirror_drift": lang_mirror_check(plugin_root),
         "legacy_skip_marker": legacy_skip_marker_check(target_root),
+        "decisions_fat_format": decisions_fat_format_check(target_root),
         "sentinel_layout_drift": sentinel_layout_drift_check(
             plugin_root, target_root, baseline_root
         ),
@@ -2579,6 +2661,14 @@ def _print_human(findings: dict, fix_counts: dict | None) -> None:
     print(f"legacy_skip_marker (informational; not in total_drift): {len(lsm)}")
     for item in lsm:
         print(f"  {item['rel']}:{item['line']}: {item['snippet']}")
+    dff = findings.get("decisions_fat_format", [])
+    print(f"decisions_fat_format (informational; not in total_drift): {len(dff)}")
+    for item in dff:
+        pointer = "no pointer" if not item["has_pointer"] else "has pointer"
+        print(
+            f"  {item['rel']}:{item['line']}: entry #{item['entry']} "
+            f"({item['nonempty_lines']} lines, {pointer}) — migrate via /compress-ai-context"
+        )
     sld = findings.get("sentinel_layout_drift", [])
     print(f"sentinel_layout_drift (smart-merge trigger; not in total_drift): {len(sld)}")
     # Group by sub_shape so the print output reads as a triage table:

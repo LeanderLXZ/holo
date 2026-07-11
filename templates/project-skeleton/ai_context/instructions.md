@@ -47,9 +47,12 @@ directories to the user-territory list below.
 
 **Do not read by default** — large or write-mostly directories:
 `logs/change_logs/` (full history), `logs/review_reports/` (past audit
-snapshots), `logs/file_snapshots/` (smart-merge backup archive). Load
-only when the task explicitly requires them. Add project-specific
-skip paths to the user-territory list below.
+snapshots), `logs/file_snapshots/` (smart-merge backup archive),
+`docs/decisions.md` (full decision entries — the session-start surface
+is the index `ai_context/decisions.md`; open the archive only when a
+specific decision's rationale matters). Load only when the task
+explicitly requires them. Add project-specific skip paths to the
+user-territory list below.
 
 **When to read deeper** — user explicitly asks; the task depends on
 specific evidence from a heavier source; compressed context in
