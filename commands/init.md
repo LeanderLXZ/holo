@@ -16,9 +16,9 @@ No arguments. The repo's current state is probed automatically (empty directory 
 
 > **Language**: progress-tool entries (`content` field) are user-facing — write them in `conversation_language` per `ai_context/skills_config.md §Language`. The `Step N:` prefix stays English (structural label); subtitle text after the colon translates to `conversation_language`. Until Step 0 settles `<conversation_language>` (only the Step 0 question itself precedes it), follow `auto` semantics — match the user's most recent message language for entries written then.
 
-The flow is split into `## Step 0:` ~ `## Step 8:`.
+The flow is split into `## Step 0:` ~ `## Step 8:` (plus conditional `## Step 7.5:` — decisions migration offer, registered only when Reconcile returns `migration_pending`; fresh projects never trigger it).
 
-**Before entering Step 0**: call **<progress tool>** to pre-register Step 0 ~ Step 8 (one entry per step, `content` as `Step N: <sub-section title>`, all `status` = `pending`). This is a hard requirement — **do not proceed without calling <progress tool>**.
+**Before entering Step 0**: call **<progress tool>** to pre-register Step 0 ~ Step 8 (one entry per step, `content` as `Step N: <sub-section title>`, all `status` = `pending`; insert a `Step 7.5:` entry when Reconcile's return carries `migration_pending`). This is a hard requirement — **do not proceed without calling <progress tool>**.
 
 On entering each step: flip the current step to `in_progress` and mark the previous one `completed`, then do the actual work. Skipping a step: mark it `completed` directly and print one line in the conversation `Step N skipped (reason: …)`.
 
@@ -343,9 +343,22 @@ Suggested next steps:
   4. After future plugin upgrades, run /holo:update to re-sync (same Reconcile core, lighter shell)
 ```
 
+## Step 7.5: Decisions migration offer (conditional)
+
+Runs only when Reconcile's return carries `migration_pending` (its Step 5c detected `decisions_fat_format` findings — possible only when `/holo:init` ran over an EXISTING project whose `ai_context/decisions.md` predates the two-tier format; fresh skeletons never trigger). Otherwise skip silently.
+
+Use **<ask tool>** to ask one question:
+
+> 检测到 `ai_context/decisions.md` 中 N 条旧单文件格式的决策条目（未迁移到两层 index + archive 结构）。是否现在迁移？
+
+- `现在迁移`（Recommended）— chain into the **`/compress-ai-context`** skill; its Step 1 probe re-detects the entries and its Step 4.5 executes the migration under its own snapshot + numbering-lockstep machinery. User-chosen handoff — `/holo:init` itself never rewrites decisions entries. The chained run's own commit ask may be declined; Step 8 below still covers every write from this whole run.
+- `稍后手动` — print one line: `旧格式条目保留；稍后运行 /compress-ai-context 迁移（/holo:update 每次都会重新提示，直到迁移完成）。`
+
+Same contract as `/holo:update` Step 3.5 (rationale there; gate required per `docs/decisions.md` #6).
+
 ## Step 8: Commit offer
 
-After Step 7's wrap-up, offer to land the skeleton this run produced.
+After Step 7's wrap-up (and Step 7.5's migration chain, when it ran), offer to land the skeleton this run produced.
 
 **Guard — only ask when the run actually wrote something**: run `git status --short`. Empty (e.g. a re-init that landed no changes) → there is nothing to commit; mark Step 8 `completed` and skip the ask silently. Non-empty → proceed to the ask below.
 

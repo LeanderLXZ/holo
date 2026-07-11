@@ -16,9 +16,9 @@ No arguments. **Touches plugin-owned content** (sentinel blocks, plugin canonica
 
 > **Language**: progress-tool entries (`content` field) are user-facing — write them in `conversation_language` per `ai_context/skills_config.md §Language`. The `Step N:` prefix stays English (structural label); subtitle text after the colon translates to `conversation_language`. Sub-task entries `Step 2a:` ~ `Step 2f:` follow the same rule.
 
-The user-entry shell is split into `## Step 0:` ~ `## Step 4:`.
+The user-entry shell is split into `## Step 0:` ~ `## Step 4:` (plus conditional `## Step 3.5:` — decisions migration offer, registered only when Reconcile returns `migration_pending`).
 
-**Before entering Step 0**: call **<progress tool>** to pre-register Step 0 ~ Step 4 (`status` all `pending`). **Do not proceed without calling <progress tool>**.
+**Before entering Step 0**: call **<progress tool>** to pre-register Step 0 ~ Step 4 (`status` all `pending`; insert a `Step 3.5:` entry when Reconcile's return carries `migration_pending`). **Do not proceed without calling <progress tool>**.
 
 On entering each step: flip the current step to `in_progress` and mark the previous one `completed`.
 
@@ -92,11 +92,12 @@ Reconcile core returns:
   fix_counts: { regenerated, created, deleted, template_copied, section_appended, field_appended, gitignore_appended, claude_agents_lang_fixed, orphan_kept },  # raw `holo_update_check.py --fix --json` output verbatim — Step 3 maps these to A/B/C/D/E/F/G/H counters in the final print
   snapshot_dir: "<path or null>",
   remaining_drift: [...],          # findings that still surface after dispatch (display-only bucket + user-skipped conflict-triggering)
+  migration_pending: false | { count: N },   # decisions_fat_format findings present → Step 3.5 migration offer
   translation_log: [...]
 }
 ```
 
-Carry these return values through to Step 3 for the final print. Mid-Step-2 errors (Reconcile sub-step IO failure / sub-agent dispatch failure / `--fix` non-zero exit) bubble up from Reconcile core with explicit cause; `/holo:update` does not swallow them — surface and stop per Reconcile's own contract.
+Carry these return values through to Step 3 for the final print (and `migration_pending` to Step 3.5). Mid-Step-2 errors (Reconcile sub-step IO failure / sub-agent dispatch failure / `--fix` non-zero exit) bubble up from Reconcile core with explicit cause; `/holo:update` does not swallow them — surface and stop per Reconcile's own contract.
 
 ## Step 3: Final print
 
@@ -125,11 +126,24 @@ Landing the changes is handled interactively by **Step 4** below (no standalone 
 
 Mapping: `Reconcile.Step 6.write_counts.merged` → `M`, `.overwritten` → `N`, `.kept` → `K`, `.failed` → `Z`. `Reconcile.Step 6.fix_counts.{regenerated, created, deleted, template_copied, section_appended, field_appended, gitignore_appended, claude_agents_lang_fixed}` → `A / B / C / D / E / F / G / H` directly. `write_counts.new_copied` (Reconcile.Step 3 NEW file count — for `/holo:update` typically 0 since the consumer is already initialized; non-zero only when the plugin upgrade added new template files) → folded into the `Templates` row's `template_copied=D` count for display only (the two counters mean "new from Step 3 NEW-path" and "new from Step 5b deterministic-fix", both display under the same row).
 
-`total_drift = 0` ⇔ `fix_counts` is all-zero AND smart-merge dispatch list was empty AND `remaining_drift` is empty → print `✅ Project is in sync with <name> v<version>; nothing to do.` and exit (Step 4 is skipped — nothing was written).
+`total_drift = 0` ⇔ `fix_counts` is all-zero AND smart-merge dispatch list was empty AND `remaining_drift` is empty → print `✅ Project is in sync with <name> v<version>; nothing to do.` and exit (Steps 3.5 and 4 are skipped — nothing was written; `migration_pending` is necessarily false here, since fat findings would have made `remaining_drift` non-empty).
+
+## Step 3.5: Decisions migration offer (conditional)
+
+Runs only when Reconcile's return carries `migration_pending` (Step 5c detected `decisions_fat_format` findings). Otherwise skip silently (no progress entry was registered).
+
+Use **<ask tool>** to ask one question:
+
+> 检测到 `ai_context/decisions.md` 中 N 条旧单文件格式的决策条目（未迁移到两层 index + archive 结构）。是否现在迁移？
+
+- `现在迁移`（Recommended）— chain into the **`/compress-ai-context`** skill. Its Step 1 probe re-detects the fat entries and its Step 4.5 executes the migration under its own machinery (snapshot → verbatim move to `docs/decisions.md` → index distillation → numbering-lockstep gate). This is a **user-chosen handoff** (same pattern as Step 4's `/commit` chain): `/holo:update` itself never rewrites decisions entries; the chained skill's own asks and gates apply. Note: the chained run ends with `/compress-ai-context`'s own commit ask — declining there is fine; Step 4 below still covers every write from this whole run.
+- `稍后手动` — print one line: `旧格式条目保留；稍后运行 /compress-ai-context 迁移（/holo:update 每次都会重新提示，直到迁移完成）。`
+
+Rationale: the migration is irreversible LLM semantic work on user-territory content — it needs an explicit user gate (`docs/decisions.md` #6), but the gate lives HERE in the update/init flow so conformance is restored in one pass instead of relying on the user to spot a display-only pointer.
 
 ## Step 4: Commit offer
 
-After Step 3's summary, offer to land the changes this run produced.
+After Step 3's summary (and Step 3.5's migration chain, when it ran), offer to land the changes this run produced.
 
 **Guard — only ask when the run actually wrote something**: run `git status --short`. Empty (the 0-drift "Project is in sync" early-exit, or every finding skipped so nothing landed) → there is nothing to commit; mark Step 4 `completed` and skip the ask silently. Non-empty → proceed to the ask below.
 
@@ -389,7 +403,7 @@ For Layer 1 options 1 and 2 (and Layer 2 options 1 and 2): `take_snapshot` runs 
 
 **Step 5c — display-only**:
 
-No ask, no execution. Append every bucket-3 finding to `remaining_drift` with its category + per-finding detail so Step 3's final print can surface the count + list inline. For `decisions_fat_format` findings, the surfaced line ends with the pointer `→ run /compress-ai-context to migrate these entries to the two-tier index + archive format`.
+No ask, no execution. Append every bucket-3 finding to `remaining_drift` with its category + per-finding detail so Step 3's final print can surface the count + list inline. For `decisions_fat_format` findings, additionally set `migration_pending = true` (with the finding count) in the Step 6 return — the caller shell turns it into an ask-gated `/compress-ai-context` chain (`/holo:update` Step 3.5 / `/holo:init` Step 7.5), so the migration gets offered in-flow instead of relying on the user to spot a printed pointer.
 
 ### Reconcile.Step 6 — Return
 
@@ -418,6 +432,7 @@ Build the structured return value:
   },
   snapshot_dir: "<path or null>",     # set iff take_snapshot() fired (Step 5a Option 1 / 2 / Layer 2 1 / 2)
   remaining_drift: [...],             # bucket 3 + user-skipped bucket 1 entries + Step 5b post-fix anomalies
+  migration_pending: false | { count: N },  # set by Step 5c when decisions_fat_format findings exist; consumed by the caller shell's migration offer (/holo:update Step 3.5, /holo:init Step 7.5)
   translation_log: [...]              # all Step 2 work items (success + failure)
 }
 ```
