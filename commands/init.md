@@ -171,6 +171,7 @@ Reconcile core executes its 6 sub-steps (Template inventory → Language alignme
   fix_counts: { regenerated, created, deleted, template_copied, section_appended, field_appended, gitignore_appended, claude_agents_lang_fixed, orphan_kept },  # raw `holo_update_check.py --fix --json` output; init's Step 7.5 summary aggregates the per-category counters into `deterministic_fixed=Q`, but the full sub-object is preserved here for parity with `commands/update.md` Step 3's finer-grained mapping
   snapshot_dir: "<path or null>",
   remaining_drift: [...],
+  migration_pending: false | { count: N },   # decisions_fat_format findings present → Step 7.5 migration offer
   translation_log: [...]
 }
 ```
@@ -349,7 +350,7 @@ Runs only when Reconcile's return carries `migration_pending` (its Step 5c detec
 
 Use **<ask tool>** to ask one question:
 
-> 检测到 `ai_context/decisions.md` 中 N 条旧单文件格式的决策条目（未迁移到两层 index + archive 结构）。是否现在迁移？
+> 检测到 `ai_context/decisions.md` 中 N 条不符合两层 index 形态的决策条目（旧单文件格式未迁移，或迁移后正文重新膨胀超过 200 字符上限）。是否现在迁移？
 
 - `现在迁移`（Recommended）— chain into the **`/compress-ai-context`** skill; its Step 1 probe re-detects the entries and its Step 4.5 executes the migration under its own snapshot + numbering-lockstep machinery. User-chosen handoff — `/holo:init` itself never rewrites decisions entries. The chained run's own commit ask may be declined; Step 8 below still covers every write from this whole run.
 - `稍后手动` — print one line: `旧格式条目保留；稍后运行 /compress-ai-context 迁移（/holo:update 每次都会重新提示，直到迁移完成）。`

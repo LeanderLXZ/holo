@@ -1474,6 +1474,11 @@ _DECISION_ENTRY_RE = re.compile(r"^(\d+)\. ")
 _DECISION_ARCHIVE_POINTER_RE = re.compile(r"docs/decisions\.md\s*#\d+")
 # Index entries are 1–2 lines by contract; 3 tolerates a wrapped statement.
 _FAT_ENTRY_MAX_LINES = 3
+# Line count alone is not a density bound — one arbitrarily long line
+# satisfies "1–2 lines" while carrying archive-sized text. The character
+# ceiling is the operative bound; same number as the §Format contract in
+# `templates/project-skeleton{,.zh}/ai_context/decisions.md`.
+_INDEX_ENTRY_MAX_CHARS = 200
 
 
 def decisions_fat_format_check(target_root: str) -> list[dict]:
@@ -1484,8 +1489,15 @@ def decisions_fat_format_check(target_root: str) -> list[dict]:
 
     An entry is flagged when its block (from the ``^N. `` line to the next
     entry / heading / EOF, HTML comments stripped) exceeds
-    ``_FAT_ENTRY_MAX_LINES`` non-empty lines OR carries no
-    ``docs/decisions.md #N`` pointer.
+    ``_FAT_ENTRY_MAX_LINES`` non-empty lines, OR exceeds
+    ``_INDEX_ENTRY_MAX_CHARS`` characters (non-empty lines stripped and
+    joined by one space), OR carries no ``docs/decisions.md #N`` pointer.
+
+    The character arm catches the post-migration failure mode the line
+    arm cannot: an entry written in correct two-tier shape (one
+    statement line + pointer line, both required parts present) whose
+    statement line is archive-sized, so the index silently re-accretes
+    the bulk the two-tier split removed.
 
     Informational only — NO ``--fix`` branch and excluded from
     ``total_drift`` (same contract as ``legacy_skip_marker``): the fix is
@@ -1496,7 +1508,8 @@ def decisions_fat_format_check(target_root: str) -> list[dict]:
     ``template_file_check`` as a normal ``missing_template`` finding.
 
     Findings shape: ``[{"rel": "ai_context/decisions.md", "entry": N,
-    "line": L, "nonempty_lines": K, "has_pointer": bool}, ...]``.
+    "line": L, "nonempty_lines": K, "chars": C, "has_pointer": bool},
+    ...]``.
     """
     findings: list[dict] = []
     path = os.path.join(target_root, "ai_context", "decisions.md")
@@ -1540,12 +1553,18 @@ def decisions_fat_format_check(target_root: str) -> list[dict]:
                 break
         nonempty = [bl for bl in block if bl.strip()]
         has_pointer = any(_DECISION_ARCHIVE_POINTER_RE.search(bl) for bl in nonempty)
-        if len(nonempty) > _FAT_ENTRY_MAX_LINES or not has_pointer:
+        chars = len(" ".join(bl.strip() for bl in nonempty))
+        if (
+            len(nonempty) > _FAT_ENTRY_MAX_LINES
+            or chars > _INDEX_ENTRY_MAX_CHARS
+            or not has_pointer
+        ):
             findings.append({
                 "rel": os.path.join("ai_context", "decisions.md"),
                 "entry": num,
                 "line": start + 1,
                 "nonempty_lines": len(nonempty),
+                "chars": chars,
                 "has_pointer": has_pointer,
             })
     return findings

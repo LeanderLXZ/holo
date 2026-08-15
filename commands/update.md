@@ -134,7 +134,7 @@ Runs only when Reconcile's return carries `migration_pending` (Step 5c detected 
 
 Use **<ask tool>** to ask one question:
 
-> 检测到 `ai_context/decisions.md` 中 N 条旧单文件格式的决策条目（未迁移到两层 index + archive 结构）。是否现在迁移？
+> 检测到 `ai_context/decisions.md` 中 N 条不符合两层 index 形态的决策条目（旧单文件格式未迁移，或迁移后正文重新膨胀超过 200 字符上限）。是否现在迁移？
 
 - `现在迁移`（Recommended）— chain into the **`/compress-ai-context`** skill. Its Step 1 probe re-detects the fat entries and its Step 4.5 executes the migration under its own machinery (snapshot → verbatim move to `docs/decisions.md` → index distillation → numbering-lockstep gate). This is a **user-chosen handoff** (same pattern as Step 4's `/commit` chain): `/holo:update` itself never rewrites decisions entries; the chained skill's own asks and gates apply. Note: the chained run ends with `/compress-ai-context`'s own commit ask — declining there is fine; Step 4 below still covers every write from this whole run.
 - `稍后手动` — print one line: `旧格式条目保留；稍后运行 /compress-ai-context 迁移（/holo:update 每次都会重新提示，直到迁移完成）。`
@@ -167,8 +167,10 @@ On `现在提交`, invoke `/commit` directly — the user's pick is the gate, so
 ```
 Reconcile(target_root, plugin_root, mode, content_language, other_agents) →
   { write_counts: { merged, overwritten, kept, failed, new_copied, deterministic_fixed },
+    fix_counts,
     snapshot_dir,
     remaining_drift,
+    migration_pending,
     translation_log }
 ```
 
@@ -314,7 +316,7 @@ The script outputs the JSON structure documented as the **interface contract**:
   "l1_directive_drift":   [{"rel": "commands/<name>.md|skills/<name>/SKILL.md", "missing_substrings": ["..."]}],
   "lang_mirror_drift":    [{"variant": "project-skeleton.<lang>", "rel": "...", "kind": "MISSING|ORPHAN"}],
   "legacy_skip_marker":   [{"rel": "ai_context/<...>.md", "line": N, "snippet": "..."}],
-  "decisions_fat_format": [{"rel": "ai_context/decisions.md", "entry": N, "line": L, "nonempty_lines": K, "has_pointer": bool}],
+  "decisions_fat_format": [{"rel": "ai_context/decisions.md", "entry": N, "line": L, "nonempty_lines": K, "chars": C, "has_pointer": bool}],
   "sentinel_layout_drift": [{"rel": "...",
                              "sub_shape": "missing_sentinel | partial_sentinel | heading_drift | block_content_drift",
                              // common: "source_path"
@@ -341,7 +343,7 @@ The script outputs the JSON structure documented as the **interface contract**:
    - `claude_agents.unexpected_diffs` (CLAUDE↔AGENTS asymmetric guidance; script never auto-merges).
    - `lang_mirror_drift` (variant template directory parity; auto-fix would either delete legitimate translations or copy English canonical content into a translated variant — both unacceptable per script docstring. The maintainer reconciles via a translation pass — Reconcile.Step 2a on-the-fly 4-agent chain or a dedicated `/full-review` round).
    - `legacy_skip_marker` (out of `--fix` scope per T-INIT-SKIP-SEMANTICS).
-   - `decisions_fat_format` (entries in `ai_context/decisions.md` still in the single-file fat format instead of the two-tier index form — see `docs/decisions.md` #35; migrating the full text into `docs/decisions.md` and distilling the index line is LLM semantic work: point the user at `/compress-ai-context`, whose format-migration step owns the move).
+   - `decisions_fat_format` (entries in `ai_context/decisions.md` missing the two-tier index form — pre-migration single-file entries, or post-migration entries whose statement re-accreted past the 200-character ceiling; see `docs/decisions.md` #35; migrating the full text into `docs/decisions.md` and distilling the index line is LLM semantic work: point the user at `/compress-ai-context`, whose format-migration step owns the move).
    - `missing_l1_directive` / `l1_directive_drift` (skill-body prose; fix via `/go` on the affected skill body).
 
 Build `<conflict_files>` = set of file paths in bucket 1. The short-circuit condition is strict emptiness: `len(<conflict_files>) == 0` AND bucket 2 = ∅ AND bucket 3 = ∅ → Step 5 short-circuits and Step 6 returns with all counters zero. Display-only findings COUNT as non-empty for this gate — when only bucket 3 is non-empty, Steps 5a/5b are skipped but Step 5c still runs (its findings must reach `remaining_drift` and the final print; e.g. a consumer whose only findings are `decisions_fat_format` must still see the `/compress-ai-context` pointer, never a bare "✅ in sync").

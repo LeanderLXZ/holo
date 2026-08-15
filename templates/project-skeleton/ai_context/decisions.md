@@ -2,7 +2,7 @@
 <!--
 MAINTENANCE — read before editing this file.
 This file is the INDEX of decisions, not the decisions themselves.
-1. Each entry is 1–2 lines: decision one-liner + `→ docs/decisions.md #N`. The full entry (rationale / boundaries / pointers) lives in `docs/decisions.md` under the same number.
+1. Each entry is 1–2 lines AND ≤ 200 characters total: decision one-liner + `→ docs/decisions.md #N`. The full entry (rationale / boundaries / pointers) lives in `docs/decisions.md` under the same number.
 2. Entry criterion: record only decisions that were genuinely contested — a plausible alternative existed and might be re-proposed. Obvious or unforced choices get no entry.
 3. Prefer supersede / prune over addition; check if a new item merges into an existing one before adding.
 4. Describe the current design only — no "legacy / deprecated / formerly / renamed from".
@@ -28,7 +28,8 @@ decision matters.
 ## Format <!-- holo:heading -->
 
 <!-- holo:section start -->
-Each entry is a numbered block of 1–2 lines:
+Each entry is a numbered block of 1–2 lines, **≤ 200 characters in
+total** (statement + pointer, whitespace included):
 
 ```
 N. <decision statement, one line>.
@@ -39,6 +40,13 @@ The decision statement alone must let a reader know what is settled;
 the why lives in the archive entry. When one clause of rationale is
 load-bearing (it changes what a reader would do), it may share the
 first line — but boundaries, measurements, and history never do.
+
+**The character ceiling is the operative bound**, not the line count:
+a single arbitrarily long line satisfies "1–2 lines" while turning the
+index back into the archive it exists to replace. Over 200 characters
+means the surplus belongs in the `docs/decisions.md` entry — distil
+here, move the detail there. `/holo:update`'s `decisions_fat_format`
+check enforces the same number.
 
 **Entry criterion:** record a decision only when a plausible
 alternative existed and might be re-proposed by a future reader.
